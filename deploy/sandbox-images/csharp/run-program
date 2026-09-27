@@ -1,0 +1,21 @@
+#!/bin/sh
+# Usage: run-program <artifact.cs> [program arguments...]
+# Builds the artifact (and any sibling .cs files, excluding generated tests)
+# into the pre-restored console host, then runs it with the given arguments.
+set -eu
+export HOME=/tmp
+shift
+
+mkdir -p /tmp/app
+cp /opt/factory/templates/app/app.csproj /tmp/app/
+cp -R /opt/factory/templates/app/obj /tmp/app/obj
+for source in /workspace/*.cs; do
+  case "$(basename "$source")" in
+    test_*) ;;
+    *) cp "$source" /tmp/app/ ;;
+  esac
+done
+
+dotnet build /tmp/app/app.csproj --no-restore -nologo -v quiet -nodeReuse:false \
+  -clp:ErrorsOnly -o /tmp/app/out >&2
+exec dotnet /tmp/app/out/app.dll "$@"

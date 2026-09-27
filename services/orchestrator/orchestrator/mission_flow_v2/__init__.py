@@ -61,6 +61,7 @@ from ..audit_events import record_audit_event  # noqa: F401
 from ..llm_delegation import (  # noqa: F401
     generate_ceo_delegation,
     generate_code_from_contract,
+    generate_contract_vectors,
     generate_master_logic_stream,
     generate_pm_delivery_summary,
     generate_pm_feature_contract,

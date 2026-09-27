@@ -1,0 +1,24 @@
+#!/bin/sh
+# Usage: run-tests <artifact.php> <test_artifact.php>
+# Runs the generated PHPUnit tests. Exit code is the verdict.
+set -eu
+tests=$(basename "$2")
+
+# PHPUnit 10+ requires a test class to live in a file named after it, and the
+# factory writes tests as test_<artifact>.php. Work on a writable copy (the
+# workspace is read-only) so __DIR__-relative requires still resolve.
+mkdir -p /tmp/w
+cp -R /workspace/. /tmp/w/
+cd /tmp/w
+cls=$(sed -n 's/^[[:space:]]*\(final[[:space:]]\{1,\}\|abstract[[:space:]]\{1,\}\)\{0,1\}class[[:space:]]\{1,\}\([A-Za-z_][A-Za-z0-9_]*\)[[:space:]]\{1,\}extends.*TestCase.*/\2/p' "$tests" | head -n 1)
+target="$tests"
+if [ -n "$cls" ] && [ "$cls.php" != "$tests" ]; then
+  if [ -e "$cls.php" ]; then
+    echo "run-tests: test class $cls collides with $cls.php" >&2
+    exit 3
+  fi
+  mv "$tests" "$cls.php"
+  target="$cls.php"
+fi
+exec php /opt/factory/phpunit.phar --do-not-cache-result --no-configuration \
+  --fail-on-warning --fail-on-risky "$target"

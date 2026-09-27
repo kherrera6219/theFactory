@@ -240,3 +240,107 @@ def test_sandbox_execute_request_requires_workspace_and_command() -> None:
     assert parsed.timeout_seconds == 30
     with pytest.raises(ValidationError):
         SandboxExecuteRequest(workspace_dir="", base_image="python:3.12-slim", command="x")
+
+
+class TestInfrastructureErrors:
+    """A harness failure must never be recorded as a defect in the artifact.
+
+    `docker run` reports a missing image as exit 125, and runtime QC recorded
+    that as FAIL: a Docker Hub rate limit (hit for real on 2026-09-27) or a
+    factory image that was never built would block a correct mission.
+    """
+
+    def test_missing_image_is_an_infrastructure_error_and_nothing_runs(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        calls: list[tuple] = []
+
+        async def _quiet(_bin, *args, timeout):
+            calls.append(args)
+            return (1, "Error response from daemon: pull access denied")
+
+        async def _must_not_run(*_a, **_k):
+            raise AssertionError("docker run must not start without the image")
+
+        sandbox_exec._PRESENT_IMAGES.discard("thefactory/absent:1")
+        monkeypatch.setattr(sandbox_exec, "_docker_quiet", _quiet)
+        monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _must_not_run)
+        result = asyncio.run(
+            sandbox_exec.run_in_sandbox_local(
+                docker_bin="docker", workspace_dir=tmp_path,
+                base_image="thefactory/absent:1", command="true",
+            )
+        )
+        assert result.infrastructure_error and "pull access denied" in result.infrastructure_error
+        assert result.succeeded is False
+        assert [c[0] for c in calls] == ["image", "pull"]
+
+    def test_present_image_is_checked_once(self, monkeypatch) -> None:
+        calls: list[tuple] = []
+
+        async def _quiet(_bin, *args, timeout):
+            calls.append(args)
+            return (0, "")
+
+        sandbox_exec._PRESENT_IMAGES.discard("python:3.11-slim")
+        monkeypatch.setattr(sandbox_exec, "_docker_quiet", _quiet)
+        assert asyncio.run(sandbox_exec.ensure_sandbox_image("docker", "python:3.11-slim")) is None
+        assert asyncio.run(sandbox_exec.ensure_sandbox_image("docker", "python:3.11-slim")) is None
+        assert len(calls) == 1
+
+    def test_unreachable_executor_is_an_infrastructure_error(self, monkeypatch) -> None:
+        monkeypatch.delenv("SANDBOX_RUNNER_MODE", raising=False)
+
+        def _boom(*_a, **_k):
+            raise URLError("connection refused")
+
+        monkeypatch.setattr(sandbox_exec.urllib.request, "urlopen", _boom)
+        result = asyncio.run(
+            sandbox_exec.run_in_sandbox_remote(
+                executor_url="http://sandbox-runner:8020", workspace_dir="/w",
+                base_image="python:3.11-slim", command="true",
+            )
+        )
+        assert result.infrastructure_error == "sandbox executor unreachable: URLError"
+
+    def test_infrastructure_error_survives_the_runner_round_trip(self) -> None:
+        from orchestrator.sandbox_runner import result_to_payload
+
+        original = sandbox_exec.SandboxResult(
+            exit_code=-1, stdout="", stderr="x", timed_out=False, timeout_seconds=30,
+            memory_limit_mb=256, base_image="img", infrastructure_error="image unavailable",
+        )
+        payload = json.loads(json.dumps(result_to_payload(original)))
+        restored = sandbox_exec.result_from_payload(
+            payload, fallback_image="img", timeout=30, memory=256
+        )
+        assert restored.infrastructure_error == "image unavailable"
+        clean = sandbox_exec.result_from_payload(
+            {"exit_code": 0}, fallback_image="img", timeout=30, memory=256
+        )
+        assert clean.infrastructure_error is None
+
+    def test_runtime_qc_reports_dry_run_not_fail(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        from orchestrator import rqca_agent
+
+        async def _infra(**_kwargs):
+            return sandbox_exec.SandboxResult(
+                exit_code=-1, stdout="", stderr="", timed_out=False, timeout_seconds=30,
+                memory_limit_mb=256, base_image="golang:1.22-bookworm",
+                infrastructure_error="sandbox image golang:1.22-bookworm is unavailable: 429",
+            )
+
+        monkeypatch.setattr(rqca_agent, "run_in_sandbox", _infra)
+        report = asyncio.run(
+            rqca_agent._execute_in_sandbox(
+                docker_bin="docker", mission_id="mission-infra", filename="main.go",
+                code="package main\nfunc main() {}\n", test_code="",
+                testdata_manifest={"base_image": "golang:1.22-bookworm",
+                                   "run_command": "go run /workspace/main.go"},
+                language="go", settings=SimpleNamespace(),
+            )
+        )
+        assert report["verdict"] == "DRY_RUN"
+        assert "infrastructure" in str(report.get("dry_run_reason"))

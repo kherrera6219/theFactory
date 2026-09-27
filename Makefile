@@ -1,10 +1,16 @@
 
-.PHONY: check-env force-stop topology
+.PHONY: check-env force-stop topology sandbox-images
 check-env:
 	@python scripts/check_env.py
 
 force-stop:
 	@python scripts/force_stop.py
+
+# Vendored test-runner images runtime QC executes generated tests in
+# (deploy/sandbox-images). Built from locally cached, digest-pinned bases.
+sandbox-images:
+	docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
+		sandbox-test-java sandbox-test-kotlin sandbox-test-scala sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp
 
 # Report the running topology and the correct paired commands for it.
 topology:
@@ -13,9 +19,9 @@ topology:
 .PHONY: check-env up down down-wipe up-full-dedicated down-full-dedicated down-full-dedicated-wipe up-condensed down-condensed down-condensed-wipe validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit phase13-smoke promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down monitor-down-wipe agent-keys tls-certs prune-audit
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
-up: check-env tls-certs
+up: check-env tls-certs sandbox-images
 	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
-		redis postgres pgbouncer qdrant minio milvus neo4j jaeger sandbox-runner orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
+		redis postgres pgbouncer qdrant object-store milvus neo4j jaeger sandbox-runner orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
@@ -30,7 +36,7 @@ up: check-env tls-certs
 #
 # `down*` targets STOP the stack and PRESERVE volumes. They used to pass `-v`,
 # which removes every named volume — postgres-data, redis-data, qdrant-data,
-# neo4j-data, minio-data, milvus-data, and mission-control-vault. That destroyed
+# neo4j-data, object-store-data, milvus-data, and mission-control-vault. That destroyed
 # the mission database, the knowledge stores, AND the operator's stored provider
 # credentials on every ordinary stop, and it wiped the database at least once in
 # practice (2026-06-30).
@@ -51,7 +57,7 @@ up-full-dedicated: up
 down-full-dedicated: down
 down-full-dedicated-wipe: down-wipe
 
-up-condensed: check-env tls-certs
+up-condensed: check-env tls-certs sandbox-images
 	docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
 
 down-condensed:

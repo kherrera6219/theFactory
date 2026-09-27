@@ -326,7 +326,7 @@ def test_live_optional_data_plane_disruption_recovery() -> None:
 
     stopped = False
     try:
-        _compose_run("stop", "neo4j", "minio")
+        _compose_run("stop", "neo4j", "object-store")
         stopped = True
         _wait_for_adapter_ready(expect_ready=False, timeout_seconds=90.0)
 
@@ -359,7 +359,7 @@ def test_live_optional_data_plane_disruption_recovery() -> None:
         assert audit_status == 200
     finally:
         if stopped:
-            _compose_run("start", "neo4j", "minio")
+            _compose_run("start", "neo4j", "object-store")
 
     _wait_for_adapter_ready(expect_ready=True, timeout_seconds=180.0)
 

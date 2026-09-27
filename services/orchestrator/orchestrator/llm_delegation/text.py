@@ -43,6 +43,39 @@ def _clean_text(value: Any, *, max_length: int = 160) -> str:
     return text[:max_length]
 
 
+# Everything _CONTROL_CHAR_PATTERN covers except tab, newline and carriage
+# return. Built from ranges rather than written as a literal class so the source
+# of this file never contains a control character itself.
+_CODE_CONTROL_CHARS = "".join(
+    chr(code) for code in list(range(0x00, 0x20)) + [0x7F] if code not in (0x09, 0x0A, 0x0D)
+)
+_CODE_CONTROL_CHAR_PATTERN = re.compile(f"[{re.escape(_CODE_CONTROL_CHARS)}]")
+
+
+def _clean_code(value: Any, *, max_length: int = 10000) -> str:
+    """Sanitize a generated *source code* field without destroying its layout.
+
+    ``_clean_text`` collapses every control character to a space. That is right
+    for a label and catastrophic for code, because the newline is the statement
+    separator. Generated unit tests were stored through it, so every test file
+    began ``import inspect import pytest from sum_integers import sum_integers``
+    on one line and no generated test could be imported. The mission still
+    reported COMPLETE, because a test that cannot load looks much like a test
+    that failed on its own merits.
+
+    Tab, newline and carriage return are preserved; every other control
+    character is still removed, and the same email/secret redaction and ReDoS
+    input cap apply. Per-line trailing whitespace is trimmed so the length cap
+    is not spent on padding.
+    """
+    text = str(value)[:_MAX_CLEAN_INPUT_CHARS]
+    text = _CODE_CONTROL_CHAR_PATTERN.sub(" ", text)
+    text = _EMAIL_PATTERN.sub("[redacted-email]", text)
+    text = _SECRET_LIKE_PATTERN.sub("[redacted-secret]", text)
+    normalized = text.replace("\r\n", "\n")
+    return "\n".join(line.rstrip() for line in normalized.split("\n")).strip("\n")[:max_length]
+
+
 def _sanitize_context_value(key: str, value: Any) -> Any:
     if key == "routing_enforced":
         return bool(value)

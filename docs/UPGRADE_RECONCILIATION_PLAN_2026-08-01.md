@@ -2,7 +2,7 @@
 
 Document version: 2026.08.01
 Last updated: 2026-08-01
-Status: Canonical — active plan. **Phase 1 COMPLETE (2026-08-01). Phase 2 is next.**
+Status: Canonical. **Phases 1–5 and 7 complete; Phase 6 (EDCP-02a) in code, default off, live-bus proven. Status as of 2026-09-27 lives in `docs/CURRENT_TODO.md`.**
 Audience: Maintainers and AI coding agents executing the work
 
 **No application code has been changed.** The only edits made when this plan was

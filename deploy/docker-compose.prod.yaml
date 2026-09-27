@@ -42,13 +42,13 @@ services:
       - ./.local/postgres-certs:/run/postgres-certs:ro
       - postgres-data:/var/lib/postgresql/data
 
-  minio:
+  object-store:
     environment:
-      # No default fallback in production — the base compose file's
-      # minioadmin/minioadmin123 defaults must never reach a production
-      # deployment. docker compose fails at startup if these are unset.
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set explicitly in production; the base compose default (minioadmin) is not allowed}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set explicitly in production; the base compose default (minioadmin123) is not allowed}
+      # No default fallback in production — the base compose file's local-dev
+      # credentials must never reach a production deployment. docker compose
+      # fails at startup if these are unset.
+      AWS_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY must be set explicitly in production; the base compose default is not allowed}
+      AWS_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY must be set explicitly in production; the base compose default is not allowed}
 
   api-gateway:
     environment:
@@ -92,8 +92,8 @@ services:
       # Production object storage must use an HTTPS S3-compatible endpoint.
       # Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint in the prod .env.
       OBJECT_STORAGE_REQUIRE_TLS: "true"
-      # No default fallback in production — must match the real MinIO/S3
-      # credentials above, never the base compose file's minioadmin defaults.
+      # No default fallback in production — the same credentials the
+      # object-store service above is started with, never the dev defaults.
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY must be set explicitly in production}
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY must be set explicitly in production}
       NEO4J_ENABLED: "true"

@@ -31,7 +31,7 @@ Smelt-cycle phase stepper showing every state it passed through.*
 
 > **Version:** 1.3.0 · **Last updated:** 2026-08-21 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
-> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist; a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
+> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist — **in every routed language, offline**, via vendored test-runner images (JUnit, kotlin-test, ScalaTest, PHPUnit, testthat, vitest, xUnit, minitest, Julia `Test`); a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
 >
 > **Recent on `main` (2026-08-21/22):** Project continuity bus (`projects` / `project_handoff` / `project_work_items`, migration `V010`) so follow-on missions resume shared project state instead of starting blank — see [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md). Repo ZIP import Phases 5–7 (launch index guard, knowledge ingestion, agent context load) are implemented and the Chat UI trigger seam is closed — see [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md). Ordered remaining work lives in [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 >
@@ -140,8 +140,8 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 
 - **Core Software Engine** — 11-phase Mission Flow v2 (default), 41-agent canonical registry, 6 Redis protocols (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`). Real AST extractors for **Python, JS/TS, and Java**. Go, Haskell, OCaml, and Julia files are regex parsers shipped under an AST filename — they are not language ASTs.
 - **Semantic LogicNodes & Refined-IR** — LogicNodes carry AST-recovered `types.in`/`types.out`; Refined-IR carries real statement-level op streams, side-effect-derived purity, and executable equivalence vectors. Each module labels itself `ast_v1` or `templated_v1`, so a consumer can always tell a real projection from a synthetic one. Type recovery covers **Python, Java, and Haskell**; other languages emit honestly-empty types. BUILD_NEW missions do not extract LogicNodes from source they just invented.
-- **Runtime QC** — RQCA on by default. Generated integration tests, when present, are the sandbox command. Unmet third-party deps in a `--network=none` sandbox are `DRY_RUN`, never PASS. `started_only` and syntax-only success are ADVISORY. Compose default is `RQCA_ENFORCEMENT_ENABLED=true` (FAIL blocks; advisory verdicts do not).
-- **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Opt-in, advisory, Python only; a vector that merely ran is reported as `executed_without_error`, never `passed`. BUILD_NEW skips this (no Refined-IR to project from).
+- **Runtime QC** — RQCA on by default, with sandbox execution for **all 19 routed languages** (C# via .NET 10 since 2026-09-27). Generated integration tests, when present, are the sandbox command and run in factory test-runner images (`deploy/sandbox-images`: every base pinned by digest, every download checksummed, CI-verified to pass a correct artifact and fail a broken one). Test-only frameworks never block running the program. Unmet third-party deps in a `--network=none` sandbox are `DRY_RUN`, never PASS; a missing image or unreachable runner is a sandbox *infrastructure error*, never a FAIL of the artifact. `started_only` and syntax-only success are ADVISORY. Compose default is `RQCA_ENFORCEMENT_ENABLED=true` (FAIL blocks; advisory verdicts do not).
+- **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Two oracles: Refined-IR vectors projected from source being ported (opt-in, Python), and — for BUILD_NEW, since 2026-09-27 (WQ7) — **contract-oracle vectors** derived from the approved acceptance criteria by an oracle that sees the artifact's interface but never its implementation, executed as function calls (Python) or argv/stdin → stdout/exit checks (every language). Advisory until measured across ≥20 missions; a vector that merely ran is never `passed`, and with no model the result is `skipped`, never a stub.
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
 - **Gemini 3.7 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.7-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
 - **Desktop Electron Packaging** — Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
@@ -149,7 +149,7 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
-- **Observability & Data Plane** — Complete integration across PostgreSQL, Redis, Qdrant, Milvus, Neo4j, MinIO, Jaeger OTLP, Prometheus, Grafana, Loki, and Alertmanager.
+- **Observability & Data Plane** — Complete integration across PostgreSQL, Redis, Qdrant, Milvus, Neo4j, SeaweedFS (S3 + Object Lock), Jaeger OTLP, Prometheus, Grafana, Loki, and Alertmanager.
 - **Project Continuity Bus** — Durable `projects`, `project_handoff`, and `project_work_items` (migration `V010`) so a follow-on mission can resume the same project's handoff, work ledger, and plan authority instead of a blank slate. Intake ensures the bus; delivery finalizes claimed work items only with evidence. Foundation on `main`; Mission Control project detail UI and public work-item APIs remain follow-ups ([`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md)).
 - **Repo ZIP Import Knowledge Path (Phases 5–7)** — Chat/Repo launch arms `metadata.repo_import` (`index_required`, `index_status: pending`). Phase 5 blocks PM intake until indexing completes. Phase 6 ingests bounded manifest/summary/chunk knowledge via `POST /api/repo/index` → orchestrator `/internal/missions/{id}/repo-import-index`. Phase 7 loads repository context into PM and pod-worker prompts. UI trigger seam closed 2026-08-21.
 
@@ -203,7 +203,7 @@ DATA PLANE
   Qdrant :6334      ─ active knowledge retrieval (PG fallback)
   Milvus :19530     ─ extended vector store (on by default)
   Neo4j :7474       ─ knowledge graph adapter (on by default)
-  MinIO/S3 :9000    ─ object storage (legal-hold, 90-day retention; on by default)
+  SeaweedFS/S3 :9000 ─ object storage (Object Lock legal-hold, 90-day retention; on by default)
 
 OBSERVABILITY PLANE
   Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger OTLP
@@ -563,7 +563,7 @@ is optional future/deployment scope, not the default local product path.
 | **Qdrant** | ✅ Active | Knowledge retrieval and indexing; PostgreSQL keyword fallback when no embedding key |
 | **Milvus** | ✅ Active | Extended vector store; `MILVUS_ENABLED=true` by default |
 | **Neo4j** | ✅ Active | Knowledge graph; `NEO4J_ENABLED=true` by default |
-| **MinIO/S3** | ✅ Active | Artifact retention / legal-hold; `OBJECT_STORAGE_ENABLED=true` by default |
+| **SeaweedFS/S3** | ✅ Active | Artifact retention / legal-hold (COMPLIANCE Object Lock); `OBJECT_STORAGE_ENABLED=true` by default. Replaced archived MinIO 2026-09-27 — see [`docs/OBJECT_STORE_MIGRATION.md`](docs/OBJECT_STORE_MIGRATION.md) |
 
 **Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
 
@@ -777,7 +777,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make test-ui` | Mission Control lint + unit tests |
 | `make test-ui-e2e` | Playwright E2E regression suite |
 | `make test-fast` | Pytest without coverage |
-| `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
+| `make test-live-extended` | Live Neo4j/object-store disruption recovery tests |
 | `make eval-ai` | Focused AI delegation regression gate |
 | `make demo` | Validate the Phase 18 reproducible demo mission manifest |
 | `make audit` | Production checklist audit |
@@ -838,7 +838,9 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-08-21):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main` (PR #462). Coverage gates (line ≥80%, branch ≥70%, privilege-path floors) landed in PR #463 (`dd13785`). Every critical file is floored at **at least 80%**. Full-dedicated stack rebuilt 2026-08-17; `sandbox-runner` is healthy. **Project continuity bus** landed on `main` (`ce9e042`, 2026-08-22) with migration `V010` and unit tests. **Repo ZIP Phases 5–7** backend + Chat UI trigger seam verified closed 2026-08-21 ([`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md)); WORK_QUEUE item #8 closed. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Live PORT-through-SOW and failing-QC-blocks-COMPLETE evidence is in [`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json). Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are in [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json).
+**Validation snapshot (2026-09-27):** Enterprise-hardening pass ([#538](https://github.com/kherrera6219/theFactory/pull/538)): Next.js RCE closed (`npm audit` 0), MinIO replaced by SeaweedFS after the MinIO image was withdrawn and the project archived, WQ7 contract-oracle behavioural equivalence for BUILD_NEW, offline test runners for every routed language including C#, and a new CI job that executes every runner in the real sandbox. Full backend suite green at 84% coverage.
+
+**Earlier snapshot (2026-08-21):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main` (PR #462). Coverage gates (line ≥80%, branch ≥70%, privilege-path floors) landed in PR #463 (`dd13785`). Every critical file is floored at **at least 80%**. Full-dedicated stack rebuilt 2026-08-17; `sandbox-runner` is healthy. **Project continuity bus** landed on `main` (`ce9e042`, 2026-08-22) with migration `V010` and unit tests. **Repo ZIP Phases 5–7** backend + Chat UI trigger seam verified closed 2026-08-21 ([`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md)); WORK_QUEUE item #8 closed. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Live PORT-through-SOW and failing-QC-blocks-COMPLETE evidence is in [`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json). Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are in [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json).
 
 ---
 
@@ -950,7 +952,7 @@ make up
 docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Starts the full isolated 41-agent runtime topology by default, including the full data plane (PostgreSQL, Redis, Qdrant, Milvus, Neo4j, MinIO) — all backend adapters are on by default.
+Starts the full isolated 41-agent runtime topology by default, including the full data plane (PostgreSQL, Redis, Qdrant, Milvus, Neo4j, SeaweedFS object store), and builds the vendored sandbox test-runner images (`make sandbox-images`) — all backend adapters are on by default.
 
 ### Condensed Workers
 
@@ -994,7 +996,7 @@ Starts Prometheus, Grafana, Loki, Promtail, Alertmanager, and Jaeger.
 
 ### Core Data Plane & Internal Databases
 
-Milvus, Neo4j, and MinIO containers start automatically as part of the base compose stack and their application integrations are **on by default**. Disable any of them via `MILVUS_ENABLED=false`, `NEO4J_ENABLED=false`, or `OBJECT_STORAGE_ENABLED=false` in your `.env` file if you want a lighter local stack.
+Milvus, Neo4j, and object-store (SeaweedFS) containers start automatically as part of the base compose stack and their application integrations are **on by default**. Disable any of them via `MILVUS_ENABLED=false`, `NEO4J_ENABLED=false`, or `OBJECT_STORAGE_ENABLED=false` in your `.env` file if you want a lighter local stack.
 
 ---
 
@@ -1097,7 +1099,8 @@ path are on `main`. The system is **not production-ready**.
 | **Repo ZIP knowledge path** | **Phases 5–7 closed** | Launch index guard, knowledge ingestion, agent context load, and Chat UI trigger seam verified 2026-08-21. Optional polish: index-status visibility in UI and live closed-loop proof under `LIVE_STACK_REQUIRED=1`. |
 | **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — type recovery for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. BUILD_NEW does not extract LogicNodes. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
 | **Live mission evidence** | **Sprint 1.1 + EDCP recorded** | Go `mission-f8a5accf`, PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`, PORT `mission-dc0c8c4e`, fail-QC `mission-8db1af71`, injection `mission-6ee8b1fe`, fallback `mission-db901d98`, EDCP `mission-56bfd2dc`, spend-cap `mission-c1aedfbd`. |
-| **Runtime QC honesty** | **Shipped (PR #460)** | Generated tests are the sandbox command. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
+| **Runtime QC honesty** | **Shipped (PR #460, #538)** | Generated tests are the sandbox command, in every routed language, offline. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN; sandbox infrastructure errors are never a FAIL. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
+| **BUILD_NEW behavioural equivalence** | **Shipped, advisory (PR #538, WQ7)** | Contract-oracle vectors, implementation-blind, falsifiable, executed in the shared sandbox. Enforcement waits on ≥20 measured missions (WQ13). |
 | **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Coverage floor 80%; `runtime.py` 100% line / 99% branch. Mission Control 146 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
 | **Desktop Packaging Path** | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron uses `/api/gateway`. Installer signing and uninstall hooks remain open. |
 | **CI & Release Pipeline** | **Mostly green** | Lint/test, CodeQL, Docker builds, and the promotion gate run in Actions. Bandit can still fail on pre-existing findings. Dependabot highs for `js-yaml` (4.3.1) and `extract-zip` (removed via `@puppeteer/browsers` 3.2.1) are addressed. |

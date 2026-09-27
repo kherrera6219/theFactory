@@ -234,20 +234,39 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
-  minio:
+  # S3-compatible object store for audit artifacts (Object Lock / legal hold).
+  # SeaweedFS replaced MinIO on 2026-09-27: the community MinIO repository is
+  # archived, its Docker Hub images are gone, and its 2026 CVEs (including
+  # unauthenticated object write) are fixed only in commercial releases. See
+  # docs/OBJECT_STORE_MIGRATION.md. Pinned by digest: this service holds
+  # COMPLIANCE-mode artifacts, so its image must not move underneath them.
+  object-store:
     <<: [*common-service, *data-service-hardening]
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9000
+      - -master.volumeSizeLimitMB=1024
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      # The server reads the same variables the orchestrator signs with, so the
+      # two can never disagree.
+      AWS_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY:-factory-object-store}
+      AWS_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_KEY:-CHANGE_ME_local_dev_object_store_secret}
     ports:
-      - "${MINIO_HOST_BIND:-127.0.0.1}:${MINIO_HOST_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_HOST_BIND:-127.0.0.1}:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+      - "${OBJECT_STORE_HOST_BIND:-127.0.0.1}:${OBJECT_STORE_HOST_PORT:-9000}:9000"
     volumes:
-      - minio-data:/data
+      - object-store-data:/data
+    networks:
+      hgr-network:
+        # Legacy alias: a pre-migration .env with OBJECT_STORAGE_ENDPOINT=
+        # http://minio:9000 keeps resolving. New configuration should use
+        # http://object-store:9000.
+        aliases:
+          - minio
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -279,6 +298,58 @@ services:
       - "${JAEGER_UI_HOST_BIND:-127.0.0.1}:${JAEGER_UI_HOST_PORT:-16686}:16686"
       - "${OTLP_GRPC_HOST_BIND:-127.0.0.1}:${OTLP_GRPC_HOST_PORT:-4317}:4317"
       - "${OTLP_HTTP_HOST_BIND:-127.0.0.1}:${OTLP_HTTP_HOST_PORT:-4318}:4318"
+
+  # Vendored test-runner images for runtime QC (deploy/sandbox-images). Never
+  # started -- the sandbox-runner launches them per test run with
+  # --network=none. Built by `make sandbox-images` (part of `make up`).
+  sandbox-test-java:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-java:1
+    build:
+      context: ./sandbox-images/java
+    entrypoint: ["true"]
+
+  sandbox-test-kotlin:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-kotlin:1
+    build:
+      context: ./sandbox-images/kotlin
+    entrypoint: ["true"]
+
+  sandbox-test-scala:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-scala:1
+    build:
+      context: ./sandbox-images/scala
+    entrypoint: ["true"]
+
+  sandbox-test-php:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-php:1
+    build:
+      context: ./sandbox-images/php
+    entrypoint: ["true"]
+
+  sandbox-test-r:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-r:1
+    build:
+      context: ./sandbox-images/r
+    entrypoint: ["true"]
+
+  sandbox-csharp:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-csharp:1
+    build:
+      context: ./sandbox-images/csharp
+    entrypoint: ["true"]
+
+  sandbox-test-node:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-node:1
+    build:
+      context: ./sandbox-images/node
+    entrypoint: ["true"]
 
   sandbox-runner:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
@@ -348,9 +419,9 @@ services:
       NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
       NEO4J_TIMEOUT_SECONDS: ${NEO4J_TIMEOUT_SECONDS:-3.0}
       OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-true}
-      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
-      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-minioadmin}
-      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-minioadmin123}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-factory-object-store}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-CHANGE_ME_local_dev_object_store_secret}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-mission-audit-artifacts}
       OBJECT_STORAGE_PREFIX: ${OBJECT_STORAGE_PREFIX:-missions}
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
@@ -391,6 +462,7 @@ services:
       PM_AUTO_ACCEPT_DEFAULTS_ENABLED: ${PM_AUTO_ACCEPT_DEFAULTS_ENABLED:-true}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-true}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
+      SANDBOX_VENDORED_TEST_IMAGES_ENABLED: ${SANDBOX_VENDORED_TEST_IMAGES_ENABLED:-true}
       PORT_TWO_PHASE_ENABLED: ${PORT_TWO_PHASE_ENABLED:-true}
       # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
       # container, then bind-mounted into throwaway sibling containers by the
@@ -413,6 +485,8 @@ services:
       #                             when on; requires a reachable Docker daemon.
       MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED: ${MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED:-false}
       MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED: ${MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED:-false}
+      MISSION_EQUIVALENCE_CONTRACT_ORACLE_ENABLED: ${MISSION_EQUIVALENCE_CONTRACT_ORACLE_ENABLED:-true}
+      MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED: ${MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED:-false}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       DEPABS_EXECUTION_ENABLED: ${DEPABS_EXECUTION_ENABLED:-false}
       LANGGRAPH_ENABLED: ${LANGGRAPH_ENABLED:-false}
@@ -1149,7 +1223,9 @@ volumes:
   qdrant-data:
   neo4j-data:
   postgres-data:
-  minio-data:
+  # minio-data is deliberately no longer declared: it holds pre-migration
+  # COMPLIANCE-locked objects and must survive `down -v` until migrated.
+  object-store-data:
   milvus-data:
   mission-control-vault:
 

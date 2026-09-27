@@ -2,7 +2,7 @@
 
 `stop_app.bat` -> `scripts/force_stop.py` -> `make down*` used to run
 `docker compose down -v` unconditionally. `-v` removes every named volume:
-`postgres-data`, `redis-data`, `qdrant-data`, `neo4j-data`, `minio-data`,
+`postgres-data`, `redis-data`, `qdrant-data`, `neo4j-data`, `object-store-data`,
 `milvus-data`, and `mission-control-vault`.
 
 So an ordinary "stop the app" destroyed the mission database, every knowledge

@@ -327,6 +327,76 @@ async def _run_behavioural_equivalence(
         return None
 
 
+async def _run_contract_equivalence(
+    mission: Any, metadata: dict[str, Any], settings: Any
+) -> dict[str, Any] | None:
+    """Derive vectors from the contract and execute them, or return ``None``.
+
+    The oracle's vectors are cached on the mission, so a lifecycle re-drive
+    re-executes the *same* expectations instead of asking the model again --
+    an oracle whose answers could change between runs would not be one.
+    """
+    try:
+        from ..contract_oracle import acceptance_criteria, interface_for_oracle
+        from ..equivalence_execution import run_contract_equivalence
+        from ..rqca_agent import _classify_artifact
+
+        generated_output = metadata.get("generated_output")
+        if not isinstance(generated_output, dict):
+            return None
+        code = str(generated_output.get("generated_code") or "")
+        if not code.strip():
+            return None
+        language = str(
+            generated_output.get("language") or mission.requested_target_language or ""
+        )
+        filename = str(generated_output.get("filename") or "artifact.py")
+
+        vectors = metadata.get("contract_equivalence_vectors")
+        if not isinstance(vectors, dict) or vectors.get("source") != "llm":
+            from ..rqca_agent import _unbundle_source
+
+            primary, _siblings = _unbundle_source(code, filename)
+            interface = interface_for_oracle(
+                language=language,
+                code=primary,
+                generated_output=generated_output,
+                artifact_kind=_classify_artifact(
+                    dependencies=generated_output.get("dependencies"),
+                    generated_code=primary,
+                    generated_output=generated_output,
+                ),
+            )
+            contract = metadata.get("feature_contract") or metadata.get("mission_contract") or {}
+            summary = ""
+            if isinstance(contract, dict):
+                summary = str(contract.get("summary") or contract.get("contract_summary") or "")
+            vectors = await _pkg().generate_contract_vectors(
+                mission_id=mission.mission_id,
+                acceptance_criteria=acceptance_criteria(metadata),
+                contract_summary=summary,
+                interface=interface,
+            )
+            metadata["contract_equivalence_vectors"] = vectors
+
+        return await run_contract_equivalence(
+            mission_id=mission.mission_id,
+            language=language,
+            artifact_filename=filename,
+            artifact_code=code,
+            contract_vectors=vectors,
+            dependencies=generated_output.get("dependencies"),
+            docker_bin=str(getattr(settings, "docker_bin", "docker") or "docker"),
+        )
+    except Exception as exc:  # noqa: BLE001 - verification must not fail a mission
+        LOGGER.warning(
+            "contract equivalence unavailable for %s: %s",
+            getattr(mission, "mission_id", "?"),
+            type(exc).__name__,
+        )
+        return None
+
+
 async def _prepare_equivalence_report(
     *,
     app: Any,
@@ -361,10 +431,43 @@ async def _prepare_equivalence_report(
     # dead. Default false ⇒ the report below is byte-identical to before this
     # code existed. Failures here never raise: a verification step that can
     # crash a mission is worse than one that reports it could not run.
+    behavioural: dict[str, Any] | None = None
     if _setting_bool(settings, "mission_equivalence_python_execution_enabled", False):
         behavioural = await _run_behavioural_equivalence(mission, metadata, settings)
-        if behavioural:
-            report = attach_behavioural_report(report, behavioural)
+    # WQ7: a mission with no Refined-IR vectors (every BUILD_NEW) still has an
+    # oracle -- its approved contract. Runs whenever the Refined-IR path did
+    # not produce a verdict, so it never displaces real source-derived vectors.
+    if (behavioural is None or behavioural.get("status") == "skipped") and _setting_bool(
+        settings, "mission_equivalence_contract_oracle_enabled", False
+    ):
+        contract_report = await _run_contract_equivalence(mission, metadata, settings)
+        if contract_report:
+            if behavioural:
+                contract_report["refined_ir_attempt"] = {
+                    "status": behavioural.get("status"),
+                    "reason": behavioural.get("reason"),
+                }
+            behavioural = contract_report
+    if behavioural:
+        report = attach_behavioural_report(
+            report,
+            behavioural,
+            enforce=_setting_bool(settings, "mission_behavioural_enforcement_enabled", False),
+        )
+        if not _chain_event_exists(metadata, "MISSION_BEHAVIOURAL_EQUIVALENCE_RECORDED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_BEHAVIOURAL_EQUIVALENCE_RECORDED",
+                agent_id="AGENT-10-TESTER",
+                details={
+                    "status": behavioural.get("status"),
+                    "verification_basis": behavioural.get("verification_basis", "refined_ir"),
+                    "vectors_total": behavioural.get("equivalence_vectors_total", 0),
+                    "vectors_passed": behavioural.get("equivalence_vectors_passed", 0),
+                    "vectors_failed": behavioural.get("equivalence_vectors_failed", 0),
+                    "reason": behavioural.get("reason"),
+                },
+            )
 
     metadata["equivalence_report"] = report
     event_type = (

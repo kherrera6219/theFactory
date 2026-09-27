@@ -184,7 +184,7 @@ def build_equivalence_report(
 
 
 def attach_behavioural_report(
-    report: dict[str, Any], behavioural: dict[str, Any] | None
+    report: dict[str, Any], behavioural: dict[str, Any] | None, *, enforce: bool = False
 ) -> dict[str, Any]:
     """Attach a behavioural-equivalence section to a correctness *report*.
 
@@ -199,6 +199,12 @@ def attach_behavioural_report(
     ``status``/``passed``/``blocking`` fields are **left untouched**: per UPG-53
     behavioural results are measured across real missions before they are
     allowed to gate anything.
+
+    ``enforce`` (``MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED``, default off) is
+    that switch. When on, a behavioural ``failed`` -- an executed vector that
+    contradicted its expectation -- blocks. ``skipped`` never blocks: the absence
+    of evidence is reported, not punished, so an environment limitation cannot
+    strand a mission.
     """
     if not isinstance(behavioural, dict) or not behavioural:
         return report
@@ -213,6 +219,13 @@ def attach_behavioural_report(
     ]
     if behavioural_findings:
         enriched["findings"] = [*report.get("findings", []), *behavioural_findings]
+    enriched["behavioural_enforcement_enabled"] = enforce
+    if enforce and behavioural.get("status") == "failed":
+        enriched["blocking"] = True
+        enriched["passed"] = False
+        enriched["status"] = "blocked"
+        enriched["risk_level"] = "high"
+        enriched["blocked_by"] = "behavioural"
     return enriched
 
 

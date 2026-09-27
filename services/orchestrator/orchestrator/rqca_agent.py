@@ -48,9 +48,10 @@ RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # yields FAIL, and RQCA_ENFORCEMENT_ENABLED turns FAIL into a blocked mission,
 # whereas an absent language degrades to an honest DRY_RUN.
 #
-# NOT PRESENT YET:
-#   csharp/c# -- its config called `dotnet-script`, absent from
-#     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
+# csharp/c# (added 2026-09-27, WQ12): the old config called `dotnet-script`,
+#   absent from the SDK image and uninstallable offline. The factory image
+#   (deploy/sandbox-images/csharp, .NET 10 LTS) restores a console host and an
+#   xUnit project at BUILD time; at run time sources are built --no-restore.
 #
 # LICENCE-FREE SUBSTITUTES (matlab, mathematica): the vendor runtimes need a
 # paid licence (MathWorks) or network activation (Wolfram Engine), and this
@@ -166,7 +167,11 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         "run_command": "javac -d /tmp /workspace/{filename} && java -cp /tmp {stem}",
     },
     "kotlin": {
-        "base_image": "zenika/kotlin@sha256:6aa73e11c07b361e4cf068dce3745a4bc9f8b0b7d8d0b8cbbcc385539184d46a",
+        # Factory-built (deploy/sandbox-images/kotlin): Kotlin 2.4.20 on the
+        # pinned Temurin 21 base. Replaced zenika/kotlin -- Oracle Linux 7.6,
+        # JRE 12 and kotlinc 1.4.10, all end-of-life -- on 2026-09-27, so the
+        # program and its tests compile with the same compiler.
+        "base_image": "thefactory/sandbox-test-kotlin:1",
         "run_command": (
             "env HOME=/tmp kotlinc /workspace/{filename} -include-runtime -d /tmp/a.jar "
             "&& java -jar /tmp/a.jar"
@@ -207,6 +212,13 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         ),
     },
 }
+
+for _csharp_key in ("csharp", "c#"):
+    _LANGUAGE_RUNTIMES[_csharp_key] = {
+        "base_image": "thefactory/sandbox-csharp:1",
+        # Arguments RQCA appends are forwarded to the program by run-program.
+        "run_command": "/opt/factory/run-program /workspace/{filename}",
+    }
 
 # Every image outside Docker Official Images is pinned by digest above.
 # `repo:tag@sha256:...` keeps the tag readable while making the daemon resolve
@@ -615,7 +627,104 @@ _STDLIB_PREFIXES: dict[str, frozenset[str]] = {
     "c": frozenset({"stdio", "stdlib", "string", "math", "time", "ctype", "assert"}),
     "cpp": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
     "c++": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
+    # The three below were each verified inside the pinned sandbox image with
+    # --network=none on 2026-09-27. Before they existed, a Julia artifact whose
+    # tests did `using Test`, a Haskell one importing `base`, and a Ruby one
+    # requiring `minitest` were all reported "cannot be installed offline" and
+    # never executed -- 3 of the 9 dependency dry runs in the 2026-08-27
+    # language coverage run were this detector, not the environment.
+    "julia": frozenset({
+        "base", "core", "test", "linearalgebra", "statistics", "random", "printf",
+        "dates", "sparsearrays", "serialization", "sockets", "unicode", "logging",
+        "markdown", "sha", "uuids", "tomls", "interactiveutils", "distributed",
+        "sharedarrays", "mmap", "filewatching", "base64", "crc32c", "libgit2",
+        "pkg", "profile", "delimitedfiles",
+    }),
+    "haskell": frozenset({
+        "base", "array", "binary", "bytestring", "containers", "deepseq",
+        "directory", "exceptions", "filepath", "ghc-prim", "haskeline", "mtl",
+        "parsec", "pretty", "process", "stm", "template-haskell", "text", "time",
+        "transformers", "unix",
+        # Package names only. Module namespaces ("Data", "Control") are not
+        # listed: "Data.Aeson" would match them and execute against a missing
+        # package, turning an honest dry run into a misattributed FAIL.
+    }),
+    "ruby": frozenset({
+        # default + bundled gems of ruby:3.3-slim, including both test frameworks
+        "minitest", "test-unit", "test", "json", "set", "csv", "date", "time",
+        "fileutils", "optparse", "securerandom", "digest", "stringio", "strscan",
+        "logger", "pp", "prime", "open3", "tempfile", "tmpdir", "benchmark",
+        "english", "erb", "forwardable", "ostruct", "pathname", "shellwords",
+        "singleton", "timeout", "yaml", "psych", "bigdecimal", "matrix", "racc",
+        "rake", "net", "uri", "socket", "zlib", "etc", "io", "objspace", "ripper",
+        "coverage", "monitor", "observer", "abbrev", "base64", "delegate",
+    }),
+    "r": frozenset({
+        # R's base and recommended-free core packages, present in r-base
+        "base", "stats", "utils", "methods", "graphics", "grdevices", "datasets",
+        "tools", "parallel", "grid", "splines", "stats4", "compiler", "tcltk",
+    }),
 }
+
+
+#: Test frameworks per language. A declared dependency matching one of these is
+#: *test-only* unless the artifact's own source references it: specialists list
+#: the framework their generated tests import alongside the program's real
+#: dependencies, and treating junit-jupiter as a runtime requirement meant a
+#: self-contained Java CLI was never executed at all (9 of 20 languages in the
+#: 2026-08-27 coverage run).
+_TEST_FRAMEWORK_TOKENS: dict[str, tuple[str, ...]] = {
+    "python": ("pytest", "hypothesis"),
+    "javascript": ("vitest", "jest", "mocha", "chai"),
+    "typescript": ("vitest", "jest", "mocha", "chai", "ts-jest"),
+    "ruby": ("rspec", "minitest", "test-unit"),
+    "php": ("phpunit",),
+    "r": ("testthat",),
+    "julia": ("test",),
+    "java": ("junit", "hamcrest", "mockito", "assertj", "testng"),
+    "kotlin": ("kotlin-test", "kotlin.test", "junit", "kotest", "mockk"),
+    "scala": ("scalatest", "munit", "junit", "scalacheck", "specs2"),
+    "csharp": ("xunit", "nunit", "mstest", "microsoft.net.test.sdk"),
+    "c#": ("xunit", "nunit", "mstest", "microsoft.net.test.sdk"),
+    "haskell": ("hspec", "hunit", "quickcheck", "tasty"),
+    "go": ("testify",),
+}
+
+
+def _split_test_dependencies(
+    language: str, dependencies: Any, code: str
+) -> tuple[list[str], list[str]]:
+    """Return ``(runtime_dependencies, test_only_dependencies)``.
+
+    A test framework the artifact itself imports stays a runtime dependency, so
+    a program that genuinely needs one still dry-runs honestly.
+    """
+    names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
+    tokens = _TEST_FRAMEWORK_TOKENS.get(str(language or "").strip().lower(), ())
+    if not tokens:
+        return names, []
+    lowered_code = str(code or "").lower()
+    runtime: list[str] = []
+    test_only: list[str] = []
+    for name in names:
+        lowered = name.lower()
+        segments = {part for part in re.split(r"[.:/@\s]+", lowered) if part}
+        token = next(
+            (t for t in tokens if t in segments or lowered.startswith(t) or f"-{t}" in lowered),
+            None,
+        )
+        if token is None:
+            runtime.append(name)
+            continue
+        # A package name and its import path spell the separator differently
+        # (kotlin-test / kotlin.test), so either counts as a reference.
+        spellings = {token, token.replace("-", "."), token.replace("-", "_")}
+        referenced = any(
+            re.search(rf"(?<![a-z0-9_]){re.escape(spelling)}(?![a-z0-9_])", lowered_code)
+            for spelling in spellings
+        )
+        (runtime if referenced else test_only).append(name)
+    return runtime, test_only
 
 
 def _unmet_dependencies(language: str, dependencies: Any) -> list[str]:
@@ -923,7 +1032,46 @@ _DEFAULT_TEST_COMMAND_TEMPLATES: dict[str, str] = {
     "python": "python -m unittest discover -s /workspace -p {test_filename}",
     "javascript": "node --test /workspace/{test_filename}",
     "typescript": "node --test /workspace/{test_filename}",
+    # Both frameworks ship inside the pinned images (verified offline
+    # 2026-09-27): minitest is a Ruby bundled gem, Test is a Julia stdlib.
+    "ruby": "ruby -I/workspace /workspace/{test_filename}",
+    "julia": "env HOME=/tmp JULIA_DEPOT_PATH=/tmp/.julia julia /workspace/{test_filename}",
 }
+
+
+#: Factory-built images with a test framework vendored in (see
+#: deploy/sandbox-images). Each carries /opt/factory/run-tests, whose exit code
+#: is the verdict. `frameworks` are the dependency tokens the image satisfies,
+#: so tests declaring them are no longer set aside as uninstallable.
+_VENDORED_TEST_RUNTIMES: dict[str, dict[str, Any]] = {
+    "java": {"image": "thefactory/sandbox-test-java:1", "frameworks": ("junit",)},
+    "kotlin": {
+        "image": "thefactory/sandbox-test-kotlin:1",
+        "frameworks": ("kotlin-test", "kotlin.test", "junit"),
+    },
+    "scala": {"image": "thefactory/sandbox-test-scala:1", "frameworks": ("scalatest", "scalactic")},
+    "php": {"image": "thefactory/sandbox-test-php:1", "frameworks": ("phpunit",)},
+    "r": {"image": "thefactory/sandbox-test-r:1", "frameworks": ("testthat",)},
+    "javascript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
+    "typescript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
+    "csharp": {"image": "thefactory/sandbox-csharp:1", "frameworks": ("xunit", "microsoft.net.test.sdk")},
+    "c#": {"image": "thefactory/sandbox-csharp:1", "frameworks": ("xunit", "microsoft.net.test.sdk")},
+}
+_VENDORED_TEST_COMMAND = "/opt/factory/run-tests {filename} {test_filename}"
+
+
+def _vendored_test_runtime(language: str, settings: Any) -> dict[str, Any] | None:
+    if not bool(getattr(settings, "sandbox_vendored_test_images_enabled", False)):
+        return None
+    return _VENDORED_TEST_RUNTIMES.get(str(language or "").strip().lower())
+
+
+def _vendored_framework_satisfies(language: str, dependency: str, settings: Any) -> bool:
+    runtime = _vendored_test_runtime(language, settings)
+    if runtime is None:
+        return False
+    lowered = dependency.lower()
+    return any(token in lowered for token in runtime["frameworks"])
 
 
 def _resolve_test_command(
@@ -943,6 +1091,8 @@ def _resolve_test_command(
     if not test_filename:
         return None
     template = str(getattr(settings, "rqca_test_command_template", "") or "").strip()
+    if not template and _vendored_test_runtime(language, settings):
+        template = _VENDORED_TEST_COMMAND
     if not template:
         template = _DEFAULT_TEST_COMMAND_TEMPLATES.get(language.lower(), "")
     if not template:
@@ -1052,13 +1202,32 @@ async def run_runtime_qc(
         )
     # GUI/library/server/interactive cannot be judged by run-to-exit. Prefer
     # unit tests when present; otherwise parse-or-compile, or DRY_RUN.
-    declared_dependencies = generated_output.get("dependencies")
+    declared_dependencies, test_only_dependencies = _split_test_dependencies(
+        normalized_language, generated_output.get("dependencies"), code
+    )
     artifact_class = _classify_artifact(
         dependencies=declared_dependencies,
         generated_code=code,
         generated_output=generated_output if isinstance(generated_output, dict) else None,
     )
     test_code = str((integration_tests or {}).get("test_code") or "")
+    # Frameworks the generated tests need but the offline image lacks. Those
+    # tests cannot run here; the artifact itself still can, and the report says
+    # which tests were set aside and why rather than silently dropping them.
+    unavailable_test_dependencies = [
+        dependency
+        for dependency in _unmet_dependencies(normalized_language, test_only_dependencies)
+        if not _vendored_framework_satisfies(normalized_language, dependency, settings)
+    ]
+    if unavailable_test_dependencies and test_code.strip():
+        testdata_manifest = {
+            **testdata_manifest,
+            "tests_not_run_reason": (
+                "generated tests need test frameworks the offline sandbox image does "
+                f"not provide: {', '.join(sorted(unavailable_test_dependencies))}"
+            ),
+        }
+        test_code = ""
     test_filename = f"test_{filename}" if test_code.strip() else ""
     test_command = _resolve_test_command(
         filename=filename,
@@ -1326,6 +1495,11 @@ async def _execute_in_sandbox(
         settings=settings,
         testdata_manifest=testdata_manifest,
     )
+    vendored = _vendored_test_runtime(language, settings) if tests_selected else None
+    if vendored is not None and run_command.startswith("/opt/factory/run-tests"):
+        # The framework lives only in the factory image; the language image
+        # would report "run-tests: not found" as if the artifact had failed.
+        base_image = str(vendored["image"])
     install_commands = [
         str(command) for command in (testdata_manifest.get("install_commands") or [])[:10]
     ]
@@ -1477,6 +1651,16 @@ async def _execute_in_sandbox(
                 timeout_seconds=timeout,
                 memory_mb=memory_mb,
             )
+            if sandbox_result.infrastructure_error:
+                # The artifact never ran. Not a PASS, and never a FAIL of the
+                # generated code: see sandbox_exec.ensure_sandbox_image.
+                return _dry_run_report(
+                    mission_id=mission_id,
+                    language=language,
+                    filename=filename,
+                    testdata_manifest=testdata_manifest,
+                    reason=f"sandbox infrastructure error: {sandbox_result.infrastructure_error}",
+                )
             if sandbox_result.timed_out:
                 return _timeout_report(
                     mission_id=mission_id, language=language, filename=filename,
@@ -1549,6 +1733,7 @@ async def _execute_in_sandbox(
         "artifact_class": testdata_manifest.get("artifact_class"),
         "invocation_args": testdata_manifest.get("invocation_args") or [],
         "not_exercised_note": not_exercised_note,
+        "tests_not_run_reason": testdata_manifest.get("tests_not_run_reason"),
         "runtime_substitute": testdata_manifest.get("runtime_substitute"),
         "verified_scope": testdata_manifest.get("verified_scope") or language.strip().lower(),
         "failed_on_pattern": matched_failure_pattern,

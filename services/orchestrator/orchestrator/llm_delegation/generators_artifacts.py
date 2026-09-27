@@ -17,6 +17,7 @@ from .fallbacks import (
 )
 from .providers import _call_with_agent_system
 from .text import (
+    _clean_code,
     _clean_text,
     _string_list,
 )
@@ -849,7 +850,10 @@ async def generate_integration_tests(
         "test_filename": _clean_text(
             parsed.get("test_filename", f"test_{filename}"), max_length=200
         ),
-        "test_code": _clean_text(parsed.get("test_code", ""), max_length=10000),
+        # _clean_code, not _clean_text: the latter replaces every control
+        # character with a space, which flattens generated tests onto one
+        # line and makes them unimportable. See text._clean_code.
+        "test_code": _clean_code(parsed.get("test_code", ""), max_length=10000),
         "test_cases": test_cases,
         "framework": _clean_text(parsed.get("framework", "pytest"), max_length=32),
         "source": "llm",
@@ -857,6 +861,101 @@ async def generate_integration_tests(
         "model": resolved_model,
         "created_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def generate_contract_vectors(
+    *,
+    mission_id: str,
+    acceptance_criteria: list[str],
+    contract_summary: str,
+    interface: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive behavioural test vectors from the contract alone (WQ7).
+
+    The prompt carries the acceptance criteria and the artifact's *interface*
+    (``contract_oracle.interface_for_oracle``) and deliberately **not** its
+    code, so the expectations are the contract's, not a transcript of whatever
+    the implementation does.
+
+    There is no fallback. When no model answers, the result has zero vectors
+    and ``source="unavailable"``, which the executor reports as ``skipped``.
+    A stub vector would be counted as evidence; an absent one cannot be.
+    """
+    from ..contract_oracle import CONTRACT_VECTORS_SCHEMA_VERSION, validate_vectors
+
+    base: dict[str, Any] = {
+        "schema_version": CONTRACT_VECTORS_SCHEMA_VERSION,
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-10-TESTER",
+        "criteria_total": len(acceptance_criteria),
+        "vectors": [],
+        "rejections": [],
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    if not acceptance_criteria:
+        return {**base, "source": "unavailable", "reason": "the contract has no acceptance criteria"}
+    if not interface.get("supports_call_vectors") and not interface.get("supports_cli_vectors"):
+        return {
+            **base,
+            "source": "unavailable",
+            "reason": (
+                f"a {interface.get('artifact_kind') or 'non-cli'} artifact exposes no interface "
+                "the contract oracle can exercise"
+            ),
+        }
+
+    recommendation = _pkg()._agent_recommendation("AGENT-10-TESTER")
+    numbered = "\n".join(f"{i}. {c}" for i, c in enumerate(acceptance_criteria))
+    prompt = (
+        "You are the CONTRACT ORACLE for a software factory. You write behavioural "
+        "test vectors from an approved specification. You have NOT seen the "
+        "implementation and must not guess how it works: derive every expected "
+        "result from the acceptance criteria alone.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Contract summary: {_clean_text(contract_summary, max_length=400)}\n"
+        f"Acceptance criteria (0-indexed):\n{numbered}\n\n"
+        f"Artifact interface:\n{json.dumps(interface, indent=2)[:4000]}\n\n"
+        "Rules:\n"
+        "- Every vector cites exactly one criterion by criterion_index.\n"
+        "- Only write a vector when the criterion determines the result "
+        "unambiguously. Skip criteria about style, performance or internals.\n"
+        "- kind \"call\": only for a function listed in callable_functions; args is a "
+        "positional JSON list matching its params; expected is the exact JSON return value.\n"
+        "- kind \"cli\": only when supports_cli_vectors is true; argv excludes the program "
+        "name; optional stdin; expected_exit_code; expected_stdout with stdout_match "
+        "\"exact\", \"contains\" or \"json\". Prefer \"contains\" when the criterion does "
+        "not fix exact wording. Any file the program reads must be supplied via stdin.\n"
+        "- Include edge cases the criteria name (empty input, invalid input, boundaries).\n"
+        f"- At most {12} vectors.\n\n"
+        "Required JSON:\n"
+        '{"vectors": [{"kind": "call", "criterion_index": 0, "function": "name", '
+        '"args": [], "expected": null, "rationale": "..."}, {"kind": "cli", '
+        '"criterion_index": 1, "argv": [], "stdin": "", "expected_exit_code": 0, '
+        '"expected_stdout": "...", "stdout_match": "contains", "rationale": "..."}]}\n'
+    )
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="contract oracle vectors",
+        agent_id="AGENT-10-TESTER",
+    )
+    if not isinstance(parsed, dict):
+        return {**base, "source": "unavailable", "reason": "no model returned contract vectors"}
+
+    vectors, rejections = validate_vectors(
+        parsed.get("vectors"), interface=interface, criteria=acceptance_criteria
+    )
+    result = {
+        **base,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "vectors": vectors,
+        "rejections": rejections[:24],
+    }
+    if not vectors:
+        result["reason"] = "the oracle's reply held no vector that could be executed as written"
+    return result
 
 
 def _logicnodes_are_unstated(nodes: Any) -> bool:

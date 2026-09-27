@@ -1,0 +1,9 @@
+{
+  "name": "thefactory-sandbox-node-test",
+  "private": true,
+  "description": "Test runners vendored into the offline JS/TS sandbox image",
+  "dependencies": {
+    "vitest": "4.1.11",
+    "typescript": "5.9.3"
+  }
+}

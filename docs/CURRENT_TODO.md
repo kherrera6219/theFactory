@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.09.27
+Last updated: 2026-09-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,39 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-09-27: enterprise-hardening pass — merged to `main` via [PR #538](https://github.com/kherrera6219/theFactory/pull/538).**
+Operator decisions this session: fix every finding from the 2026-09-27 status
+review, **take WQ7 Option 2**, aim everything else at enterprise grade, and do
+the **Electron build-out next**.
+
+| Area | What changed | Evidence |
+|---|---|---|
+| Security | Next 16.2.11 carried two unauthenticated RCEs (CVE-2026-75604). Now next 16.3.4 / React 19.3.0, sharp 0.35.4, pypdf 6.16.2, and five `overrides` pins that had themselves gone vulnerable. `npm audit`: **0** (prod and dev) | Security Checks had been red on every Dependabot PR because `main` itself failed |
+| Generated tests | PR #511 merged: tests were stored with every newline turned into a space, so none could import | — |
+| Object store | **MinIO replaced by SeaweedFS 4.47** (digest-pinned, Apache-2.0). Docker Hub `minio/minio` no longer exists (Weekly Qualification red since 2026-09-14), the repo is archived, and its 2026 HIGH CVEs (unauthenticated object write) are fixed only in commercial releases. Same S3 API/port/buckets; service `object-store`, legacy `minio` alias | 11/11 Object Lock conformance incl. refused delete + refused retention shortening, surviving restart. `docs/OBJECT_STORE_MIGRATION.md` |
+| WQ7 | **BUILD_NEW behavioural equivalence from the contract.** Oracle sees interface only, never the implementation; every vector falsifiable; no fallback. `MISSION_EQUIVALENCE_CONTRACT_ORACLE_ENABLED=true` (advisory), `MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED=false` until WQ13 | ADR amendment 2026-09-27. Real sandbox: correct adder 2/2 pass, off-by-one 2/2 fail, Go stdin counter 2/2 |
+| Runtime QC honesty | A missing image (exit 125) or unreachable runner (exit -1) was recorded as the **artifact failing**. Now `infrastructure_error`, decided before the artifact runs, reported `DRY_RUN` | Real daemon: artifact exiting 125 itself stays an ordinary exit |
+| Offline tests (UPDATE-4) | Test-only deps no longer block running the program; Julia/Haskell/Ruby/R stdlib tables fixed (3 of 9 dry runs were the detector); **vendored runners** for Java, Kotlin, Scala, PHP, R, JS/TS; Kotlin runtime moved off EOL zenika image to Kotlin 2.4.20 | `scripts/verify_sandbox_images.py` + new CI job `sandbox-images`: each runner passes correct / fails broken |
+| WQ12 | **C# runs live** (.NET 10 LTS, packages restored at build time). Every routed language now executes | Program printed 42; xUnit pass/fail split |
+
+**Still owed (in order):**
+
+1. **Local stack redeploy + object-store data migration.** The running stack is
+   still MinIO. Follow `docs/OBJECT_STORE_MIGRATION.md` §"Migrating an existing
+   local stack" (dry run first; keep `deploy_minio-data`). `make up` now also
+   builds the sandbox images (`make sandbox-images`).
+2. **Stuck missions** (`docs/STUCK_MISSIONS_PLAN_2026-08-27.md`): after redeploy,
+   let recovery re-drive once, re-run the 20-language coverage batch, then fail
+   out Group A (`mission-769bf926`, `mission-db901d98`).
+3. **Canary credential (operator action):** add a `QUALIFICATION_GEMINI_API_KEY`
+   repository secret so Weekly Qualification's `full` mode proves generation.
+4. **Electron build-out** (WQ #9) — next initiative, operator-approved.
+5. WQ13: measure behavioural equivalence across ≥20 missions before enabling
+   `MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED`.
+6. Open Dependabot majors held for browser verification: electron 44, vitest 5.
+
+---
 
 **NEW — 2026-08-17: next initiative is the PM-led SOW factory.** End state:
 the user talks to the PM (product + program + sales for the factory) to

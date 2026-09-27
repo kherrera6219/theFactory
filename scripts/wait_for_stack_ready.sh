@@ -40,5 +40,5 @@ curl -sS "$gateway/readyz" || true
 echo "--- orchestrator /readyz ---"
 curl -sS "$orchestrator/readyz" || true
 docker compose -f "$compose_file" logs --tail=120 \
-  api-gateway orchestrator postgres pgbouncer neo4j minio milvus || true
+  api-gateway orchestrator postgres pgbouncer neo4j object-store milvus || true
 exit 1

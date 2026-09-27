@@ -129,6 +129,18 @@ completed.
 verdict/exit code in `details` whenever a failing runtime QC prevents the
 advance, matching how `delta_audit` and the artifact gate already report.
 
+## Resolution status (2026-09-27)
+
+| Item | Status |
+|---|---|
+| UPDATE-1 bundle header | Fixed (`_unbundle_source`, PR #501) |
+| UPDATE-2 source examples as argv | Fixed (`_looks_like_shell_invocation`, PR #501) |
+| UPDATE-3 silent runtime-QC block | Fixed (chain event `gate: runtime_qc`, PR #501) |
+| UPDATE-4 frameworks unavailable offline | **Decided and done: vendored.** See `docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`, "Test frameworks and infrastructure honesty". Three of the nine were a detector bug (Julia, Haskell, Ruby ship their frameworks). |
+| Generated tests flattened onto one line | Fixed (PR #511) |
+
+The coverage batch has not yet been re-run on the fixed build.
+
 ## UPDATE-4 -- WITHDRAWN (not a defect)
 
 **Originally filed as "10 languages never execute and do not say why". That was
@@ -199,3 +211,77 @@ argv derivation just moves the failure, and vice versa.
 Missions are tagged `test_batch=lang-coverage-2026-08-27`. Submitter and pollers
 used for this run are in the session scratchpad
 (`submit_lang_missions.py`, `poll_lang_missions.py`).
+
+---
+
+# Follow-up: readme-demo batch, 2026-08-31
+
+Three `BUILD_NEW` / `STANDARD` / `PLAN_ONLY` missions (python, typescript, rust)
+run against the fully-fixed build to produce README screenshots. Reviewing them
+turned up one new defect and one open question.
+
+## FINDING-5 -- generated tests were flattened onto one line (FIXED)
+
+**Severity: high. Affected every generated test in every mission.**
+
+`generators_artifacts.py` stored the LLM's test module through `_clean_text`,
+which replaces every control character with a space. The newline is a control
+character, so a generated test arrived as:
+
+```
+import inspect import pytest from sum_integers import sum_integers  def test_empty_list():     assert sum_integers([]) == 0 ...
+```
+
+Python cannot import that. The python demo mission failed with
+`ImportError: Failed to import test module: test_sum_integers`, and the same
+flattening applies to every language the tester agent produces.
+
+`generated_output.generated_code` was never affected -- it goes through
+`_strip_code_fences`, which preserves layout. The asymmetry is why this survived:
+the artifact under test looked fine, only its tests were broken.
+
+**This inflates the "no correctness evidence" finding above.** Some of the
+`docker_live` runs that appeared to fail on their own merits were running tests
+that could never have loaded.
+
+**Fix:** `text._clean_code` -- same redaction and ReDoS cap as `_clean_text`,
+same removal of genuinely dangerous control characters, but tab, newline and
+carriage return are preserved. Wired into the one code-bearing field that used
+`_clean_text`. Regression tests in
+`tests/services/test_generated_code_sanitizer.py`, including one that pins the
+old `_clean_text` behaviour so the distinction cannot be quietly undone.
+
+## OPEN-6 -- library artifacts are compiled as binaries
+
+**Severity: medium. Not fixed; needs a design decision.**
+
+The rust demo produced `src_lib.rs`, a library. Runtime QC ran the language's
+standard command, `rustc /workspace/src_lib.rs -o /tmp/a.out && /tmp/a.out`,
+which fails:
+
+```
+error[E0601]: `main` function not found in crate `src_lib`
+```
+
+The harness recorded `verdict=DRY_RUN` with `not_exercised_note` -- "executed
+with no arguments because no invocation could be derived ... so its exit code is
+not evidence of correctness" -- and the mission completed.
+
+That excuse is right for a CLI that wanted arguments. It is wrong here: the
+artifact could not be *built* as a binary at all, and the same treatment would
+hide a genuine compile error in a library. The mission's own usage example said
+`Execute cargo test`, which is what should have run.
+
+Two things are tangled and worth separating:
+
+1. **A build failure is not a "not exercised" outcome.** Failing to compile says
+   the artifact is broken regardless of arguments. Distinguishing build failure
+   from run-exited-nonzero would stop that being excused.
+2. **Library artifacts need a library verification path** -- `rustc
+   --crate-type lib`, `cargo test`, `go test`, `pytest`, and so on -- rather than
+   the binary command. This is the same shape as the offline test-framework
+   question in UPDATE-4: what does "verified" mean for an artifact that is not a
+   program?
+
+Deliberately left open rather than patched, because guessing a per-language
+answer here is how the argv defect (UPDATE-2) got introduced in the first place.

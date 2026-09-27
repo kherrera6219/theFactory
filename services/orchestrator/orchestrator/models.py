@@ -158,6 +158,7 @@ EventType = Literal[
     # mission an operator needs to look at. Any new event type that reaches
     # insert_mission_event belongs here.
     "MISSION_EQUIVALENCE_BLOCKED",
+    "MISSION_BEHAVIOURAL_EQUIVALENCE_RECORDED",
     "MISSION_SECURITY_COMPLIANCE_BLOCKED",
     "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
     # Agent events

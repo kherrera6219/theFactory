@@ -25,6 +25,25 @@ This document describes how theFactory provisions disposable runtime environment
 
 Runtime QC is integrated into MissionFlow V2 completion checks. `TESTDATA_AGENT_ENABLED` remains off by default; `RQCA_AGENT_ENABLED` defaults **on**. RQCA no longer requires the testdata agent to run — it uses `_LANGUAGE_RUNTIMES`. When runtime QC is skipped, the orchestrator persists a visible `runtime_qc_report` with `skipped: true`, `verdict: SKIPPED`, `execution_type: not_run`, and a reason such as `RQCA disabled` or `no generated output`. It also records `MISSION_RUNTIME_QC_SKIPPED` once so Mission Detail and event history show that QC was intentionally skipped instead of silently missing. Integration tests are generated **before** the testdata manifest so the sandbox command can be the language test runner. Python uses stdlib `unittest` (`python:3.11-slim` has no pytest). A testdata default `run_command` does not override that. A `started_only` or syntax-only sandbox run is `DRY_RUN` / `ADVISORY`, never `PASS`. Cached `started_only` PASS reports are re-assessed. RQCA probes `SANDBOX_EXECUTOR_URL` (`sandbox-runner`), not local `docker info`. A live FAIL (`mission-8db1af71`) stayed `VERIFIED` / `MISSION_RUNTIME_QC_BLOCKED` and did not COMPLETE.
 
+**Test frameworks and infrastructure honesty (2026-09-27).** The 2026-08-27
+language coverage run found 9 of 20 languages never executed, reported as
+"requires dependencies that cannot be installed in an offline sandbox". Decided
+for enterprise grade -- vendor the frameworks rather than accept syntax-only:
+
+| Change | Effect |
+|---|---|
+| Test-only dependencies separated (`_split_test_dependencies`) | A framework the program itself does not import no longer stops the *program* from running. Tests needing an absent framework are set aside with `tests_not_run_reason`. |
+| Stdlib tables for Julia, Haskell, Ruby, R | `Test`, `base`, `minitest`, `stats`... are in the pinned images (verified `--network=none`); they were wrongly reported unmet. Ruby (minitest) and Julia (Test) tests now have runners. |
+| Vendored test-runner images (`deploy/sandbox-images`, `make sandbox-images`) | JUnit 5 (Java), kotlin-test/JUnit 5 (Kotlin 2.4.20), ScalaTest 3.2.19 (17-jar pinned BOM), PHPUnit 11.5.39, testthat 3.3.2 (dated CRAN snapshot), vitest 4.1.11 / node:test (JS/TS). Every base pinned by digest, every download checksummed. `SANDBOX_VENDORED_TEST_IMAGES_ENABLED` (default `true`). |
+| Kotlin runtime replaced | zenika/kotlin (Oracle Linux 7.6, JRE 12, kotlinc 1.4.10 -- all EOL) -> factory Kotlin 2.4.20 on Temurin 21, the same image its tests run in. |
+| `infrastructure_error` on sandbox results | A missing image (exit 125) or unreachable runner (exit -1) used to be recorded as the artifact FAILING. The image is now checked -- and pulled if needed -- *before* the artifact runs, so the exemption cannot be spoofed; RQCA reports `DRY_RUN` with the reason. |
+
+`scripts/verify_sandbox_images.py` (CI job `sandbox-images`) requires every
+runner to pass a correct artifact and fail an off-by-one one, through the real
+hardened sandbox. **C# (WQ12) is now live too**: a factory .NET 10 LTS image restores a
+console host and an xUnit project at build time, so programs and their tests build
+`--no-restore` offline. Every routed language now has sandbox execution.
+
 Enabling full Runtime QC remains a follow-up decision for standard BUILD_NEW missions. Until then, completed missions should show either a real Runtime QC report or an explicit skipped reason.
 
 **Enforcement default (2026-07-03, skip-honesty 2026-08-15, tests-as-QC 2026-08-17):** `rqca_enforcement_enabled` defaults to `true`. A `qc_verdict: FAIL` blocks delivery. `DRY_RUN` / `ADVISORY` / `started_only` / syntax-only never block — those mean "could not judge," not "failed." Generated tests, when present, are the sandbox command. If the agent is **off** while enforcement is on, the skip is not-ready: that pair used to deliver with a decorative flag. A local `.env` may still pin the flag `false`; that is an override, not the shipped default.
