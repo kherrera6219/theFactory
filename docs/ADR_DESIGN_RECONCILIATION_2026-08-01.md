@@ -55,7 +55,7 @@ Verdict definitions:
 | 5 | Message envelope | Doc 07 §2 | **Superseded** | Two envelopes are in production, neither matching Doc 07, and they disagree with each other on priority vocabulary. The design envelope is retired; the two live envelopes are documented and reconciled additively in Phase 2 (UPG-22) | `schemas/event.envelope.schema.json` — priority enum is `["NORMAL","HIGH"]`; bus `/send` body accepts `low\|normal\|high\|critical` |
 | 6 | LogicNode schema (30 fields) | Doc 09 §2.1 | **Superseded, partially reinstated** | The shipped node is a 7-field work envelope with everything descriptive inside a free-form `payload`. The 30-field semantic node is not being built as designed, but the descriptive fields are promoted to first-class *optional* properties in Phase 3 (UPG-30/31) | `schemas/logicnode.schema.json` — `required` = `node_id, cmd, payload, priority, intent, types, provenance`; `additionalProperties: false`; `types.in`/`types.out` emitted empty |
 | 7 | Refined-IR (semantic) | Doc 09 | **Superseded, partially reinstated — reinstatement DELIVERED 2026-08-01 (Phase 4)** | The RIR *schema* was always faithful; the *producer* was templated (one `EXTRACT_CONCEPT` op, purity from whether a string was truthy, vectors restating the node's own identifiers). Phase 4 replaced that for AST-backed languages: real typed signatures, a real statement-level op stream, purity from genuine side-effect analysis, and executable equivalence vectors. Regex-only languages stay templated and are **labelled** `templated_v1` rather than silently indistinguishable. Full semantic decompilation across all languages remains Superseded | `pod-worker/refined_ir.py` `build_refined_ir_module()`; `projection_method` in `schemas/rir.module.schema.json`; [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) |
-| 8 | Equivalence verification | Doc 09 §8, Doc 30 §4 | **Superseded, partially reinstated — reinstatement DELIVERED 2026-08-02 (Phase 5)** | Contract conformance (`"verification_scope": "correctness"`) is now joined by a real **behavioural** scope that executes the artifact against Phase 4's vectors in the shared hardened sandbox and reports a genuine pass ratio. Scoped to Python; other languages record an honest `skipped`. The designed 1,000-simulation engine at 0.0001% tolerance remains **Superseded** — see row 9. Behavioural results are advisory until measured across ≥20 real missions (UPG-53) | `equivalence_execution.py`; `sandbox_exec.py` (shared with RQCA); `settings.py:88` — `mission_equivalence_python_execution_enabled`, now wired, still defaults `False` |
+| 8 | Equivalence verification | Doc 09 §8, Doc 30 §4 | **Superseded, partially reinstated — reinstatement DELIVERED 2026-08-02 (Phase 5) — BUILD_NEW contract oracle DELIVERED 2026-09-27 (WQ7, see amendment)** | Contract conformance (`"verification_scope": "correctness"`) is now joined by a real **behavioural** scope that executes the artifact against Phase 4's vectors in the shared hardened sandbox and reports a genuine pass ratio. Scoped to Python; other languages record an honest `skipped`. The designed 1,000-simulation engine at 0.0001% tolerance remains **Superseded** — see row 9. Behavioural results are advisory until measured across ≥20 real missions (UPG-53) | `equivalence_execution.py`; `sandbox_exec.py` (shared with RQCA); `settings.py:88` — `mission_equivalence_python_execution_enabled`, now wired, still defaults `False` |
 | 9 | Equivalence tolerance 0.0001% / 99.9999% | Docs 01–09 | **Superseded** | The figure appears in every one of the first ten design documents and is **computed nowhere**. Semantic equivalence is undecidable for arbitrary programs; the number was never achievable. Replaced by metrics the system actually produces — contract-conformance pass rate, runtime-QC verdict, and (post-Phase 5) behavioural equivalence-vector pass ratio | Repository-wide search: no occurrence of the figure in any `services/` source file |
 | 10 | LogicNode Registry | Doc 30 (1,635 lines) | **Deferred — formalised 2026-08-03 (UPG-73)** | The largest unimplemented specification in the corpus. Built instead: a per-mission `mission_logicnodes` JSONB table with a Neo4j mirror — no cross-mission registry, versioning, clustering, or semantic search. Only valuable once RIR carries real cross-mission semantics. **The revisit trigger is now measurable** — see [§ UPG-73](#upg-73--logicnode-registry-deferral) | `mission_logicnodes (mission_id, node_id, node_json JSONB)`; `neo4j_store.py`; `projection_method` in the RIR catalog |
 | 11 | Binary / LLVM synthesis | Doc 01 §1.3, Doc 05, Doc 09 §1.3 | **Superseded** (decision D2) | The design's headline promise, with zero implementation and no partial scaffolding. The product delivers source artifacts plus an evidence chain. Formally killed — see [§ D2](#d2--binary-synthesis-is-retired) | No compilation, linking, or LLVM stage anywhere in `services/`. Outputs are source files and gzipped bundles (`build_artifacts.py`, `deploy_exporter.py`) |
@@ -176,6 +176,48 @@ planning as apparent backlog. Note that condition 1 is currently gated by
 language coverage: only Python, Java, and Haskell produce `ast_v1` projections
 at all, so meaningfully raising that proportion likely means extending AST type
 recovery to more languages first.
+
+## Amendment 2026-09-27 — WQ7: behavioural equivalence for BUILD_NEW (amends D1, row 8)
+
+**Decision (operator sign-off 2026-09-27): Sprint 1.2 Option 2 is taken.**
+BUILD_NEW missions get behavioural equivalence from their **contract** instead
+of a permanent honest `skipped`.
+
+**Why D1 needed amending.** D1's "execution-based equivalence for a language
+subset" was scoped to vectors projected from *existing* source (Phase 4 RIR).
+A BUILD_NEW mission has no source, so the most common mission type could never
+carry behavioural evidence. Row 8 is extended; nothing in D1's "no four-pod
+fan-out, single specialist routing" is changed.
+
+**What was built** (`contract_oracle.py`, `equivalence_execution.run_contract_equivalence`):
+
+| Property | How it is enforced |
+|---|---|
+| The oracle is **independent** of the implementation | `interface_for_oracle` passes function signatures, first docstring line and CLI usage — never a statement body. A test asserts implementation text never reaches the prompt. |
+| Every vector is **falsifiable** | Each cites one acceptance criterion and carries an expected value, stdout or non-zero exit. "It exited 0" alone is rejected. There is no `executed_without_error` category on this path. |
+| Untrusted oracle output is **rejected, never repaired** | Unknown functions, wrong arity, missing expectations, oversized values: dropped with a recorded reason. |
+| **No fabrication** | No model ⇒ zero vectors, `source: "unavailable"`, report `skipped`. There is no fallback generator. |
+| **Stable** across re-drives | Vectors are cached on the mission (`contract_equivalence_vectors`); recovery re-executes the same expectations. |
+| **One hardened invocation** | Execution goes through `sandbox_exec.run_in_sandbox` with RQCA's `_LANGUAGE_RUNTIMES` and `_unbundle_source`; no new `docker run` command line. |
+| **Language reach** | `call` vectors (import + invoke) for Python; `cli` vectors (argv + stdin → exit code + stdout) for every language in the runtime table. |
+
+**Gating.** `MISSION_EQUIVALENCE_CONTRACT_ORACLE_ENABLED` defaults **true**: the
+report is recorded on every eligible mission (chain event
+`MISSION_BEHAVIOURAL_EQUIVALENCE_RECORDED`). It is **advisory** until
+`MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED` (default **false**) is turned on —
+WQ13 / Sprint 4.1 requires ≥20 measured missions first. With enforcement on, only
+`failed` blocks; `skipped` never does, so an environment limitation cannot strand
+a mission.
+
+**What this is not.** It is not proof of correctness. It is evidence that the
+artifact reproduces the answers its approved specification determines, for the
+inputs the oracle chose. The oracle is an LLM and can be wrong; a wrong
+expectation surfaces as a behavioural `failed` with the criterion cited, which
+is why enforcement waits on measurement.
+
+Live-verified 2026-09-27 against the real sandbox: a correct Python adder passed
+2/2 (one `call`, one `cli`), the same program off by one failed 2/2 with the
+criterion and both values named; a Go stdin word counter passed 2/2.
 
 ## Corrections to the audit and plan
 

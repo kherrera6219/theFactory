@@ -113,7 +113,9 @@ def collect_executable_vectors(
     return collected
 
 
-def _build_driver(*, artifact_filename: str, fn_name: str, args: dict[str, Any]) -> str:
+def _build_driver(
+    *, artifact_filename: str, fn_name: str, args: dict[str, Any] | list[Any]
+) -> str:
     """Return a Python driver that imports the artifact and calls one function.
 
     The driver is written into the read-only workspace alongside the artifact
@@ -148,7 +150,7 @@ def _main():
         return {{"status": "missing_function", "error": {fn_name!r}}}
 
     try:
-        result = target(*list(_ARGS.values()))
+        result = target(*(_ARGS if isinstance(_ARGS, list) else list(_ARGS.values())))
     except Exception as exc:
         return {{
             "status": "raised",
@@ -351,3 +353,265 @@ def _vector_identity(vector: dict[str, Any]) -> dict[str, Any]:
         "case": vector.get("case"),
         "args": vector.get("args"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Contract-oracle equivalence (WQ7): BUILD_NEW missions
+# ---------------------------------------------------------------------------
+
+_STDIN_FILENAME = "__contract_stdin__.txt"
+_CLI_TIMEOUT_SECONDS = 60
+_CLI_MEMORY_MB = 512
+
+
+def _contract_base(
+    *, mission_id: str, language: str, vectors: list[dict[str, Any]]
+) -> dict[str, Any]:
+    return {
+        "schema_version": BEHAVIOURAL_SCHEMA_VERSION,
+        "verification_scope": "behavioural",
+        # What the expectations were derived from. "contract_oracle" vectors come
+        # from the approved acceptance criteria, authored without sight of the
+        # implementation; "refined_ir" vectors come from source being ported.
+        "verification_basis": "contract_oracle",
+        "oracle_independence": "interface_only",
+        "mission_id": mission_id,
+        "language": language,
+        "equivalence_vectors_passed": 0,
+        "equivalence_vectors_total": len(vectors),
+        "equivalence_vectors_executed_without_error": 0,
+        "equivalence_vectors_skipped": 0,
+        "equivalence_vectors_failed": 0,
+        "criteria_total": 0,
+        "criteria_with_vectors": 0,
+        "findings": [],
+        "vector_results": [],
+    }
+
+
+def _classify_contract_call(vector: dict[str, Any], verdict: dict[str, Any]) -> tuple[str, str]:
+    from .contract_oracle import values_equal
+
+    status = verdict.get("status")
+    label = f"{vector['vector_id']} {vector['function']}()"
+    if status == "ok":
+        if values_equal(vector.get("expected"), verdict.get("result")):
+            return "passed", f"{label}: matched the contract's expected value"
+        return (
+            "failed",
+            f"{label}: criterion {vector['criterion_index'] + 1} expected "
+            f"{vector.get('expected')!r}, got {verdict.get('result')!r}",
+        )
+    if status == "raised":
+        return "failed", f"{label}: raised {verdict.get('error')}"
+    if status == "import_error":
+        return "failed", f"{label}: artifact failed to import: {verdict.get('error')}"
+    if status == "missing_function":
+        return "failed", f"{label}: function named in the interface is missing"
+    return "skipped", f"{label}: {verdict.get('error') or status}"
+
+
+def _classify_contract_cli(vector: dict[str, Any], result: Any) -> tuple[str, str]:
+    from .contract_oracle import stdout_matches
+
+    label = f"{vector['vector_id']} argv={vector['argv']!r}"
+    problems: list[str] = []
+    if result.exit_code != vector["expected_exit_code"]:
+        problems.append(
+            f"exit code {result.exit_code}, expected {vector['expected_exit_code']}"
+        )
+    expected_stdout = vector.get("expected_stdout")
+    mode = vector.get("stdout_match", "exact")
+    if expected_stdout is not None and not stdout_matches(expected_stdout, result.stdout, mode):
+        problems.append(
+            f"stdout ({mode}) expected {expected_stdout[:120]!r}, got {result.stdout[:120]!r}"
+        )
+    if problems:
+        stderr = str(getattr(result, "stderr", "") or "").strip()
+        if stderr:
+            # The tail carries the compiler or runtime error an operator needs.
+            problems.append(f"stderr: {stderr[-240:]!r}")
+        return (
+            "failed",
+            f"{label}: criterion {vector['criterion_index'] + 1}: " + "; ".join(problems),
+        )
+    return "passed", f"{label}: matched the contract's expected behaviour"
+
+
+async def _run_one_contract_vector(
+    *,
+    vector: dict[str, Any],
+    mission_id: str,
+    artifact_filename: str,
+    primary: str,
+    siblings: dict[str, str],
+    run_command: str,
+    runtime_image: str,
+    docker_bin: str,
+) -> tuple[str, str]:
+    from .contract_oracle import cli_command
+
+    kind = vector.get("kind")
+    with tempfile.TemporaryDirectory(
+        prefix=f"hgr-cqv-{mission_id[:8]}-", dir=workspace_root()
+    ) as tmpdir:
+        workspace = Path(tmpdir)
+        (workspace / artifact_filename).write_text(primary, encoding="utf-8")
+        for name, body in siblings.items():
+            safe = Path(name).name
+            if safe and safe not in {artifact_filename, _DRIVER_FILENAME, _STDIN_FILENAME}:
+                (workspace / safe).write_text(body, encoding="utf-8")
+        if kind == "call":
+            (workspace / _DRIVER_FILENAME).write_text(
+                _build_driver(
+                    artifact_filename=artifact_filename,
+                    fn_name=str(vector["function"]),
+                    args=list(vector["args"]),
+                ),
+                encoding="utf-8",
+            )
+            command = f"python /workspace/{_DRIVER_FILENAME}"
+            image, timeout, memory = _DEFAULT_IMAGE, _PER_VECTOR_TIMEOUT_SECONDS, _PER_VECTOR_MEMORY_MB
+        else:
+            stdin_path = None
+            if vector.get("stdin"):
+                (workspace / _STDIN_FILENAME).write_text(str(vector["stdin"]), encoding="utf-8")
+                stdin_path = f"/workspace/{_STDIN_FILENAME}"
+            command = cli_command(run_command, list(vector["argv"]), stdin_file=stdin_path)
+            image, timeout, memory = runtime_image, _CLI_TIMEOUT_SECONDS, _CLI_MEMORY_MB
+        result = await run_in_sandbox(
+            docker_bin=docker_bin,
+            workspace_dir=tmpdir,
+            base_image=image,
+            command=command,
+            timeout_seconds=timeout,
+            memory_mb=memory,
+        )
+    if result.timed_out:
+        # A timeout is a non-result, not a behavioural failure of the code.
+        return "skipped", f"{vector['vector_id']}: timed out"
+    if kind == "call":
+        return _classify_contract_call(vector, _parse_driver_output(result.stdout))
+    return _classify_contract_cli(vector, result)
+
+
+async def run_contract_equivalence(
+    *,
+    mission_id: str,
+    language: str,
+    artifact_filename: str,
+    artifact_code: str,
+    contract_vectors: dict[str, Any],
+    dependencies: Any = None,
+    docker_bin: str = "docker",
+) -> dict[str, Any]:
+    """Execute contract-derived vectors against a BUILD_NEW artifact.
+
+    Same guarantees as :func:`run_behavioural_equivalence`: never raises, runs
+    only through :func:`sandbox_exec.run_in_sandbox`, and ``passed`` means the
+    artifact produced the contract's expected result. There is no
+    ``executed_without_error`` category here because every accepted vector
+    carries an expectation (see ``contract_oracle.validate_vectors``).
+    """
+    from .contract_oracle import CALL_LANGUAGES
+    from .rqca_agent import _LANGUAGE_RUNTIMES, _unbundle_source, _unmet_dependencies
+
+    normalized = _normalise_language(language)
+    vectors = [v for v in (contract_vectors.get("vectors") or []) if isinstance(v, dict)][
+        :_MAX_VECTORS
+    ]
+    base = _contract_base(mission_id=mission_id, language=normalized, vectors=vectors)
+    base["criteria_total"] = int(contract_vectors.get("criteria_total") or 0)
+    base["criteria_with_vectors"] = len({v.get("criterion_index") for v in vectors})
+    base["oracle"] = {
+        "source": contract_vectors.get("source"),
+        "agent_id": contract_vectors.get("agent_id"),
+        "model": contract_vectors.get("model"),
+        "rejected_vectors": len(contract_vectors.get("rejections") or []),
+    }
+
+    if not vectors:
+        reason = contract_vectors.get("reason") or "the contract oracle produced no executable vectors"
+        return {**base, "status": "skipped", "reason": str(reason)}
+    unmet = _unmet_dependencies(normalized, dependencies)
+    if unmet:
+        return {
+            **base,
+            "status": "skipped",
+            "reason": (
+                "artifact requires dependencies the offline sandbox cannot provide: "
+                + ", ".join(unmet[:6])
+            ),
+        }
+    runtime = _LANGUAGE_RUNTIMES.get(normalized)
+    if runtime is None:
+        return {**base, "status": "skipped", "reason": f"no sandbox runtime for {normalized or 'unknown'}"}
+    if not await check_docker_available(docker_bin):
+        return {**base, "status": "skipped", "reason": "sandbox unavailable"}
+
+    primary, siblings = _unbundle_source(artifact_code, artifact_filename)
+    run_command = runtime["run_command"].format(
+        filename=artifact_filename, stem=Path(artifact_filename).stem
+    )
+    if normalized == "zig":
+        # `zig run file -- args`: without the separator zig parses them itself.
+        run_command = f"{run_command} --"
+
+    counts = {"passed": 0, "failed": 0, "skipped": 0}
+    findings: list[str] = []
+    results: list[dict[str, Any]] = []
+    for vector in vectors:
+        if vector.get("kind") == "call" and normalized not in CALL_LANGUAGES:
+            outcome, message = "skipped", f"{vector.get('vector_id')}: call vectors need python"
+        else:
+            try:
+                outcome, message = await _run_one_contract_vector(
+                    vector=vector,
+                    mission_id=mission_id,
+                    artifact_filename=artifact_filename,
+                    primary=primary,
+                    siblings=siblings,
+                    run_command=run_command,
+                    runtime_image=str(runtime["base_image"]),
+                    docker_bin=docker_bin,
+                )
+            except Exception as exc:  # noqa: BLE001 - harness must never raise
+                LOGGER.warning("contract vector execution error: %s", type(exc).__name__)
+                outcome, message = "skipped", f"{vector.get('vector_id')}: harness error"
+        counts[outcome] += 1
+        if outcome != "passed":
+            findings.append(message)
+        results.append(
+            {
+                "vector_id": vector.get("vector_id"),
+                "kind": vector.get("kind"),
+                "criterion_index": vector.get("criterion_index"),
+                "outcome": outcome,
+                "message": message[:400],
+            }
+        )
+
+    if counts["failed"]:
+        status = "failed"
+    elif counts["passed"]:
+        status = "passed"
+    else:
+        status = "skipped"
+    report: dict[str, Any] = {
+        **base,
+        "status": status,
+        "equivalence_vectors_passed": counts["passed"],
+        "equivalence_vectors_failed": counts["failed"],
+        "equivalence_vectors_skipped": counts["skipped"],
+        "findings": findings,
+        "vector_results": results,
+        "runtime_substitute": runtime.get("runtime_substitute"),
+        "note": (
+            "Vectors were derived from the approved acceptance criteria by an oracle "
+            "that saw the artifact's interface but not its implementation. `passed` "
+            "means the artifact produced the contract's expected result."
+        ),
+    }
+    if status == "skipped":
+        report["reason"] = "every vector was skipped (timeouts or unsupported kinds)"
+    return report

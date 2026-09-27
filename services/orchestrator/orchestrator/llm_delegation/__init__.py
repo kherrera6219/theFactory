@@ -94,6 +94,7 @@ from .generators import (
 from .generators_artifacts import (
     build_deploy_readiness_assessment,
     generate_compliance_assessment,
+    generate_contract_vectors,
     generate_integration_tests,
     generate_master_logic_stream,
     generate_pm_delivery_summary,
@@ -194,6 +195,7 @@ __all__ = [
     "generate_ceo_delegation",
     "generate_code_from_contract",
     "generate_compliance_assessment",
+    "generate_contract_vectors",
     "generate_integration_tests",
     "generate_logic_clusters",
     "generate_master_logic_stream",

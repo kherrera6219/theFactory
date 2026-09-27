@@ -92,6 +92,8 @@ class Settings:
     mission_flow_v2_enabled: bool = True
     mission_equivalence_enforcement_enabled: bool = False
     mission_equivalence_python_execution_enabled: bool = False
+    mission_equivalence_contract_oracle_enabled: bool = True
+    mission_behavioural_enforcement_enabled: bool = False
     # Defaults to True (was False): a mission with a required security-
     # compliance check failure (e.g. a hard-coded secret) must not silently
     # proceed to delivery. Operators can still opt out for staged rollouts.
@@ -399,6 +401,12 @@ def load_settings() -> Settings:
         ),
         mission_equivalence_python_execution_enabled=_as_bool(
             os.getenv("MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED", "false"), False
+        ),
+        mission_equivalence_contract_oracle_enabled=_as_bool(
+            os.getenv("MISSION_EQUIVALENCE_CONTRACT_ORACLE_ENABLED", "true"), True
+        ),
+        mission_behavioural_enforcement_enabled=_as_bool(
+            os.getenv("MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED", "false"), False
         ),
         mission_security_compliance_enforcement_enabled=_as_bool(
             os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "true"), True
