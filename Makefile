@@ -15,7 +15,7 @@ topology:
 
 up: check-env tls-certs
 	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
-		redis postgres pgbouncer qdrant minio milvus neo4j jaeger sandbox-runner orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
+		redis postgres pgbouncer qdrant object-store milvus neo4j jaeger sandbox-runner orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
@@ -30,7 +30,7 @@ up: check-env tls-certs
 #
 # `down*` targets STOP the stack and PRESERVE volumes. They used to pass `-v`,
 # which removes every named volume — postgres-data, redis-data, qdrant-data,
-# neo4j-data, minio-data, milvus-data, and mission-control-vault. That destroyed
+# neo4j-data, object-store-data, milvus-data, and mission-control-vault. That destroyed
 # the mission database, the knowledge stores, AND the operator's stored provider
 # credentials on every ordinary stop, and it wiped the database at least once in
 # practice (2026-06-30).

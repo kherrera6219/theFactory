@@ -67,7 +67,7 @@ jobs:
           sh scripts/write_ci_env.sh
           cp .env deploy/.env
 
-      # neo4j, minio and milvus are not optional here. The orchestrator's
+      # neo4j, object-store and milvus are not optional here. The orchestrator's
       # /readyz ANDs in every backend whose *_ENABLED flag is set, and the env
       # has NEO4J_ENABLED, OBJECT_STORAGE_ENABLED and MILVUS_ENABLED true.
       # Starting without them meant /readyz could never return 200, so the auth
@@ -78,7 +78,7 @@ jobs:
       - name: Start qualification stack
         run: |
           docker compose -f deploy/docker-compose.yaml up -d --build \
-            redis postgres qdrant neo4j minio milvus orchestrator api-gateway \
+            redis postgres qdrant neo4j object-store milvus orchestrator api-gateway \
             pod-a-worker pod-b-worker pod-c-worker pod-d-worker audit-worker
           docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d \
             pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker \

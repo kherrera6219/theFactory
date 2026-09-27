@@ -181,7 +181,7 @@ jobs:
       - name: Start default data-plane stack
         run: |
           docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml \
-            up -d --build redis postgres qdrant neo4j minio milvus orchestrator api-gateway
+            up -d --build redis postgres qdrant neo4j object-store milvus orchestrator api-gateway
 
       - name: Wait for API gateway health
         run: |

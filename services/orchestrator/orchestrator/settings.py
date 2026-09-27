@@ -12,6 +12,12 @@ from .agent_registry import AGENT_REGISTRY
 
 TRUTHY_VALUES = {"1", "true", "yes", "on"}
 _AGENT_REGISTRY_IDS = {agent.agent_id for agent in AGENT_REGISTRY}
+# Local-development object-storage credentials, current and pre-2026-09-27
+# (MinIO). Production refuses every one of them.
+_DEFAULT_OBJECT_STORAGE_ACCESS_KEYS = frozenset({"factory-object-store", "minioadmin"})
+_DEFAULT_OBJECT_STORAGE_SECRET_KEYS = frozenset(
+    {"CHANGE_ME_local_dev_object_store_secret", "minioadmin123"}
+)
 
 
 @dataclass(frozen=True)
@@ -64,7 +70,7 @@ class Settings:
     neo4j_database: str = "neo4j"
     neo4j_timeout_seconds: float = 3.0
     object_storage_enabled: bool = True
-    object_storage_endpoint: str = "http://minio:9000"
+    object_storage_endpoint: str = "http://object-store:9000"
     object_storage_access_key: str = ""
     object_storage_secret_key: str = ""
     object_storage_bucket: str = "mission-audit-artifacts"
@@ -244,11 +250,13 @@ def load_settings() -> Settings:
     object_storage_access_key = os.getenv("OBJECT_STORAGE_ACCESS_KEY", "")
     object_storage_secret_key = os.getenv("OBJECT_STORAGE_SECRET_KEY", "")
     if is_production and (
-        object_storage_access_key == "minioadmin" or object_storage_secret_key == "minioadmin123"
+        object_storage_access_key in _DEFAULT_OBJECT_STORAGE_ACCESS_KEYS
+        or object_storage_secret_key in _DEFAULT_OBJECT_STORAGE_SECRET_KEYS
+        or object_storage_secret_key.startswith("CHANGE_ME")
     ):
         raise RuntimeError(
-            "ENVIRONMENT=production must not use the default MinIO credentials "
-            "(minioadmin/minioadmin123) — set OBJECT_STORAGE_ACCESS_KEY and "
+            "ENVIRONMENT=production must not use the default object-storage "
+            "credentials — set OBJECT_STORAGE_ACCESS_KEY and "
             "OBJECT_STORAGE_SECRET_KEY to real production credentials."
         )
 
@@ -284,7 +292,7 @@ def load_settings() -> Settings:
         milvus_uri=os.getenv("MILVUS_URI", "http://milvus:19530"),
         milvus_token=os.getenv("MILVUS_TOKEN", ""),
         neo4j_url=os.getenv("NEO4J_URL", "http://neo4j:7474"),
-        object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000"),
+        object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", "http://object-store:9000"),
         object_storage_access_key=object_storage_access_key,
         object_storage_secret_key=object_storage_secret_key,
         intake_stream=os.getenv("INTAKE_STREAM", "missions.intake"),
@@ -346,7 +354,7 @@ def load_settings() -> Settings:
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j",
         neo4j_timeout_seconds=max(0.5, float(os.getenv("NEO4J_TIMEOUT_SECONDS", "3.0"))),
         object_storage_enabled=_as_bool(os.getenv("OBJECT_STORAGE_ENABLED", "true"), True)
-        and bool(os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000").strip()),
+        and bool(os.getenv("OBJECT_STORAGE_ENDPOINT", "http://object-store:9000").strip()),
         object_storage_bucket=os.getenv("OBJECT_STORAGE_BUCKET", "mission-audit-artifacts").strip()
         or "mission-audit-artifacts",
         object_storage_prefix=os.getenv("OBJECT_STORAGE_PREFIX", "missions").strip() or "missions",

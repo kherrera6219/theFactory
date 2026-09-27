@@ -3,7 +3,7 @@
 **Volumes are preserved by default.** This script previously ran
 ``docker compose down -v`` unconditionally, which removes every named volume —
 ``postgres-data``, ``redis-data``, ``qdrant-data``, ``neo4j-data``,
-``minio-data``, ``milvus-data``, and ``mission-control-vault``. That meant an
+``object-store-data``, ``milvus-data``, and ``mission-control-vault``. That meant an
 ordinary "stop the app" destroyed the mission database, every knowledge store,
 and the operator's stored provider credentials. It wiped the database at least
 once in practice (2026-06-30), which is how the behaviour was discovered.
@@ -65,7 +65,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=(
             "Also delete every named volume: the mission database, Redis, Qdrant, "
-            "Neo4j, MinIO, Milvus, and the operator vault (stored provider API "
+            "Neo4j, the object store, Milvus, and the operator vault (stored provider API "
             "keys). Irreversible."
         ),
     )

@@ -141,7 +141,7 @@ def _bucket_has_object_lock(client, bucket: str) -> bool | None:
 def _create_bucket(client, settings: Settings) -> None:
     """Create the artifact bucket, with Object Lock when legal holds are required.
 
-    Object Lock can only be turned on *at creation time* in both S3 and MinIO;
+    Object Lock can only be turned on *at creation time* in S3, MinIO and SeaweedFS;
     there is no API that retrofits it onto an existing bucket. A bucket created
     without it can therefore never accept the legal-hold writes that
     :func:`put_audit_report` performs for failed audits, so getting this right

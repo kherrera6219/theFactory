@@ -216,7 +216,7 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
         tmp_path / "Makefile",
         (
             "up-full-dedicated:\n"
-            "\tdocker compose up minio milvus neo4j "
+            "\tdocker compose up object-store milvus neo4j "
             "agent-36-go agent-37-haskell agent-38-ocaml\n"
         ),
     )

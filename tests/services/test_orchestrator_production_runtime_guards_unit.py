@@ -8,6 +8,8 @@ production.
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
@@ -72,7 +74,7 @@ def test_default_minio_access_key_in_production_raises(monkeypatch) -> None:
     try:
         load_settings()
     except RuntimeError as exc:
-        assert "minioadmin" in str(exc)
+        assert "default object-storage credentials" in str(exc)
     else:
         raise AssertionError(
             "expected RuntimeError for default MinIO access key in production"
@@ -87,7 +89,7 @@ def test_default_minio_secret_key_in_production_raises(monkeypatch) -> None:
     try:
         load_settings()
     except RuntimeError as exc:
-        assert "minioadmin" in str(exc)
+        assert "default object-storage credentials" in str(exc)
     else:
         raise AssertionError(
             "expected RuntimeError for default MinIO secret key in production"
@@ -102,3 +104,22 @@ def test_real_minio_credentials_in_production_ok(monkeypatch) -> None:
     settings = load_settings()
     assert settings.object_storage_access_key == "a-real-production-access-key"
     assert settings.object_storage_secret_key == "a-real-production-secret"
+
+
+def test_current_object_store_dev_credentials_in_production_raise(monkeypatch) -> None:
+    """The post-MinIO dev defaults are refused exactly like the old ones were."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("OBJECT_STORAGE_ACCESS_KEY", "factory-object-store")
+    monkeypatch.setenv("OBJECT_STORAGE_SECRET_KEY", "a-real-production-secret")
+    with pytest.raises(RuntimeError, match="default object-storage credentials"):
+        load_settings()
+
+
+def test_change_me_object_store_secret_in_production_raises(monkeypatch) -> None:
+    _base_env(monkeypatch)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("OBJECT_STORAGE_ACCESS_KEY", "a-real-production-access-key")
+    monkeypatch.setenv("OBJECT_STORAGE_SECRET_KEY", "CHANGE_ME_rotate_before_deploy")
+    with pytest.raises(RuntimeError, match="default object-storage credentials"):
+        load_settings()
