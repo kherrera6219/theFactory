@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.08.21
-Last updated: 2026-08-21
+Document version: 2026.09.27
+Last updated: 2026-09-27
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -101,7 +101,9 @@ Cheap self-contained hardening follows, then evidence, then features.
   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`. **Live-bus 2026-08-17:**
   `mission-56bfd2dc` consumed Delta
   `delta-mission-56bfd2dc-…-podA` onto `delta_audit_gate` (prefix parse).
-- [ ] 7 — BUILD_NEW equivalence decision
+- [x] **7 — BUILD_NEW equivalence** *(2026-09-27)*. Option 2 taken: behavioural
+  vectors from the approved contract, oracle blind to the implementation,
+  executed in the shared sandbox. Advisory until #13. ADR amendment 2026-09-27.
 - [x] **8 — repo ZIP Phases 5–7 UI trigger** *(closed 2026-08-21)*. Backend
   Phases 5–7 were already present. Chat `confirmAndLaunch` arms
   `metadata.repo_import` (`index_required: true`, `index_status: "pending"`)
@@ -109,7 +111,7 @@ Cheap self-contained hardening follows, then evidence, then features.
   `buildRepoImportLaunchMetadata` / `buildRepoIndexRequest` + unit tests in
   `apps/mission-control/app/lib/chat-repo-import.ts`. Evidence:
   `docs/evidence/repo_zip_phases_5_7_verification_20260821.md`.
-- [ ] 9 — Electron decisions *(blocked on user sign-off)*
+- [ ] 9 — Electron build-out *(operator approved 2026-09-27 — next initiative)*
 - [ ] 10 — operator polish
 - [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified
   live in **full-dedicated** (56 containers), not only condensed: the
@@ -118,7 +120,8 @@ Cheap self-contained hardening follows, then evidence, then features.
   by execution rather than presence — a valid Python file returned exit 0 with
   real stdout, and a deliberately broken one returned exit 1 with a real
   `SyntaxError`, so the runner is not passing everything.
-- [ ] 12 — C# offline runtime
+- [x] **12 — C# offline runtime** *(2026-09-27)*. .NET 10 LTS factory image,
+  packages restored at build time; program and xUnit tests run offline.
 - [ ] 13 — measurement before enforcement
 - [ ] 14 — release package
 - [x] **CI and Weekly Qualification restored** *(2026-08-19)*. CI had been red on
@@ -151,9 +154,10 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ## Next up
 
-**Product decision (not code cleanup):** item **#7** BUILD_NEW equivalence.
-
-**Later / blocked:** #9 Electron (user sign-off), then #10 polish, #13–#14 release.
+1. Redeploy + object-store migration, then stuck missions + coverage re-run
+   (see `docs/CURRENT_TODO.md`, 2026-09-27).
+2. **#9 Electron build-out** (approved).
+3. #13 measure behavioural equivalence (≥20 missions), #10 polish, #14 release.
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

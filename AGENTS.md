@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-18. Honesty pass `af88a79`: fallback QC tests are ADVISORY; PORT default matches compose; Knowledge Lake restated as a seed. Live proofs: `docs/evidence/remaining_live_proof_20260817.json`.
+> Last validated: 2026-09-27. Enterprise-hardening pass: MinIO -> SeaweedFS (`object-store`), WQ7 contract-oracle equivalence, vendored offline test runners for every language incl. C#, sandbox infrastructure errors never FAIL an artifact. See `docs/CURRENT_TODO.md` (2026-09-27).
 
 ---
 
@@ -42,12 +42,15 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- Deep-review N1–N4 honesty items are closed (`af88a79`). Review filed at
-  `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md`.
-- **Do not treat Electron as a defect.** Installer work waits until the
-  app is production-ready (`docs/WORK_QUEUE.md` #9).
-- Next product work: brownfield import; BUILD_NEW equivalence (#7);
-  Repo ZIP knowledge phases 5–7 (#8).
+- 2026-09-27 pass is on `main` (see `docs/CURRENT_TODO.md`): WQ7 and WQ12
+  closed, object store is SeaweedFS, every language has sandbox execution.
+- Next: redeploy + object-store migration (`docs/OBJECT_STORE_MIGRATION.md`),
+  stuck missions + coverage re-run, then the **Electron build-out** (#9,
+  operator-approved 2026-09-27).
+- **Executing tests goes through the vendored images** in
+  `deploy/sandbox-images` (built by `make sandbox-images`). Pin every base by
+  digest and every download by checksum; `test_factory_sandbox_images_pin_every_input`
+  fails otherwise.
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from
@@ -270,7 +273,7 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 | File | Risk | Notes |
 |---|---|---|
 | `services/orchestrator/orchestrator/storage_*.py` | High | Storage split done (2026-05-17) — `storage.py` is now a 135-line re-export façade; 6 domain modules hold the logic. High blast radius: changes to any module affect all services. |
-| `services/orchestrator/orchestrator/mission_flow_v2.py` | High | 3004 lines — primary runtime path. Intelligence layer completions (Sprint 2) go here. |
+| `services/orchestrator/orchestrator/mission_flow_v2/` | High | A package (`base`, `lifecycle`, `transitions`, `phases_*`), not one file — primary runtime path. |
 | `services/orchestrator/orchestrator/main.py` | High | ~926 lines. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge_lake_refresh_loop added (Sprint 2 item complete). |
 | `services/orchestrator/orchestrator/runtime.py` | Medium | Delegates engine selection to `lifecycle_interface.py` via `get_lifecycle_engine()` factory. |
 | `services/orchestrator/orchestrator/agent_registry.py` | Medium | Source of truth for all 41 agent definitions |
