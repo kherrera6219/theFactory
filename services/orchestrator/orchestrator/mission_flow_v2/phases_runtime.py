@@ -24,7 +24,7 @@ from ..mission_flow import (
     with_chain_defaults,
 )
 from ..protocol_bus_emissions import EMISSION_KEY, PBLA_SPECIALIST_RESULT
-from ..rqca_agent import run_runtime_qc
+from ..rqca_agent import RQCA_HARNESS_VERSION, run_runtime_qc
 from ..testdata_agent import generate_testdata_manifest
 from .base import (
     _chain_event_exists,
@@ -39,8 +39,29 @@ from .phases_build import _ensure_verified_build_artifact
 LOGGER = logging.getLogger(__name__)
 
 
+def _report_harness_version(report: dict[str, Any]) -> int:
+    try:
+        return int(report.get("harness_version") or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _tests_were_flattened(integration_tests: Any) -> bool:
+    """Generated tests stored before PR #511 had every newline replaced by a
+    space, so no test file could be imported. Such tests must be regenerated,
+    not re-run."""
+    if not isinstance(integration_tests, dict):
+        return False
+    code = str(integration_tests.get("test_code") or "")
+    return len(code) > 80 and "\n" not in code
+
+
 def _cached_runtime_qc_is_stale(report: dict[str, Any]) -> bool:
     """True when a stored QC report used a verdict this build no longer trusts."""
+    if _report_harness_version(report) < RQCA_HARNESS_VERSION:
+        # Produced by a harness with since-fixed defects: its verdict -- PASS
+        # or FAIL -- says as much about the harness as about the artifact.
+        return True
     scope = str(report.get("verified_scope_detail") or "").strip().lower()
     if scope == "started_only":
         return True
@@ -314,6 +335,34 @@ async def _persist_runtime_qc_skip(
     )
     return updated or mission, ready, runtime_qc_report
 
+def _requalify_runtime_qc(metadata: dict[str, Any], stale: dict[str, Any]) -> None:
+    """Discard QC evidence produced by an older harness so it is rebuilt.
+
+    The stale verdict is not erased from history: it is recorded on the chain
+    with the harness that produced it, and the manifest (whose run command and
+    derived arguments came from the old harness) and any flattened tests are
+    dropped so the pipeline regenerates them before QC runs again.
+    """
+    assessment = stale.get("qc_assessment") if isinstance(stale.get("qc_assessment"), dict) else {}
+    flattened = _tests_were_flattened(metadata.get("integration_tests"))
+    append_chain_event(
+        metadata,
+        event_type="MISSION_RUNTIME_QC_REQUALIFIED",
+        agent_id="AGENT-41-RQCA",
+        details={
+            "previous_verdict": assessment.get("qc_verdict") or stale.get("verdict"),
+            "previous_harness_version": _report_harness_version(stale),
+            "harness_version": RQCA_HARNESS_VERSION,
+            "previous_completed_at": stale.get("completed_at"),
+            "tests_regenerated": flattened,
+        },
+    )
+    metadata.pop("runtime_qc_report", None)
+    metadata.pop("testdata_manifest", None)
+    if flattened:
+        metadata.pop("integration_tests", None)
+
+
 async def _prepare_runtime_qc(
     *,
     app: Any,
@@ -326,7 +375,11 @@ async def _prepare_runtime_qc(
     if isinstance(cached_report, dict) and not cached_report.get("skipped"):
         # Reuse a real QC report on completion retries so the sandbox is not
         # re-run. Re-assess dishonest started_only PASS reports from older builds.
-        if not _cached_runtime_qc_is_stale(cached_report):
+        if _cached_runtime_qc_is_stale(cached_report) and (
+            _report_harness_version(cached_report) < RQCA_HARNESS_VERSION
+        ):
+            _requalify_runtime_qc(metadata, cached_report)
+        elif not _cached_runtime_qc_is_stale(cached_report):
             cached_qc_assessment = cached_report.get("qc_assessment")
             if not isinstance(cached_qc_assessment, dict):
                 cached_qc_assessment = {}
@@ -514,7 +567,11 @@ async def _prepare_runtime_qc(
         if isinstance(metadata.get("integration_tests"), dict)
         else None,
     )
-    runtime_qc_report = {**execution, "qc_assessment": qc_assessment}
+    runtime_qc_report = {
+        **execution,
+        "qc_assessment": qc_assessment,
+        "harness_version": RQCA_HARNESS_VERSION,
+    }
     metadata["runtime_qc_report"] = runtime_qc_report
     append_chain_event(
         metadata,

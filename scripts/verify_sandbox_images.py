@@ -40,6 +40,25 @@ class Case:
 
 
 CASES: dict[str, Case] = {
+    "python-pytest": Case(
+        image="thefactory/sandbox-test-python:1",
+        artifact=("adder.py", "def add(a, b):\n    return a + b\n"),
+        tests=(
+            "test_adder.py",
+            "import pytest\nimport adder\n\n\ndef test_add():\n    assert adder.add(2, 3) == 5\n",
+        ),
+        bug=("return a + b", "return a + b + 1"),
+    ),
+    "python-unittest": Case(
+        image="thefactory/sandbox-test-python:1",
+        artifact=("adder.py", "def add(a, b):\n    return a + b\n"),
+        tests=(
+            "test_adder.py",
+            "import unittest\nimport adder\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_add(self):\n        self.assertEqual(adder.add(2, 3), 5)\n",
+        ),
+        bug=("return a + b", "return a + b + 1"),
+    ),
     "java": Case(
         image="thefactory/sandbox-test-java:1",
         artifact=(

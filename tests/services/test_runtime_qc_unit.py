@@ -1489,3 +1489,31 @@ class TestVendoredTestRuntimes:
         assert seen["base_image"] == "thefactory/sandbox-test-java:1"
         assert seen["command"].startswith("/opt/factory/run-tests")
         assert report["verdict"] == "PASS" and report["verified_scope_detail"] == "tests"
+
+
+def test_derived_program_arguments_never_reach_a_test_command(monkeypatch) -> None:
+    """mission-158bb59c (2026-09-28): the usage example's `--mock` was appended
+    to `python -m unittest discover ...`, which rejected it -- a FAIL that said
+    nothing about the artifact."""
+    seen: dict = {}
+
+    async def _run(**kwargs):
+        seen.update(kwargs)
+        return sandbox_exec.SandboxResult(
+            exit_code=0, stdout="1 passed", stderr="", timed_out=False,
+            timeout_seconds=60, memory_limit_mb=512, base_image=kwargs["base_image"],
+        )
+
+    monkeypatch.setattr(rqca_agent, "run_in_sandbox", _run)
+    asyncio.run(
+        rqca_agent._execute_in_sandbox(
+            docker_bin="docker", mission_id="mission-args", filename="probe.py",
+            code="print(1)\n", test_code="def test_x():\n    assert True\n",
+            testdata_manifest={"base_image": "python:3.11-slim", "invocation_args": ["--mock"]},
+            language="python",
+            settings=SimpleNamespace(sandbox_vendored_test_images_enabled=True,
+                                     rqca_test_command_template=""),
+        )
+    )
+    assert seen["base_image"] == "thefactory/sandbox-test-python:1"
+    assert "--mock" not in seen["command"]

@@ -7,6 +7,7 @@ at a pinned version, verified by checksum at build time.
 
 | Image | Base (pinned by digest) | Adds |
 |---|---|---|
+| `thefactory/sandbox-test-python:1` | `python:3.11-slim` | pytest 9.1.1, hash-pinned (`--require-hashes`); also runs unittest classes |
 | `thefactory/sandbox-test-java:1` | `eclipse-temurin:21-jdk` | JUnit Platform Console Standalone 1.11.4 (JUnit 5) |
 | `thefactory/sandbox-test-kotlin:1` | `eclipse-temurin:21-jdk` | Kotlin 2.4.20 compiler (with kotlin-test/-junit5) + JUnit console 1.11.4; also Kotlin's *runtime* |
 | `thefactory/sandbox-test-scala:1` | `sbtscala/scala-sbt` (Scala 3.4.0) | ScalaTest 3.2.19 as a 17-jar bill of materials, each jar checksummed |

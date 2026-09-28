@@ -229,7 +229,7 @@ jobs:
       - name: Build vendored sandbox images
         run: |
           docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
-            sandbox-test-java sandbox-test-kotlin sandbox-test-scala \
+            sandbox-test-python sandbox-test-java sandbox-test-kotlin sandbox-test-scala \
             sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp
 
       - name: Verify each runner separates correct from broken artifacts

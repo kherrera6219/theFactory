@@ -302,6 +302,13 @@ services:
   # Vendored test-runner images for runtime QC (deploy/sandbox-images). Never
   # started -- the sandbox-runner launches them per test run with
   # --network=none. Built by `make sandbox-images` (part of `make up`).
+  sandbox-test-python:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-python:1
+    build:
+      context: ./sandbox-images/python
+    entrypoint: ["true"]
+
   sandbox-test-java:
     profiles: ["sandbox-images"]
     image: thefactory/sandbox-test-java:1

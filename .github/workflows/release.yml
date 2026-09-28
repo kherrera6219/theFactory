@@ -71,6 +71,9 @@ jobs:
             dockerfile: apps/mission-control/Dockerfile
           # Vendored offline test runner (deploy/sandbox-images); the installed app
           # retags it to the local name runtime QC uses.
+          - service: sandbox-test-python
+            context: deploy/sandbox-images/python
+            dockerfile: deploy/sandbox-images/python/Dockerfile
           - service: sandbox-test-java
             context: deploy/sandbox-images/java
             dockerfile: deploy/sandbox-images/java/Dockerfile

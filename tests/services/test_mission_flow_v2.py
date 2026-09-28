@@ -2311,7 +2311,12 @@ async def test_prepare_runtime_qc_reuses_cached_report_without_re_executing() ->
         "deployment_safe": True,
     }
     cached_assessment = {"qc_verdict": "FAIL", "deployment_safe": False}
-    cached_report = {**cached_execution, "qc_assessment": cached_assessment}
+    cached_report = {
+        **cached_execution,
+        "qc_assessment": cached_assessment,
+        # Produced by the current harness, so it is trusted and reused.
+        "harness_version": orchestrator_mission_flow_v2_runtime.RQCA_HARNESS_VERSION,
+    }
     mission = _make_mission(state=MissionState.verified)
     mission.metadata = {
         "generated_output": {
@@ -4230,3 +4235,45 @@ async def test_runtime_qc_block_records_a_readable_reason() -> None:
     assert details.get("verdict") == "FAIL"
     assert details.get("exit_code") == 2
     assert "Syntax error" in details.get("stderr_excerpt", "")
+
+
+def test_runtime_qc_reports_from_an_older_harness_are_stale() -> None:
+    """2026-09-27: 30 missions sat at VERIFIED behind FAIL verdicts produced by
+    a harness with since-fixed defects; every re-drive re-read the old FAIL."""
+    runtime = orchestrator_mission_flow_v2_runtime
+    current = runtime.RQCA_HARNESS_VERSION
+    old_fail = {"verdict": "FAIL", "qc_assessment": {"qc_verdict": "FAIL"},
+                "verified_scope_detail": "tests"}
+    assert runtime._cached_runtime_qc_is_stale(old_fail)
+    assert runtime._cached_runtime_qc_is_stale({**old_fail, "harness_version": current - 1})
+    assert not runtime._cached_runtime_qc_is_stale({**old_fail, "harness_version": current})
+
+
+def test_requalify_records_history_and_drops_only_stale_evidence() -> None:
+    runtime = orchestrator_mission_flow_v2_runtime
+    flattened = "import unittest from app import add  class T(unittest.TestCase):     " * 3
+    metadata = {
+        "runtime_qc_report": {"verdict": "FAIL", "qc_assessment": {"qc_verdict": "FAIL"},
+                              "completed_at": "2026-08-27T04:23:14+00:00"},
+        "testdata_manifest": {"run_command": "python -m unittest discover a b"},
+        "integration_tests": {"test_code": flattened},
+        "generated_output": {"generated_code": "x = 1"},
+    }
+    runtime._requalify_runtime_qc(metadata, metadata["runtime_qc_report"])
+    assert "runtime_qc_report" not in metadata
+    assert "testdata_manifest" not in metadata
+    assert "integration_tests" not in metadata  # flattened -> regenerate
+    assert metadata["generated_output"] == {"generated_code": "x = 1"}
+    event = metadata["chain_trace"][-1]
+    assert event["event_type"] == "MISSION_RUNTIME_QC_REQUALIFIED"
+    assert event["details"]["previous_verdict"] == "FAIL"
+    assert event["details"]["previous_harness_version"] == 1
+    assert event["details"]["tests_regenerated"] is True
+
+
+def test_requalify_keeps_well_formed_tests() -> None:
+    runtime = orchestrator_mission_flow_v2_runtime
+    tests = {"test_code": "import unittest\n\nclass T(unittest.TestCase):\n    pass\n" * 3}
+    metadata = {"runtime_qc_report": {"verdict": "FAIL"}, "integration_tests": tests}
+    runtime._requalify_runtime_qc(metadata, metadata["runtime_qc_report"])
+    assert metadata["integration_tests"] == tests

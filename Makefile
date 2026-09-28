@@ -10,7 +10,7 @@ force-stop:
 # (deploy/sandbox-images). Built from locally cached, digest-pinned bases.
 sandbox-images:
 	docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
-		sandbox-test-java sandbox-test-kotlin sandbox-test-scala sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp
+		sandbox-test-python sandbox-test-java sandbox-test-kotlin sandbox-test-scala sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp
 
 # Report the running topology and the correct paired commands for it.
 topology:
