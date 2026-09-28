@@ -44,9 +44,12 @@ plan statement — rule 1 below is not a formality here.
 
 - 2026-09-27 pass is on `main` (see `docs/CURRENT_TODO.md`): WQ7 and WQ12
   closed, object store is SeaweedFS, every language has sandbox execution.
-- Next: redeploy + object-store migration (`docs/OBJECT_STORE_MIGRATION.md`),
-  stuck missions + coverage re-run, then the **Electron build-out** (#9,
-  operator-approved 2026-09-27).
+- Done 2026-09-27: local object-store migration; Windows installer (#9) built,
+  installed and validated (`docs/ELECTRON_INSTALLER.md`); all agents on
+  `gemini-3.8-flash`.
+- Next: stuck missions + coverage re-run; first `v*` release with public GHCR
+  images. Electron preloads run sandboxed -- they must stay esbuild-bundled
+  (build-electron.mjs fails otherwise).
 - **Executing tests goes through the vendored images** in
   `deploy/sandbox-images` (built by `make sandbox-images`). Pin every base by
   digest and every download by checksum; `test_factory_sandbox_images_pin_every_input`
