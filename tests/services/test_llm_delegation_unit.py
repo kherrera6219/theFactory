@@ -86,7 +86,7 @@ def test_agent_model_inventory_defaults_to_gemini_flash() -> None:
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert models == {"gemini-3.7-flash"}
+    assert models == {"gemini-3.8-flash"}
     assert "gpt-5.2-codex" not in models
 
 
@@ -251,7 +251,7 @@ def test_codegen_normalizer_serializes_files_array_as_tree() -> None:
         specialist_agent_id="AGENT-14-PYTHON",
         target_language="python",
         provider="gemini",
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
         route="primary",
     )
     assert result is not None
@@ -276,7 +276,7 @@ def test_codegen_prompt_includes_imported_source_tree_instruction() -> None:
         target_language="python",
         specialist_agent_id="AGENT-14-PYTHON",
         recommended_provider="gemini",
-        recommended_model="gemini-3.7-flash",
+        recommended_model="gemini-3.8-flash",
     )
     assert "Imported project source" in prompt
     assert "files" in prompt
@@ -1229,7 +1229,7 @@ def test_call_with_recommendation_allows_fallback_when_provider_is_auto(monkeypa
         llm_delegation._call_with_recommendation(
             recommendation={
                 "provider": "gemini",
-                "model": "gemini-3.7-flash",
+                "model": "gemini-3.8-flash",
                 "fallback_provider": "openai",
                 "fallback_model": "gpt-5.5",
             },

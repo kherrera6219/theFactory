@@ -31,7 +31,7 @@ Smelt-cycle phase stepper showing every state it passed through.*
 
 > **Version:** 1.3.0 · **Last updated:** 2026-09-27 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
-> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist — **in every routed language, offline**, via vendored test-runner images (JUnit, kotlin-test, ScalaTest, PHPUnit, testthat, vitest, xUnit, minitest, Julia `Test`); a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
+> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.8 Flash**. Runtime QC runs generated tests when they exist — **in every routed language, offline**, via vendored test-runner images (JUnit, kotlin-test, ScalaTest, PHPUnit, testthat, vitest, xUnit, minitest, Julia `Test`); a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
 >
 > **Recent on `main` (2026-09-27, [#538](https://github.com/kherrera6219/theFactory/pull/538)):** **Every routed language now executes in the sandbox** — C# joined via a .NET 10 image, and generated tests run offline in vendored, checksum-pinned test-runner images, CI-verified to pass a correct artifact and fail a broken one. **BUILD_NEW missions now get behavioural equivalence** from their approved contract (an oracle that never sees the implementation). The object store moved from MinIO — whose image was withdrawn and project archived — to **SeaweedFS** with the same Object Lock guarantees. A Next.js remote-code-execution advisory was closed (`npm audit`: 0). A missing sandbox image is now reported as infrastructure, never as the generated code failing. Next initiative: the **Electron desktop build-out**. Ordered work: [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 >
@@ -145,7 +145,7 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Runtime QC** — RQCA on by default, with sandbox execution for **all 19 routed languages** (C# via .NET 10 since 2026-09-27). Generated integration tests, when present, are the sandbox command and run in factory test-runner images (`deploy/sandbox-images`: every base pinned by digest, every download checksummed, CI-verified to pass a correct artifact and fail a broken one). Test-only frameworks never block running the program. Unmet third-party deps in a `--network=none` sandbox are `DRY_RUN`, never PASS; a missing image or unreachable runner is a sandbox *infrastructure error*, never a FAIL of the artifact. `started_only` and syntax-only success are ADVISORY. Compose default is `RQCA_ENFORCEMENT_ENABLED=true` (FAIL blocks; advisory verdicts do not).
 - **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Two oracles: Refined-IR vectors projected from source being ported (opt-in, Python), and — for BUILD_NEW, since 2026-09-27 (WQ7) — **contract-oracle vectors** derived from the approved acceptance criteria by an oracle that sees the artifact's interface but never its implementation, executed as function calls (Python) or argv/stdin → stdout/exit checks (every language). Advisory until measured across ≥20 missions; a vector that merely ran is never `passed`, and with no model the result is `skipped`, never a stub.
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
-- **Gemini 3.7 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.7-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
+- **Gemini 3.8 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.8-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
 - **Desktop Electron Packaging** — *(full build-out is the next initiative)* Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
 - **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend suite: 2,200+ tests at 84% coverage against an 80% floor, plus per-file floors on privilege, money and sandbox paths; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 172 tests. Do not treat a green audit badge as “zero vulnerabilities.”
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
@@ -259,7 +259,7 @@ Each agent exposes:
   "active_mission_id": null,
   "llm_recommendation": {
     "provider": "gemini",
-    "model": "gemini-3.7-flash",
+    "model": "gemini-3.8-flash",
     "mode": "thinking",
     "thinking_level": "high"
   },
@@ -288,10 +288,10 @@ Runtime persona and delegation metadata currently support provider-aware recomme
 - **OpenAI**
 - **Google Gemini**
 
-Current runtime default: all 41 agents route to Gemini 3.7 Flash
-(`gemini-3.7-flash`) with high thinking. Mission Control Settings exposes three
+Current runtime default: all 41 agents route to Gemini 3.8 Flash
+(`gemini-3.8-flash`) with high thinking. Mission Control Settings exposes three
 operator-selectable vault-slot model routes for testing: ChatGPT 5.5, Claude
-Opus 4.8, and Gemini 3.7 Flash. OpenAI and Anthropic remain supported provider
+Opus 4.8, and Gemini 3.8 Flash. OpenAI and Anthropic remain supported provider
 routes, but they are not the default assignment for any agent.
 
 
@@ -914,9 +914,9 @@ OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 
 # LLM Providers
-LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.6 | claude-opus-4-8 | gemini-3.7-flash
+LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.6 | claude-opus-4-8 | gemini-3.8-flash
 GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-3.7-flash
+GEMINI_MODEL=gemini-3.8-flash
 GEMINI_THINKING_LEVEL=high
 OPENAI_MODEL=gpt-5.6
 OPENAI_REASONING_EFFORT=high
@@ -1099,7 +1099,7 @@ system is **not production-ready**; the Electron desktop build-out is next.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
-| **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default, 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.7 Flash default route. |
+| **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default, 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.8 Flash default route. |
 | **Project continuity** | **Foundation on `main`** | Migration `V010`, `project_bus` ensure/finalize hooks, unit tests (`ce9e042`). Follow-on missions can resume handoff + work ledger. Project detail UI and public work-item APIs are follow-ups. |
 | **Repo ZIP knowledge path** | **Phases 5–7 closed** | Launch index guard, knowledge ingestion, agent context load, and Chat UI trigger seam verified 2026-08-21. Optional polish: index-status visibility in UI and live closed-loop proof under `LIVE_STACK_REQUIRED=1`. |
 | **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — type recovery for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. BUILD_NEW does not extract LogicNodes. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |

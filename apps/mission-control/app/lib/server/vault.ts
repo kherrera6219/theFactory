@@ -9,7 +9,7 @@ type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
 type VaultModel =
   | "gpt-5.6"
   | "claude-opus-4-8"
-  | "gemini-3.7-flash"
+  | "gemini-3.8-flash"
   | "gemini-embedding-001"
   | "text-embedding-3-large"
   | "text-embedding-3-small";
@@ -17,10 +17,14 @@ type VaultModel =
 // Gemini Flash revisions this app has shipped and has since moved past. A slot
 // saved while one of these was current keeps returning it forever, and the
 // model picker no longer lists them — so the Settings page renders its default
-// (3.7) while the vault still hands 3.5 to every agent on every mission. These
+// (3.8) while the vault still hands 3.5 to every agent on every mission. These
 // are migrated forward on read rather than preserved.
-const SUPERSEDED_GEMINI_MODELS = new Set(["gemini-3.5-flash", "gemini-3.6-flash"]);
-const CURRENT_GEMINI_MODEL: VaultModel = "gemini-3.7-flash";
+const SUPERSEDED_GEMINI_MODELS = new Set([
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+]);
+const CURRENT_GEMINI_MODEL: VaultModel = "gemini-3.8-flash";
 const SUPERSEDED_OPENAI_MODELS = new Set(["gpt-5.5"]);
 const CURRENT_OPENAI_MODEL: VaultModel = "gpt-5.6";
 
@@ -123,7 +127,7 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "gpt-5.6") return "gpt-5.6";
   if (SUPERSEDED_OPENAI_MODELS.has(candidate)) return CURRENT_OPENAI_MODEL;
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
-  if (candidate === "gemini-3.7-flash") return "gemini-3.7-flash";
+  if (candidate === "gemini-3.8-flash") return "gemini-3.8-flash";
   // Migrate a pin saved against an older Flash revision rather than honouring
   // it. Preserving it silently downgraded every agent on every mission.
   if (SUPERSEDED_GEMINI_MODELS.has(candidate)) return CURRENT_GEMINI_MODEL;
@@ -132,7 +136,7 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "text-embedding-3-small") return "text-embedding-3-small";
   if (provider === "openai") return "gpt-5.6";
   if (provider === "anthropic") return "claude-opus-4-8";
-  if (provider === "gemini") return "gemini-3.7-flash";
+  if (provider === "gemini") return CURRENT_GEMINI_MODEL;
   return undefined;
 }
 
@@ -784,7 +788,7 @@ export async function preflightProviderCall(
     }
 
     if (normalizedProvider === "gemini") {
-      const geminiModel = resolvedModel || "gemini-3.7-flash";
+      const geminiModel = resolvedModel || "gemini-3.8-flash";
 
       const response = await fetchWithTimeout(
         `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent?key=${encodeURIComponent(candidate)}`,

@@ -20,13 +20,13 @@ def test_estimate_uses_ledger_rates_for_gemini_37_flash() -> None:
         mission_type="BUILD_NEW",
         complexity="medium",
         provider="gemini",
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
     )
     assert estimate["pricing_known"] is True
-    unit, known = _estimate_cost("gemini", "gemini-3.7-flash", 1000, 1000)
+    unit, known = _estimate_cost("gemini", "gemini-3.8-flash", 1000, 1000)
     assert known is True
     assert unit == 0.0045
-    assert estimate["model"] == "gemini-3.7-flash"
+    assert estimate["model"] == "gemini-3.8-flash"
 
 
 def test_estimate_is_a_range_not_a_point() -> None:
@@ -78,8 +78,8 @@ def test_estimator_is_pure_no_io() -> None:
 
 
 def test_basis_records_model_and_rate_date() -> None:
-    estimate = sow_estimator.estimate_mission_cost(model="gemini-3.7-flash")
-    assert "gemini-3.7-flash" in estimate["basis"]
+    estimate = sow_estimator.estimate_mission_cost(model="gemini-3.8-flash")
+    assert "gemini-3.8-flash" in estimate["basis"]
     assert estimate["pricing_as_of"]
 
 

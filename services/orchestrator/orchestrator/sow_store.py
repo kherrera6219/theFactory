@@ -73,7 +73,7 @@ def attach_cost_estimate(
     resolved_type = mission_type or str(contract.get("engagement_type") or "BUILD_NEW")
     complexity = str(contract.get("estimated_complexity") or "medium")
     resolved_provider = str(provider or contract.get("model_provider") or "gemini")
-    resolved_model = str(model or contract.get("model") or "gemini-3.7-flash")
+    resolved_model = str(model or contract.get("model") or "gemini-3.8-flash")
     if change_order:
         estimate = estimate_change_order(
             prior=prior_cost,
