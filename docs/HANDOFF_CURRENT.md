@@ -45,11 +45,16 @@ verified: custom NSIS pages (prerequisites, finish with autostart, keep/remove
 data), startup progress window, tray lifecycle, headless uninstall helper,
 per-release image publishing incl. sandbox images, `thefactory-app` compose
 project isolation. Silent install → helper → silent uninstall proven on this
-machine. **Open:** (1) install-mode page defaults to all users (admin) — make
-per-user the default; (2) the operator's first interactive all-users install
-failed — diagnose via `factory.log`; a leftover test install sits in
-`C:\Program Files\theFactory Mission Control`; (3) first `v*` release +
-making GHCR packages public (owner) + optional code signing.
+machine. **Installed-app validation 2026-09-27 found and fixed six defects**
+(launch crash from a cwd inside app.asar, sandboxed preloads that could not
+load so no window controls, titlebar overlap, embedded server without keys,
+24-byte vault keys, userData folder name) — table in
+`docs/ELECTRON_INSTALLER.md`. Reinstalled from the desktop icon: window
+controls work, live data shows. **Gemini upgraded to `gemini-3.8-flash`**
+(code, compose, vault migration of 3.5/3.6/3.7 pins, cost ledger at
+$0.75/$3.75 per 1M through 2026-12-31); dev stack redeployed on 3.8.
+**Open:** first `v*` release + making GHCR packages public (owner) +
+optional code signing.
 
 ---
 

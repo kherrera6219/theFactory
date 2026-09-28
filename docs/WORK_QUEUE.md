@@ -115,9 +115,8 @@ Cheap self-contained hardening follows, then evidence, then features.
   `docs/ELECTRON_INSTALLER.md`: tray-on-close, check-and-guide Docker, opt-in
   auto-start, public GHCR images, keep-data uninstall. Custom NSIS pages
   (prerequisites, finish, keep/remove data), startup progress window, tray
-  lifecycle, headless uninstall helper. **Open:** install-mode page defaults
-  to all users; first interactive install failed (undiagnosed). **Release still
-  owed:** first `v*`
+  lifecycle, headless uninstall helper. Installed and validated end to end
+  (six launch defects fixed). **Release still owed:** first `v*`
   tag + making the GHCR packages public (owner action) + optional signing.
 - [ ] 10 — operator polish
 - [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified

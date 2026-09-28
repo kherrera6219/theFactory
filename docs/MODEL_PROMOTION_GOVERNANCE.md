@@ -13,11 +13,11 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 
 - Release promotion requires a machine-readable agent model inventory.
 - `deploy/promotion-policy.json` blocks lifecycle stages `preview`, `experimental`, and `rolling`.
-- All 41 agents default to `gemini-3.7-flash` with high thinking for the
+- All 41 agents default to `gemini-3.8-flash` with high thinking for the
   Gemini-first local test path.
 - Mission Control exposes operator-selectable model routes:
-  `gemini-3.7-flash`, `gpt-5.6`, and `claude-opus-4-8`. These routes are
-  allowed for vault-slot testing, but only Gemini 3.7 Flash is assigned as an
+  `gemini-3.8-flash`, `gpt-5.6`, and `claude-opus-4-8`. These routes are
+  allowed for vault-slot testing, but only Gemini 3.8 Flash is assigned as an
   agent default.
 - `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview
   waivers are active.

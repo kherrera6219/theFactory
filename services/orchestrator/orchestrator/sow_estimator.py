@@ -83,7 +83,7 @@ def estimate_mission_cost(
     mission_type: str = "BUILD_NEW",
     complexity: str = "medium",
     provider: str = "gemini",
-    model: str = "gemini-3.7-flash",
+    model: str = "gemini-3.8-flash",
 ) -> dict[str, Any]:
     """Return a range estimate. No I/O. Does not invent labor dollars."""
     scale = _COMPLEXITY_SCALE.get(str(complexity or "medium").strip().lower(), 1.0)
@@ -127,7 +127,7 @@ def estimate_change_order(
     mission_type: str = "IMPORT_MODERNIZE",
     complexity: str = "medium",
     provider: str = "gemini",
-    model: str = "gemini-3.7-flash",
+    model: str = "gemini-3.8-flash",
 ) -> dict[str, Any]:
     """Quote the new factory run and the delta versus the prior accepted bid.
 

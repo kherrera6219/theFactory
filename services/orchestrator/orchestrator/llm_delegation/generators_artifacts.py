@@ -200,7 +200,7 @@ async def generate_pm_delivery_summary(
     """PM Agent produces a final delivery summary for completed missions."""
     recommendation = _pkg()._agent_recommendation("AGENT-01-PM")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     primary_artifact = next(
@@ -334,7 +334,7 @@ async def generate_master_logic_stream(
 
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     pods_summary = []
@@ -457,7 +457,7 @@ async def generate_security_analysis(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-05-SECURITY")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     code_snippet = _clean_text(
@@ -565,7 +565,7 @@ async def generate_vc_commit_strategy(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-07-VC")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     language = _clean_text(
@@ -665,7 +665,7 @@ async def generate_compliance_assessment(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-08-COMPLIANCE")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     language = _clean_text(
@@ -768,7 +768,7 @@ async def generate_integration_tests(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-10-TESTER")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     language = _clean_text(
@@ -993,7 +993,7 @@ async def generate_pod_audit_verdict(
     audit_agent_id = _POD_AUDIT_AGENTS_BY_LOWER.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
     recommendation = _pkg()._agent_recommendation(audit_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
 
     nodes = pod_group_standard.get("canonical_logicnodes") or []

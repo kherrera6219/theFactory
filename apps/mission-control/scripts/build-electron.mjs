@@ -72,6 +72,34 @@ try {
         );
     }
 
+    // 6b. Preload scripts run with sandbox: true, where require() can load
+    // ONLY "electron" -- never a local file. tsc emits
+    // require("../app/lib/electron-bridge") / require("./wizard-ipc-channels"),
+    // which threw on load, so window.electronAPI never existed: no titlebar
+    // controls, no file dialogs, and a first-run wizard that could not submit.
+    // Bundle each preload into one self-contained file, then prove it.
+    const { buildSync } = await import('esbuild');
+    for (const name of ['preload', 'setup-preload', 'starting-preload']) {
+        const outfile = path.join(electronOutDir, `${name}.js`);
+        buildSync({
+            entryPoints: [path.join(process.cwd(), 'electron', `${name}.ts`)],
+            outfile,
+            bundle: true,
+            platform: 'node',
+            format: 'cjs',
+            target: 'node20',
+            external: ['electron'],
+            logLevel: 'warning',
+        });
+        const requires = [...fs.readFileSync(outfile, 'utf-8').matchAll(/require\(["']([^"']+)["']\)/g)]
+            .map((match) => match[1]);
+        const forbidden = requires.filter((request) => request !== 'electron');
+        if (forbidden.length) {
+            console.error(`CRITICAL: sandboxed preload ${name}.js still requires ${forbidden.join(', ')}`);
+            process.exit(1);
+        }
+    }
+
     // 7. The uninstaller runs the maintenance helper under plain Node
     // (ELECTRON_RUN_AS_NODE=1) from resources\maintenance -- outside app.asar,
     // so it needs no asar support. It imports only factory-stack.

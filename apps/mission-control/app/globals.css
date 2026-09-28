@@ -3206,9 +3206,19 @@ dd {
   color: #fff;
 }
 
-/* Shift the shell grid down by titlebar height when it is mounted */
+/* Shift the shell grid down by titlebar height when it is mounted. The shell,
+   its sticky sidebar and its scrolling main column are all sized to 100vh, so
+   padding alone pushed their tops UNDER the fixed titlebar -- the header and
+   the brand were clipped in the packaged app. Shrink each to the space below
+   the bar instead. */
 .shell:has(.electron-titlebar) {
   padding-top: var(--electron-titlebar-h);
+  height: 100vh;
+}
+
+.shell:has(.electron-titlebar) .shell-sidebar,
+.shell:has(.electron-titlebar) .shell-main-column {
+  height: calc(100vh - var(--electron-titlebar-h));
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

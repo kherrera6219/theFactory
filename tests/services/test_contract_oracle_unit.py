@@ -401,7 +401,7 @@ def test_generator_prompt_never_contains_the_implementation(monkeypatch) -> None
         return (
             {"vectors": [{"kind": "call", "criterion_index": 0, "function": "add",
                           "args": [2, 3], "expected": 5}]},
-            "gemini", "gemini-3.7-flash", {},
+            "gemini", "gemini-3.8-flash", {},
         )
 
     monkeypatch.setattr(ga, "_call_with_agent_system", _capture)

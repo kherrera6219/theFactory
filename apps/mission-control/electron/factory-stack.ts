@@ -173,3 +173,75 @@ export function healthLabel(health: FactoryHealth): string {
       return "Factory not reachable";
   }
 }
+
+/**
+ * The standalone server must run from a real directory. Inside the packaged
+ * app, `app.getAppPath()` is `resources\app.asar` -- an archive file -- and a
+ * child process cannot use a path inside it as its working directory: spawn
+ * fails with ENOENT naming the executable, which is what crashed the first
+ * installed build (2026-09-27). package.json build.asarUnpack extracts the
+ * server to `resources\app.asar.unpacked`; prefer that.
+ */
+export function standaloneServerCandidates(appPath: string, cwd: string): string[] {
+  const unpacked = appPath.replace(/app\.asar$/, "app.asar.unpacked");
+  return [
+    path.join(unpacked, ".next", "standalone", "server.js"),
+    path.join(appPath, ".next", "standalone", "server.js"),
+    path.join(cwd, ".next", "standalone", "server.js"),
+  ];
+}
+
+/** Parses KEY=value lines (no expansion; comments and blanks ignored). */
+export function parseEnvText(text: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    values[line.slice(0, eq).trim()] = line.slice(eq + 1).trim().replace(/^"(.*)"$/, "$1");
+  }
+  return values;
+}
+
+/** Secrets the Mission Control container receives, mirrored for the embedded server. */
+export const EMBEDDED_SERVER_SECRETS = [
+  "INTERNAL_SERVICE_API_KEY",
+  "MISSION_CONTROL_ADMIN_KEY",
+  "MISSION_CONTROL_SESSION_SECRET",
+  "VAULT_ADMIN_KEY",
+  "APPROVAL_HMAC_SECRET",
+] as const;
+
+export function gatewayBaseUrl(backend: Record<string, string>): string {
+  return `http://localhost:${backend.API_GATEWAY_HOST_PORT || "8100"}`;
+}
+
+/**
+ * Environment for the desktop app's embedded Next.js server, equivalent to the
+ * mission-control container's (deploy/docker-compose.yaml) but addressed from
+ * the host: services by their published localhost ports, and the vault file in
+ * the app's own data folder rather than %USERPROFILE%\.thefactory, which a
+ * developer's Mission Control may also use. Without this the embedded server
+ * held no key, so every gateway call was refused and the home page reported
+ * "Mission metrics are unavailable" on a working install.
+ */
+export function embeddedServerEnv(
+  backend: Record<string, string>,
+  vaultDataPath: string,
+): Record<string, string> {
+  const env: Record<string, string> = {
+    MISSION_API_BASE_URL: gatewayBaseUrl(backend),
+    NEXT_PUBLIC_API_BASE_URL: gatewayBaseUrl(backend),
+    ORCHESTRATOR_INTERNAL_BASE_URL: `http://localhost:${backend.ORCHESTRATOR_HOST_PORT || "8101"}`,
+    // A single local operator on their own desktop, served over localhost:
+    // the same settings the bundled container runs with.
+    OPERATOR_SESSION_BYPASS: "true",
+    MISSION_CONTROL_SESSION_SECURE: "false",
+    VAULT_DATA_PATH: vaultDataPath,
+  };
+  for (const key of EMBEDDED_SERVER_SECRETS) {
+    if (backend[key]) env[key] = backend[key];
+  }
+  return env;
+}
