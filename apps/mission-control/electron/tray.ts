@@ -1,93 +1,119 @@
 /**
- * 7B â€” System tray management.
+ * System tray: the app's home while the window is closed.
  *
- * Creates the tray icon and context menu. The tray tooltip is updated by the
- * renderer via `electronUpdateTray()` â†’ IPC_CHANNELS.TRAY_UPDATE â†’ main.ts.
- *
- * Icon assets:
- *   public/tray-icon.png       â€” 16Ã—16 default (all platforms)
- *   public/tray-icon@2x.png    â€” 32Ã—32 for Retina macOS
- *   public/tray-icon-win.ico   â€” ICO for Windows (256Ã—256 recommended)
- * Replace these with actual branded assets before shipping.
+ * Operator decision (2026-09-27): closing the window keeps theFactory running
+ * in the tray -- missions in flight are never interrupted by closing a window.
+ * The tray shows live factory health and offers the explicit actions:
+ * start/stop the factory, quit (factory keeps running) or quit and stop it,
+ * and the opt-in "Start with Windows" setting (off by default).
  */
 
 import path from "path";
-import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
+import { healthLabel, type FactoryHealth } from "./factory-stack";
 
-export function setupTray(mainWindow: BrowserWindow | null): Tray {
-  const platform = process.platform;
+export type TrayActions = {
+  showWindow: (route?: string) => void;
+  showStatus: () => void;
+  openLogs: () => void;
+  startFactory: () => void;
+  stopFactory: () => void;
+  isAutoStartEnabled: () => boolean;
+  setAutoStart: (enabled: boolean) => void;
+  quit: () => void;
+  quitAndStop: () => void;
+};
 
-  // Resolve platform-appropriate icon.
-  const iconFile =
-    platform === "win32"
-      ? "tray-icon-win.ico"
-      : platform === "darwin"
-      ? "tray-icon.png"     // macOS uses template images (set via nativeImage.setTemplateImage)
-      : "tray-icon.png";
+export type TrayController = {
+  setHealth: (health: FactoryHealth) => void;
+  setBusy: (busy: string | null) => void;
+  refresh: () => void;
+  destroy: () => void;
+};
 
-  const iconPath = path.join(__dirname, "..", "public", iconFile);
-  let icon: any;
-  try {
-    icon = nativeImage.createFromPath(iconPath);
-    if (platform === "darwin") {
-      icon.setTemplateImage(true); // Follows menu bar dark/light mode automatically.
-    }
-  } catch {
-    icon = nativeImage.createEmpty(); // Graceful degradation if asset is missing.
+/** Pure menu model, exported for tests. */
+export function buildTrayTemplate(
+  health: FactoryHealth,
+  busy: string | null,
+  autoStart: boolean,
+  actions: TrayActions,
+): MenuItemConstructorOptions[] {
+  const running = health === "running" || health === "starting";
+  return [
+    { label: busy ?? healthLabel(health), enabled: false },
+    { type: "separator" },
+    { label: "Open Mission Control", click: () => actions.showWindow() },
+    { label: "New Mission", click: () => actions.showWindow("/chat") },
+    { label: "View Missions", click: () => actions.showWindow("/missions") },
+    { type: "separator" },
+    { label: "Show factory status", click: () => actions.showStatus() },
+    {
+      label: "Start factory",
+      enabled: !busy && !running,
+      click: () => actions.startFactory(),
+    },
+    {
+      label: "Stop factory",
+      enabled: !busy && running,
+      click: () => actions.stopFactory(),
+    },
+    { label: "Open logs folder", click: () => actions.openLogs() },
+    { type: "separator" },
+    {
+      label: "Start with Windows",
+      type: "checkbox",
+      checked: autoStart,
+      click: (item) => actions.setAutoStart(Boolean(item.checked)),
+    },
+    { type: "separator" },
+    { label: "Quit (factory keeps running)", click: () => actions.quit() },
+    { label: "Quit and stop factory", enabled: !busy, click: () => actions.quitAndStop() },
+  ];
+}
+
+function loadIcon(): NativeImage {
+  const file = process.platform === "win32" ? "tray-icon-win.ico" : "tray-icon.png";
+  // Unpackaged: <app>/public. Packaged: public/ only ships inside the
+  // standalone server bundle (scripts/build-electron.mjs copies it there).
+  const candidates = [
+    path.join(app.getAppPath(), "public", file),
+    path.join(app.getAppPath(), ".next", "standalone", "public", file),
+  ];
+  for (const candidate of candidates) {
+    const icon = nativeImage.createFromPath(candidate);
+    if (!icon.isEmpty()) return icon;
   }
+  return nativeImage.createEmpty(); // Graceful degradation if the asset is missing.
+}
 
-  const tray = new Tray(icon);
-  tray.setToolTip("Mission Control â€” HolyGrail Refinery");
+export function setupTray(actions: TrayActions): TrayController {
+  const tray = new Tray(loadIcon());
+  let health: FactoryHealth = "starting";
+  let busy: string | null = null;
 
-  function buildMenu() {
-    return Menu.buildFromTemplate([
-      {
-        label: "Open Mission Control",
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
-        },
-      },
-      { type: "separator" },
-      {
-        label: "New Mission",
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-            mainWindow.webContents.send("navigate", "/chat");
-          }
-        },
-      },
-      {
-        label: "View Missions",
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-            mainWindow.webContents.send("navigate", "/missions");
-          }
-        },
-      },
-      { type: "separator" },
-      {
-        label: `Quit Mission Control`,
-        click: () => app.quit(),
-      },
-    ]);
-  }
+  const refresh = () => {
+    tray.setToolTip(`theFactory Mission Control — ${busy ?? healthLabel(health)}`);
+    tray.setContextMenu(
+      Menu.buildFromTemplate(buildTrayTemplate(health, busy, actions.isAutoStartEnabled(), actions)),
+    );
+  };
 
-  tray.setContextMenu(buildMenu());
+  tray.on("double-click", () => actions.showWindow());
+  tray.on("click", () => actions.showWindow());
+  refresh();
 
-  // Double-click shows the main window (Windows / Linux; macOS uses context menu).
-  tray.on("double-click", () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-
-  return tray;
+  return {
+    setHealth: (next) => {
+      if (next !== health) {
+        health = next;
+        refresh();
+      }
+    },
+    setBusy: (next) => {
+      busy = next;
+      refresh();
+    },
+    refresh,
+    destroy: () => tray.destroy(),
+  };
 }

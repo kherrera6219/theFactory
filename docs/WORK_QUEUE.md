@@ -111,7 +111,14 @@ Cheap self-contained hardening follows, then evidence, then features.
   `buildRepoImportLaunchMetadata` / `buildRepoIndexRequest` + unit tests in
   `apps/mission-control/app/lib/chat-repo-import.ts`. Evidence:
   `docs/evidence/repo_zip_phases_5_7_verification_20260821.md`.
-- [ ] 9 — Electron build-out *(operator approved 2026-09-27 — next initiative)*
+- [x] **9 — Electron build-out** *(implemented 2026-09-27)*. Decisions E1–E5 in
+  `docs/ELECTRON_INSTALLER.md`: tray-on-close, check-and-guide Docker, opt-in
+  auto-start, public GHCR images, keep-data uninstall. Custom NSIS pages
+  (prerequisites, finish, keep/remove data), startup progress window, tray
+  lifecycle, headless uninstall helper. **Open:** install-mode page defaults
+  to all users; first interactive install failed (undiagnosed). **Release still
+  owed:** first `v*`
+  tag + making the GHCR packages public (owner action) + optional signing.
 - [ ] 10 — operator polish
 - [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified
   live in **full-dedicated** (56 containers), not only condensed: the
@@ -156,7 +163,8 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 1. ~~Redeploy + object-store migration~~ (done 2026-09-27); next: stuck missions +
    coverage re-run (see `docs/CURRENT_TODO.md`, 2026-09-27).
-2. **#9 Electron build-out** (approved).
+2. First public release: tag `v*`, make GHCR packages public, consider code signing
+   (`docs/ELECTRON_INSTALLER.md` → Releasing).
 3. #13 measure behavioural equivalence (≥20 missions), #10 polish, #14 release.
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still

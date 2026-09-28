@@ -46,6 +46,10 @@
       {
         "from": "../../.env.example",
         "to": ".env.example"
+      },
+      {
+        "from": "dist/maintenance",
+        "to": "maintenance"
       }
     ],
     "win": {
@@ -69,11 +73,16 @@
       "createStartMenuShortcut": true,
       "shortcutName": "theFactory Mission Control",
       "uninstallDisplayName": "theFactory Mission Control",
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "installerIcon": "public/tray-icon-win.ico",
       "uninstallerIcon": "public/tray-icon-win.ico",
-      "artifactName": "theFactory-MissionControl-Setup-${version}.${ext}"
+      "artifactName": "theFactory-MissionControl-Setup-${version}.${ext}",
+      "include": "build/installer.nsh",
+      "license": "../../LICENSE",
+      "perMachine": false,
+      "allowElevation": true,
+      "warningsAsErrors": true
     }
   },
   "overrides": {

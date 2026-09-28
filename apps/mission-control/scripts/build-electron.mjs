@@ -72,6 +72,16 @@ try {
         );
     }
 
+    // 7. The uninstaller runs the maintenance helper under plain Node
+    // (ELECTRON_RUN_AS_NODE=1) from resources\maintenance -- outside app.asar,
+    // so it needs no asar support. It imports only factory-stack.
+    const maintenanceDir = path.join(process.cwd(), 'dist', 'maintenance');
+    fs.rmSync(maintenanceDir, { recursive: true, force: true });
+    fs.mkdirSync(maintenanceDir, { recursive: true });
+    for (const jsFile of ['maintenance.js', 'factory-stack.js']) {
+        fs.copyFileSync(path.join(electronOutDir, jsFile), path.join(maintenanceDir, jsFile));
+    }
+
     console.log('\nElectron build complete.');
 } catch (err) {
     console.error('Build failed:', err);

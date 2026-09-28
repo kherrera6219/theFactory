@@ -2,31 +2,88 @@ import { spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import { createServer } from "net";
 import path from "path";
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
-import { setupTray } from "./tray";
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from "electron";
+import { setupTray, type TrayController } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
-import { installCrashHandlers, generateDiagnostics, checkDockerPrerequisites } from "./diagnostics";
+import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
 import { ensureTlsCertificates } from "./tls-certs";
-import { generateEnvFile, type LlmProviderKeys } from "./env-generator";
-import { SETUP_WIZARD_CHANNELS, STARTING_WINDOW_CHANNEL } from "./wizard-ipc-channels";
+import { generateEnvFile, upsertEnvValues, type LlmProviderKeys } from "./env-generator";
+import {
+  SETUP_WIZARD_CHANNELS,
+  STARTING_WINDOW_ACTIONS,
+  STARTING_WINDOW_CHANNEL,
+} from "./wizard-ipc-channels";
+import {
+  STARTUP_STEPS,
+  imageTagForVersion,
+  imagesToPull,
+  overallProgress,
+  sandboxRetags,
+  stackCommands,
+  type StackPaths,
+  type StartupStepId,
+} from "./factory-stack";
+import type { StatusUpdate } from "./starting-preload";
 
 // A8 — install application-boundary crash handlers before anything else can throw.
 installCrashHandlers();
 
-
 const isDev = process.env.ELECTRON_DEV === "1";
 const isE2E = process.env.ELECTRON_E2E === "1";
+/** Launched by "Start with Windows": come up in the tray, no window. */
+const startHidden = process.argv.includes("--hidden");
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
 const GATEWAY_READYZ_URL =
   process.env.MISSION_CONTROL_GATEWAY_READYZ_URL?.trim() || "http://localhost:8100/readyz";
-// Auto-starting the bundled backend involves pulling ~9 images plus base
-// infra images on first run -- give it several minutes before falling back
-// to the manual retry/quit dialog.
+// A first start downloads ~14 images; give services this long to turn healthy
+// once they are running before offering the manual retry/quit dialog.
 const BACKEND_STARTUP_TIMEOUT_MS = 20 * 60 * 1000;
+const HEALTH_POLL_MS = 15_000;
+/**
+ * Registry value name for "Start with Windows". Must match the value the NSIS
+ * finish page writes (build/installer.nsh) and the appId electron-builder uses
+ * as the AppUserModelID, so the app and the installer see one setting.
+ */
+const AUTOSTART_NAME = "com.holygrail.mission-control";
+const DOCKER_DESKTOP_URL = "https://docs.docker.com/desktop/setup/install/windows-install/";
 
 let mainWindow: BrowserWindow | null = null;
+let statusWindow: BrowserWindow | null = null;
 let embeddedServerProcess: ChildProcess | null = null;
+let tray: TrayController | null = null;
+let isQuitting = false;
+let trayHintShown = false;
+let lastStatus: StatusUpdate = {};
+
+// Second launch (desktop shortcut while already in the tray): surface the
+// running instance instead of starting a second copy of everything.
+if (!isE2E && !app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => showMainWindow());
+}
+
+// ── Logging ─────────────────────────────────────────────────────────────────
+function logsDir(): string {
+  const dir = path.join(app.getPath("userData"), "Logs");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function logLine(line: string): void {
+  const stamped = `${new Date().toISOString()} ${line}`;
+  console.log(stamped);
+  try {
+    fs.appendFileSync(path.join(logsDir(), "factory.log"), stamped + "\n", "utf-8");
+  } catch {
+    // Logging must never break startup.
+  }
+}
+
+function openLogs(): void {
+  void shell.openPath(logsDir());
+}
 
 // ── Embedded standalone Next.js server (packaged/production only) ──────────
 // Electron previously loaded a static export (`out/index.html`), which
@@ -35,8 +92,7 @@ let embeddedServerProcess: ChildProcess | null = null;
 // docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md §7.1. This spawns the same
 // `output: "standalone"` Next.js server the build produces (see
 // scripts/build-electron.mjs) as a child process on a free local port and
-// loads that instead, matching the community-standard Next.js-in-Electron
-// pattern -- all API routes work for real now.
+// loads that instead.
 
 function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -97,13 +153,12 @@ async function startEmbeddedServer(): Promise<string> {
       // will-navigate origin checks below, which only trust http://localhost.
       HOSTNAME: "localhost",
       NODE_ENV: "production",
-      // Runs the packaged Electron binary as a plain Node.js process instead
-      // of relaunching Electron itself -- the standard approach for spawning
-      // a Node child process from a packaged Electron app with no separate
-      // Node.js installation required on the user's machine.
+      // Runs the packaged Electron binary as a plain Node.js process -- no
+      // separate Node.js installation required on the user's machine.
       ELECTRON_RUN_AS_NODE: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
   });
   embeddedServerProcess.stdout?.on("data", (chunk: Buffer) => {
     console.log(`[embedded-server] ${chunk.toString().trim()}`);
@@ -131,53 +186,127 @@ function stopEmbeddedServer(): void {
   }
 }
 
-// ── Backend (Docker) readiness + self-contained auto-start ─────────────────
-// Previously this only checked that the `docker` CLI binary was on PATH --
-// true even when the application containers aren't running or aren't
-// healthy -- and never actually blocked window creation on failure (finding
-// #16). It has since grown from "poll and block" into a real auto-start:
-// the installer bundles deploy/docker-compose.yaml + docker-compose.
-// installer.yaml (the latter swaps every build: context for the matching
-// image published to GHCR by .github/workflows/release.yml) plus .env.example,
-// so on a machine with just Docker Desktop -- no cloned repo required -- this
-// generates a working .env (TLS certs via tls-certs.ts, secrets via
-// env-generator.ts, an LLM key via the first-run wizard) and runs
-// `docker compose up -d` itself. The manual retry/quit dialog only appears
-// if that auto-start attempt itself fails (e.g. Docker Desktop isn't
-// installed at all).
-async function isBackendReady(): Promise<boolean> {
-  try {
-    const response = await fetch(GATEWAY_READYZ_URL);
-    return response.ok;
-  } catch {
-    return false;
+// ── Status / progress window ───────────────────────────────────────────────
+function showStatusWindow(): void {
+  if (statusWindow && !statusWindow.isDestroyed()) {
+    statusWindow.show();
+    statusWindow.focus();
+    return;
   }
-}
-
-async function waitForBackendReady(timeoutMs: number): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (await isBackendReady()) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-  }
-  return false;
-}
-
-async function isDockerCliAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const check = spawn("docker", ["version", "--format", "{{.Server.Version}}"], {
-      stdio: "ignore",
-    });
-    check.on("error", () => resolve(false));
-    check.on("exit", (code) => resolve(code === 0));
+  statusWindow = new BrowserWindow({
+    width: 560,
+    height: 520,
+    resizable: false,
+    frame: false,
+    title: "theFactory — Status",
+    backgroundColor: "#0d1117",
+    webPreferences: {
+      preload: path.join(__dirname, "starting-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  void statusWindow.loadFile(path.join(__dirname, "starting.html"));
+  statusWindow.webContents.once("did-finish-load", () => {
+    // Replay the latest state so a window reopened from the tray is current.
+    statusWindow?.webContents.send(STARTING_WINDOW_CHANNEL, { ...lastStatus, steps: STARTUP_STEPS });
+  });
+  statusWindow.on("closed", () => {
+    statusWindow = null;
   });
 }
 
-/** Resolves the bundled deploy/ directory: process.resourcesPath/deploy in
- * the packaged app (see package.json build.extraResources), or the repo's
- * own deploy/ directory when running unpackaged (npm run electron:dev). */
+function hideStatusWindow(): void {
+  if (statusWindow && !statusWindow.isDestroyed()) {
+    statusWindow.close();
+  }
+  statusWindow = null;
+}
+
+function report(update: StatusUpdate): void {
+  if (update.log) logLine(update.log);
+  lastStatus = { ...lastStatus, ...update, log: undefined };
+  statusWindow?.webContents.send(STARTING_WINDOW_CHANNEL, { ...update, steps: STARTUP_STEPS });
+}
+
+function stepReport(step: StartupStepId, detail: string, fraction = 0, log?: string): void {
+  report({ step, detail, progress: overallProgress(step, fraction), log: log ?? detail, failed: false });
+}
+
+// ── Docker helpers ─────────────────────────────────────────────────────────
+type RunResult = { code: number | null; output: string };
+
+/** Runs `docker <args>`, streaming each output line to the status log. */
+function runDocker(args: string[], onLine?: (line: string) => void): Promise<RunResult> {
+  return new Promise((resolve) => {
+    const child = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let output = "";
+    const consume = (chunk: Buffer) => {
+      const text = chunk.toString();
+      output += text;
+      for (const line of text.split(/\r?\n/)) {
+        if (line.trim()) onLine?.(line.trim());
+      }
+    };
+    child.stdout?.on("data", consume);
+    child.stderr?.on("data", consume);
+    child.on("error", (error) => resolve({ code: null, output: String(error) }));
+    child.on("exit", (code) => resolve({ code, output }));
+  });
+}
+
+type DockerState = "ready" | "not-running" | "missing";
+
+async function dockerState(): Promise<DockerState> {
+  const result = await runDocker(["version", "--format", "{{.Server.Version}}"]);
+  if (result.code === 0) return "ready";
+  return result.code === null ? "missing" : "not-running";
+}
+
+/** Operator decision: check and guide -- never install third-party software silently. */
+async function ensureDockerReady(): Promise<boolean> {
+  for (;;) {
+    stepReport("docker", "Checking Docker Desktop…");
+    const state = await dockerState();
+    if (state === "ready") {
+      stepReport("docker", "Docker Desktop is running.", 1);
+      return true;
+    }
+    const missing = state === "missing";
+    report({
+      step: "docker",
+      failed: true,
+      detail: missing ? "Docker Desktop is not installed." : "Docker Desktop is not running.",
+      log: missing ? "docker CLI not found on PATH" : "docker daemon did not answer",
+    });
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      title: "Docker Desktop required",
+      message: missing
+        ? "theFactory runs on Docker Desktop, which is not installed."
+        : "Docker Desktop is installed but not running.",
+      detail: missing
+        ? "Install Docker Desktop (with the WSL 2 backend), start it, then click Retry. " +
+          "theFactory never installs third-party software for you."
+        : "Start Docker Desktop and wait until it says it is running, then click Retry.",
+      buttons: missing ? ["Get Docker Desktop", "Retry", "Quit"] : ["Retry", "Quit"],
+      defaultId: missing ? 0 : 0,
+      cancelId: missing ? 2 : 1,
+      noLink: true,
+    });
+    if (missing && response === 0) {
+      void shell.openExternal(DOCKER_DESKTOP_URL);
+      continue;
+    }
+    if ((missing && response === 2) || (!missing && response === 1)) {
+      return false;
+    }
+  }
+}
+
+// ── Backend configuration ──────────────────────────────────────────────────
+/** process.resourcesPath/deploy in the packaged app, or the repo's deploy/ unpackaged. */
 function resourcesDeployDir(): string {
   const packaged = path.join(process.resourcesPath, "deploy");
   if (fs.existsSync(packaged)) {
@@ -190,34 +319,12 @@ function userDataEnvPath(): string {
   return path.join(app.getPath("userData"), "backend.env");
 }
 
-let startingWindow: BrowserWindow | null = null;
-
-function showStartingWindow(): void {
-  startingWindow = new BrowserWindow({
-    width: 460,
-    height: 280,
-    resizable: false,
-    frame: false,
-    backgroundColor: "#0d1117",
-    webPreferences: {
-      preload: path.join(__dirname, "starting-preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  void startingWindow.loadFile(path.join(__dirname, "starting.html"));
+function stackPaths(): StackPaths {
+  return { deployDir: resourcesDeployDir(), envPath: userDataEnvPath() };
 }
 
-function updateStartingStatus(detail: string): void {
-  startingWindow?.webContents.send(STARTING_WINDOW_CHANNEL, detail);
-}
-
-function closeStartingWindow(): void {
-  if (startingWindow && !startingWindow.isDestroyed()) {
-    startingWindow.close();
-  }
-  startingWindow = null;
+function imageTag(): string {
+  return imageTagForVersion(app.getVersion());
 }
 
 async function runFirstRunWizard(): Promise<LlmProviderKeys> {
@@ -255,6 +362,7 @@ async function runFirstRunWizard(): Promise<LlmProviderKeys> {
     };
     const handleQuit = () => {
       cleanup();
+      isQuitting = true;
       app.quit();
     };
     ipcMain.on(SETUP_WIZARD_CHANNELS.SUBMIT, handleSubmit);
@@ -262,115 +370,191 @@ async function runFirstRunWizard(): Promise<LlmProviderKeys> {
   });
 }
 
-/** Returns the path to a ready-to-use .env for the bundled stack, running
- * the first-run wizard (TLS certs + secrets + an LLM key) only if one
- * doesn't already exist from a previous launch. */
+/**
+ * Returns a ready-to-use backend .env, running the first-run wizard only when
+ * none exists. Values that must track the INSTALLED app, not the day of first
+ * install, are refreshed on every start: the image tag (an upgraded app runs
+ * the images released with it), the sandbox workspace path, and the TLS certs
+ * (they live under the install directory, which an upgrade replaces).
+ */
 async function ensureBackendConfigured(): Promise<string | null> {
-  const envPath = userDataEnvPath();
-  if (fs.existsSync(envPath)) {
-    return envPath;
+  const { deployDir, envPath } = stackPaths();
+  if (!fs.existsSync(envPath)) {
+    const templatePath = path.join(deployDir, "..", ".env.example");
+    if (!fs.existsSync(templatePath)) {
+      report({ step: "configure", failed: true, detail: "Bundled configuration template is missing.",
+        log: `.env.example not found at ${templatePath}` });
+      return null;
+    }
+    stepReport("configure", "First run: choose an AI provider key…");
+    hideStatusWindow();
+    const llmKeys = await runFirstRunWizard();
+    showStatusWindow();
+    generateEnvFile({ templatePath, outputEnvPath: envPath, llmKeys });
+    stepReport("configure", "Generated a private configuration with fresh secrets.", 0.5);
   }
 
-  const deployDir = resourcesDeployDir();
-  const templatePath = path.join(deployDir, "..", ".env.example");
-  if (!fs.existsSync(templatePath)) {
-    console.error(`Bundled .env.example template not found at ${templatePath}`);
-    return null;
-  }
-
-  const llmKeys = await runFirstRunWizard();
   ensureTlsCertificates(path.join(deployDir, ".local"));
-  generateEnvFile({ templatePath, outputEnvPath: envPath, llmKeys });
+  const sandboxWorkspace = path.join(app.getPath("userData"), "sandbox-workspace");
+  fs.mkdirSync(sandboxWorkspace, { recursive: true });
+  upsertEnvValues(envPath, {
+    FACTORY_IMAGE_TAG: imageTag(),
+    // Runtime QC mounts per-run workspaces from here into the sandbox; it
+    // must be a host path Docker Desktop can bind-mount.
+    SANDBOX_WORKSPACE_HOST_ROOT: sandboxWorkspace,
+    COMPOSE_PROJECT_DIR: deployDir,
+  });
+  stepReport("configure", "Configuration ready.", 1);
   return envPath;
 }
 
-/** Runs `docker compose up -d` (no --build) against the bundled compose
- * files, which reference published GHCR images -- never builds from
- * source. Returns true only if the command itself exited 0; readiness is
- * polled separately since containers can take a while to become healthy. */
-async function startBackendStack(envPath: string): Promise<boolean> {
-  const deployDir = resourcesDeployDir();
-  const baseCompose = path.join(deployDir, "docker-compose.yaml");
-  const installerCompose = path.join(deployDir, "docker-compose.installer.yaml");
-  if (!fs.existsSync(baseCompose) || !fs.existsSync(installerCompose)) {
-    console.error(`Bundled compose files not found under ${deployDir}`);
-    return false;
-  }
-
-  return new Promise((resolve) => {
-    const child = spawn(
-      "docker",
-      [
-        "compose",
-        "--env-file", envPath,
-        "--project-directory", deployDir,
-        "-f", baseCompose,
-        "-f", installerCompose,
-        "up",
-        "-d",
-      ],
-      { cwd: deployDir, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    child.stdout?.on("data", (chunk: Buffer) => console.log(`[docker-compose] ${chunk.toString().trim()}`));
-    child.stderr?.on("data", (chunk: Buffer) => console.error(`[docker-compose] ${chunk.toString().trim()}`));
-    child.on("error", (error) => {
-      console.error("Failed to spawn docker compose:", error);
-      resolve(false);
-    });
-    child.on("exit", (code) => resolve(code === 0));
-  });
-}
-
-async function ensureBackendReady(): Promise<boolean> {
-  if (await isBackendReady()) {
-    return true;
-  }
-
-  if (await isDockerCliAvailable()) {
-    showStartingWindow();
-    try {
-      const envPath = await ensureBackendConfigured();
-      if (envPath) {
-        updateStartingStatus("Pulling images and starting containers (first run can take a few minutes)...");
-        const started = await startBackendStack(envPath);
-        if (started) {
-          updateStartingStatus("Waiting for services to report healthy...");
-          const ready = await waitForBackendReady(BACKEND_STARTUP_TIMEOUT_MS);
-          if (ready) {
-            return true;
-          }
-        }
+/** Pulls each factory image not already present, counting them for the progress bar. */
+async function ensureImages(): Promise<boolean> {
+  const tag = imageTag();
+  const images = imagesToPull(tag);
+  for (const [index, image] of images.entries()) {
+    const fraction = index / images.length;
+    const present = await runDocker(["image", "inspect", "--format", "{{.Id}}", image]);
+    if (present.code === 0) {
+      stepReport("images", `Image ${index + 1} of ${images.length} already present.`, fraction,
+        `present: ${image}`);
+      continue;
+    }
+    stepReport("images", `Downloading image ${index + 1} of ${images.length}…`, fraction,
+      `pulling ${image}`);
+    const pulled = await runDocker(["pull", image], (line) => {
+      // Docker's per-layer progress is noisy; keep only milestone lines.
+      if (/Pull complete|Downloaded newer|Status:|digest:|error/i.test(line)) {
+        report({ log: line });
       }
-    } finally {
-      closeStartingWindow();
-    }
-  }
-
-  // Auto-start failed, or Docker Desktop itself isn't installed -- fall
-  // back to the manual retry/quit dialog.
-  for (;;) {
-    if (await isBackendReady()) {
-      return true;
-    }
-    const { response } = await dialog.showMessageBox({
-      type: "error",
-      title: "Backend Not Ready",
-      message: "theFactory's Docker backend is not reachable yet.",
-      detail:
-        `Could not reach ${GATEWAY_READYZ_URL}, and automatic startup did not succeed. ` +
-        "Make sure Docker Desktop is installed and running, then click Retry.",
-      buttons: ["Retry", "Quit"],
-      defaultId: 0,
-      cancelId: 1,
     });
-    if (response === 1) {
+    if (pulled.code !== 0) {
+      report({ step: "images", failed: true, detail: `Could not download ${image}.`,
+        log: pulled.output.trim().split("\n").slice(-3).join(" | ") });
       return false;
     }
   }
+  for (const [source, local] of sandboxRetags(tag)) {
+    await runDocker(["tag", source, local]);
+  }
+  stepReport("images", `All ${images.length} images ready.`, 1);
+  return true;
 }
 
+async function isBackendReady(): Promise<boolean> {
+  try {
+    const response = await fetch(GATEWAY_READYZ_URL);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
-// ── Window creation ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+async function startFactoryStack(): Promise<boolean> {
+  for (const argv of stackCommands("up", stackPaths(), imageTag())) {
+    stepReport("start", "Starting services…", 0.2, "docker compose up");
+    const result = await runDocker(argv, (line) => report({ log: line }));
+    if (result.code !== 0) {
+      report({ step: "start", failed: true, detail: "Services failed to start. See the log below." });
+      return false;
+    }
+  }
+  stepReport("start", "Services started.", 1);
+  const start = Date.now();
+  while (Date.now() - start < BACKEND_STARTUP_TIMEOUT_MS) {
+    if (await isBackendReady()) {
+      report({ step: "health", detail: "theFactory is ready.", progress: 100, log: "backend ready" });
+      return true;
+    }
+    const waited = (Date.now() - start) / BACKEND_STARTUP_TIMEOUT_MS;
+    stepReport("health", "Waiting for services to report healthy…", Math.min(0.95, waited * 4));
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+  report({ step: "health", failed: true, detail: "Services did not become healthy in time." });
+  return false;
+}
+
+/** Brings the backend up, showing the status window while it does. */
+async function ensureBackendReady(options: { interactive: boolean }): Promise<boolean> {
+  if (await isBackendReady()) {
+    tray?.setHealth("running");
+    return true;
+  }
+  if (!app.isPackaged) {
+    // A developer checkout runs its own stack (make up); the packaged images
+    // for this version do not exist yet.
+    await dialog.showMessageBox({
+      type: "info",
+      title: "Backend not running",
+      message: "Start the development stack with `make up`, then relaunch.",
+    });
+    return false;
+  }
+
+  tray?.setBusy("Factory starting…");
+  if (options.interactive) showStatusWindow();
+  lastStatus = {};
+  report({ title: "Starting theFactory", steps: STARTUP_STEPS, progress: 0 });
+  try {
+    if (!(await ensureDockerReady())) return false;
+    if (!(await ensureBackendConfigured())) return false;
+    if (!(await ensureImages())) return false;
+    if (!(await startFactoryStack())) return false;
+    tray?.setHealth("running");
+    return true;
+  } finally {
+    tray?.setBusy(null);
+  }
+}
+
+async function stopFactory(): Promise<void> {
+  tray?.setBusy("Stopping factory…");
+  logLine("stopping factory (containers kept, data kept)");
+  for (const argv of stackCommands("stop", stackPaths(), imageTag())) {
+    await runDocker(argv, (line) => logLine(line));
+  }
+  tray?.setBusy(null);
+  tray?.setHealth("stopped");
+}
+
+async function pollHealth(): Promise<void> {
+  if (!tray) return;
+  if (await isBackendReady()) {
+    tray.setHealth("running");
+    return;
+  }
+  const state = await dockerState();
+  tray.setHealth(state === "ready" ? "stopped" : "unreachable");
+}
+
+// ── Start with Windows (opt-in, off by default) ────────────────────────────
+function loginItemQuery() {
+  return { path: process.execPath, args: ["--hidden"], name: AUTOSTART_NAME };
+}
+
+function isAutoStartEnabled(): boolean {
+  if (process.platform !== "win32" || !app.isPackaged) return false;
+  return app.getLoginItemSettings(loginItemQuery()).openAtLogin;
+}
+
+function setAutoStart(enabled: boolean): void {
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  app.setLoginItemSettings({ ...loginItemQuery(), openAtLogin: enabled });
+  logLine(`start with Windows ${enabled ? "enabled" : "disabled"}`);
+  tray?.refresh();
+}
+
+// ── Window creation ─────────────────────────────────────────────────────────
+function showMainWindow(route?: string): void {
+  if (!mainWindow) {
+    void createWindow().then(() => showMainWindow(route));
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  if (route) mainWindow.webContents.send("navigate", route);
+}
 
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
@@ -378,6 +562,7 @@ async function createWindow(): Promise<void> {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
+    show: false,
     // 7A — Hide native frame; ElectronTitlebar component draws its own.
     frame: false,
     // Matches --hgr-bg token so there's no flash of white on load.
@@ -388,14 +573,10 @@ async function createWindow(): Promise<void> {
       nodeIntegration: false,   // Never enable — direct Node access in renderer is unsafe.
       sandbox: true,            // Renderer can only use contextBridge APIs.
       spellcheck: true,         // 4F — Screen reader / accessibility aid.
-      // Disable features not used; reduces attack surface.
-      // webgl: false, // Enabled for any future visualizations
       plugins: false,
     },
   });
 
-  // Load the Next.js app — dev server in development, embedded standalone
-  // server (spawned as a child process) in the packaged app.
   let appUrl: string;
   try {
     appUrl = isDev ? `http://localhost:${NEXT_DEV_PORT}` : await startEmbeddedServer();
@@ -405,16 +586,19 @@ async function createWindow(): Promise<void> {
       "Failed to Start Mission Control",
       error instanceof Error ? error.message : "Unknown error starting the embedded server.",
     );
+    isQuitting = true;
     app.quit();
     return;
   }
 
+  mainWindow.once("ready-to-show", () => {
+    if (!startHidden) mainWindow?.show();
+  });
   void mainWindow.loadURL(appUrl).catch((error) => {
     console.error(`Failed to load Mission Control UI from ${appUrl}:`, error);
   });
 
-  // Security — keep external URLs out of the app window. Anything that isn't a
-  // localhost dev URL or the local file:// bundle opens in the system browser.
+  // Security — keep external URLs out of the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith("http://localhost") && !url.startsWith("file://")) {
       if (!isE2E) {
@@ -434,13 +618,10 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  // Open DevTools in dev mode.
   if (isDev) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
 
-  // Mirror window state changes to the renderer (ElectronTitlebar uses this
-  // to switch between maximize and restore icons).
   mainWindow.on("maximize", () =>
     mainWindow?.webContents.send(IPC_CHANNELS.WINDOW_STATE_CHANGED, true),
   );
@@ -448,32 +629,84 @@ async function createWindow(): Promise<void> {
     mainWindow?.webContents.send(IPC_CHANNELS.WINDOW_STATE_CHANGED, false),
   );
 
+  // Operator decision (2026-09-27): closing the window keeps theFactory
+  // running in the tray. Only an explicit quit ends the app.
+  mainWindow.on("close", (event) => {
+    if (isQuitting || isE2E || !tray) return;
+    event.preventDefault();
+    mainWindow?.hide();
+    if (!trayHintShown && Notification.isSupported()) {
+      trayHintShown = true;
+      new Notification({
+        title: "theFactory is still running",
+        body: "Missions keep running. Use the tray icon to reopen, stop the factory, or quit.",
+      }).show();
+    }
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
-// ── App lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── App lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
   if (!isE2E) {
-    const backendReady = await ensureBackendReady();
-    if (!backendReady) {
-      app.quit();
-      return;
+    tray = setupTray({
+      showWindow: (route) => showMainWindow(route),
+      showStatus: () => showStatusWindow(),
+      openLogs,
+      startFactory: () => {
+        void ensureBackendReady({ interactive: true }).then((ok) => {
+          if (ok) hideStatusWindow();
+        });
+      },
+      stopFactory: () => void stopFactory(),
+      isAutoStartEnabled,
+      setAutoStart,
+      quit: () => {
+        isQuitting = true;
+        app.quit();
+      },
+      quitAndStop: () => {
+        void stopFactory().finally(() => {
+          isQuitting = true;
+          app.quit();
+        });
+      },
+    });
+    const backendReady = await ensureBackendReady({ interactive: !startHidden });
+    if (!backendReady && !startHidden) {
+      const { response } = await dialog.showMessageBox({
+        type: "error",
+        title: "theFactory could not start",
+        message: "The factory backend did not start.",
+        detail: "The status window and the logs folder show what happened. You can retry from the tray.",
+        buttons: ["Open logs folder", "Keep in tray", "Quit"],
+        defaultId: 1,
+        cancelId: 2,
+        noLink: true,
+      });
+      if (response === 0) openLogs();
+      if (response === 2) {
+        isQuitting = true;
+        app.quit();
+        return;
+      }
+    } else {
+      hideStatusWindow();
     }
+    setInterval(() => void pollHealth(), HEALTH_POLL_MS);
   }
   await createWindow();
 
-  // 7B — System tray. Skip in E2E so Playwright can close the app cleanly.
-  if (!isE2E) {
-    setupTray(mainWindow);
-  }
-
-  // 7D — Auto-update.
   setupUpdater();
 
-  // ── IPC: 7A Window controls ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ipcMain.on(STARTING_WINDOW_ACTIONS.OPEN_LOGS, () => openLogs());
+  ipcMain.on(STARTING_WINDOW_ACTIONS.HIDE, () => statusWindow?.hide());
+
+  // ── IPC: 7A Window controls ──────────────────────────────────────────────
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => mainWindow?.minimize());
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
@@ -484,13 +717,13 @@ app.whenReady().then(async () => {
     }
   });
 
+  // The titlebar's close button follows the same rule as the window's own:
+  // hide to tray, don't quit.
   ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => mainWindow?.close());
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => mainWindow?.isMaximized() ?? false);
 
-  // ── IPC: 7B Tray updates ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-  // ── IPC: 7C File system dialogs ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────      
+  // ── IPC: 7C File system dialogs ─────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.FS_SHOW_OPEN, async (_, options: {
     title?: string;
     properties?: ("openFile" | "openDirectory" | "multiSelections")[];
@@ -515,23 +748,17 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePath;
   });
 
-  // ── IPC: 7F Shell artifact directory ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  // Opens the artifact output directory in the system file manager (Finder /
-  // Explorer / Nautilus). Path comes from the artifact's storage_path field.
-  // If dirPath points to a file (contains a '.'), opens its parent directory.
-  // Only called from the Output page when isElectron() is true.
+  // ── IPC: 7F Shell artifact directory ────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.SHELL_OPEN_ARTIFACT_DIR, async (_, dirPath: string) => {
     if (!dirPath || typeof dirPath !== "string") return;
     const target = path.basename(dirPath).includes(".") ? path.dirname(dirPath) : dirPath;
     await shell.openPath(target);
   });
 
-  // ── IPC: 7E App info ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  // ── IPC: 7E App info ────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.APP_PLATFORM, () => process.platform);
 
-  // ── IPC: A9 Offline diagnostics bundle ───────────────────────────────────────────────────────────────────────────────────────────────────────────
-  // Generates the standard local diagnostics folder; returns its path. Offline,
-  // secret-free, never uploaded.
+  // ── IPC: A9 Offline diagnostics bundle ──────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.DIAGNOSTICS_GENERATE, () => generateDiagnostics());
 });
 
@@ -542,17 +769,17 @@ app.on("activate", () => {
   }
 });
 
-// Windows / Linux: quit when all windows close.
+// The tray keeps the app alive with no windows open; without a tray (E2E),
+// closing the last window quits as before.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (!tray && process.platform !== "darwin") {
     app.quit();
   }
 });
 
-// Stop our own embedded Next.js server child process on quit. Per product
-// decision, this does NOT touch the separate Docker Compose backend --
-// quitting Electron leaves it running so in-flight missions aren't
-// interrupted; the operator stops it explicitly (stop_app.bat / make down).
 app.on("before-quit", () => {
+  isQuitting = true;
   stopEmbeddedServer();
+  tray?.destroy();
 });
+

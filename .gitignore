@@ -42,6 +42,8 @@ Thumbs.db
 
 # Build artifacts
 build/
+# electron-builder's buildResources dir holds the NSIS installer script (source, not output).
+!apps/mission-control/build/
 out/
 
 # Runtime outputs

@@ -69,6 +69,29 @@ jobs:
           - service: mission-control
             context: apps/mission-control
             dockerfile: apps/mission-control/Dockerfile
+          # Vendored offline test runner (deploy/sandbox-images); the installed app
+          # retags it to the local name runtime QC uses.
+          - service: sandbox-test-java
+            context: deploy/sandbox-images/java
+            dockerfile: deploy/sandbox-images/java/Dockerfile
+          - service: sandbox-test-kotlin
+            context: deploy/sandbox-images/kotlin
+            dockerfile: deploy/sandbox-images/kotlin/Dockerfile
+          - service: sandbox-test-scala
+            context: deploy/sandbox-images/scala
+            dockerfile: deploy/sandbox-images/scala/Dockerfile
+          - service: sandbox-test-php
+            context: deploy/sandbox-images/php
+            dockerfile: deploy/sandbox-images/php/Dockerfile
+          - service: sandbox-test-r
+            context: deploy/sandbox-images/r
+            dockerfile: deploy/sandbox-images/r/Dockerfile
+          - service: sandbox-test-node
+            context: deploy/sandbox-images/node
+            dockerfile: deploy/sandbox-images/node/Dockerfile
+          - service: sandbox-csharp
+            context: deploy/sandbox-images/csharp
+            dockerfile: deploy/sandbox-images/csharp/Dockerfile
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -120,6 +143,13 @@ jobs:
       - name: Install dependencies
         working-directory: apps/mission-control
         run: npm ci
+
+      # The installed app pulls images tagged "v" + its own version
+      # (electron/factory-stack.ts), so the package version must be the tag.
+      - name: Stamp release version
+        working-directory: apps/mission-control
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
       - name: Build Electron App
         working-directory: apps/mission-control
