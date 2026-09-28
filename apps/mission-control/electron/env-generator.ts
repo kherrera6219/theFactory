@@ -128,3 +128,37 @@ export function generateEnvFile(options: {
 
   fs.writeFileSync(options.outputEnvPath, lines.join("\n"), { mode: 0o600 });
 }
+
+/**
+ * Sets KEY=value lines in an existing .env, replacing a key where it appears
+ * and appending it where it does not. Every other line -- including the
+ * generated secrets -- is left byte-for-byte alone.
+ *
+ * Used on every start for values that must track the installed app rather
+ * than the moment of first install: the image tag (an upgraded app must run
+ * the images released with it) and host paths. Values must be single-line;
+ * anything else is refused rather than written into a file compose parses.
+ */
+export function upsertEnvValues(envPath: string, values: Record<string, string>): void {
+  for (const [key, value] of Object.entries(values)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(value)) {
+      throw new Error(`refusing to write env entry ${key}`);
+    }
+  }
+  const original = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
+  const newline = original.includes("\r\n") ? "\r\n" : "\n";
+  const pending = new Map(Object.entries(values));
+  const lines = original.length ? original.split(/\r?\n/) : [];
+  const updated = lines.map((line) => {
+    const eq = line.indexOf("=");
+    if (eq === -1 || line.trimStart().startsWith("#")) return line;
+    const key = line.slice(0, eq).trim();
+    if (!pending.has(key)) return line;
+    const value = pending.get(key) as string;
+    pending.delete(key);
+    return `${key}=${value}`;
+  });
+  while (updated.length && updated[updated.length - 1] === "") updated.pop();
+  for (const [key, value] of pending) updated.push(`${key}=${value}`);
+  fs.writeFileSync(envPath, updated.join(newline) + newline, { mode: 0o600 });
+}

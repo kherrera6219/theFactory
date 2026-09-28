@@ -3,49 +3,100 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
-<title>Starting theFactory</title>
+<title>theFactory — Status</title>
 <style>
+  :root { color-scheme: dark; }
   html, body {
-    margin: 0;
-    height: 100%;
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin: 0; height: 100%;
+    background: #0d1117; color: #e6edf3;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   }
-  .wrap {
-    text-align: center;
-    max-width: 420px;
-  }
-  .spinner {
-    width: 36px;
-    height: 36px;
-    margin: 0 auto 20px;
-    border: 3px solid #30363d;
-    border-top-color: #2ea043;
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  h1 { font-size: 16px; margin-bottom: 8px; }
-  p { color: #9da7b3; font-size: 13px; line-height: 1.5; }
+  .wrap { display: flex; flex-direction: column; height: 100%; padding: 22px 26px; box-sizing: border-box; -webkit-app-region: drag; }
+  h1 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: #9da7b3; font-size: 12.5px; margin: 0 0 16px; min-height: 17px; }
+  ol { list-style: none; margin: 0 0 16px; padding: 0; }
+  li { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; color: #7d8590; }
+  li .mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #30363d; box-sizing: border-box; flex: none; position: relative; }
+  li.active { color: #e6edf3; }
+  li.active .mark { border-color: #2f81f7; border-top-color: transparent; animation: spin .9s linear infinite; }
+  li.done { color: #9da7b3; }
+  li.done .mark { border-color: #2ea043; background: #2ea043; }
+  li.done .mark::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #0d1117; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  li.failed { color: #ff7b72; }
+  li.failed .mark { border-color: #f85149; background: #f85149; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { li.active .mark { animation: none; border-top-color: #2f81f7; } }
+  .bar { height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0%; background: #2f81f7; transition: width .3s ease; }
+  .bar.failed > div { background: #f85149; }
+  .pct { display: flex; justify-content: space-between; font-size: 12px; color: #9da7b3; margin: 6px 0 12px; }
+  pre { flex: 1; min-height: 60px; margin: 0; padding: 10px 12px; background: #010409; border: 1px solid #21262d; border-radius: 6px;
+        font: 11.5px/1.45 Consolas, "Cascadia Mono", monospace; color: #9da7b3; overflow: auto; white-space: pre-wrap; -webkit-app-region: no-drag; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; -webkit-app-region: no-drag; }
+  button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; cursor: pointer; }
+  button:hover { background: #30363d; }
+  button:focus-visible { outline: 2px solid #2f81f7; outline-offset: 2px; }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="spinner"></div>
-    <h1 id="statusTitle">Starting theFactory backend&hellip;</h1>
-    <p id="statusDetail">First-time startup downloads several container images and can take a few minutes.</p>
+    <h1 id="title">Starting theFactory</h1>
+    <p class="sub" id="detail" aria-live="polite">Preparing&hellip;</p>
+    <ol id="steps" aria-label="Startup steps"></ol>
+    <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fill"></div></div>
+    <div class="pct"><span id="stepText"></span><span id="pctText">0%</span></div>
+    <pre id="log" aria-label="Startup log"></pre>
+    <div class="actions">
+      <button id="logsBtn" type="button">Open logs folder</button>
+      <button id="hideBtn" type="button">Run in background</button>
+    </div>
   </div>
   <script>
-    if (window.startingAPI) {
-      window.startingAPI.onStatus((detail) => {
-        document.getElementById("statusDetail").textContent = detail;
+    const api = window.startingAPI;
+    const stepsEl = document.getElementById("steps");
+    const logEl = document.getElementById("log");
+    let steps = [];
+
+    function renderSteps(active, failed) {
+      const activeIndex = steps.findIndex((s) => s.id === active);
+      stepsEl.replaceChildren(...steps.map((s, i) => {
+        const li = document.createElement("li");
+        const mark = document.createElement("span");
+        mark.className = "mark";
+        li.append(mark, document.createTextNode(s.label));
+        if (failed && s.id === active) li.className = "failed";
+        else if (activeIndex === -1 ? active === "done" : i < activeIndex) li.className = "done";
+        else if (i === activeIndex) li.className = "active";
+        return li;
+      }));
+    }
+
+    if (api) {
+      api.onStatus((update) => {
+        if (typeof update === "string") { update = { detail: update }; }
+        if (update.steps) steps = update.steps;
+        if (update.title) document.getElementById("title").textContent = update.title;
+        if (update.detail) document.getElementById("detail").textContent = update.detail;
+        if (update.step) {
+          renderSteps(update.step, Boolean(update.failed));
+          const current = steps.find((s) => s.id === update.step);
+          document.getElementById("stepText").textContent = current ? current.label : "";
+        }
+        if (typeof update.progress === "number") {
+          const pct = Math.max(0, Math.min(100, Math.round(update.progress)));
+          document.getElementById("fill").style.width = pct + "%";
+          document.getElementById("pctText").textContent = pct + "%";
+          document.getElementById("bar").setAttribute("aria-valuenow", String(pct));
+        }
+        document.getElementById("bar").classList.toggle("failed", Boolean(update.failed));
+        if (update.log) {
+          logEl.textContent += update.log + "\n";
+          if (logEl.textContent.length > 20000) logEl.textContent = logEl.textContent.slice(-15000);
+          logEl.scrollTop = logEl.scrollHeight;
+        }
       });
+      document.getElementById("logsBtn").addEventListener("click", () => api.openLogs());
+      document.getElementById("hideBtn").addEventListener("click", () => api.hide());
     }
   </script>
 </body>

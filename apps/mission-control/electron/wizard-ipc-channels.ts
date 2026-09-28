@@ -11,3 +11,8 @@ export const SETUP_WIZARD_CHANNELS = {
 } as const;
 
 export const STARTING_WINDOW_CHANNEL = "starting-window:status";
+
+export const STARTING_WINDOW_ACTIONS = {
+  OPEN_LOGS: "starting-window:open-logs",
+  HIDE: "starting-window:hide",
+} as const;

@@ -41,6 +41,20 @@ the **Electron build-out next**.
    `MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED`.
 6. Open Dependabot majors held for browser verification: electron 44, vitest 5.
 
+**Electron installer build-out (WQ #9) — 2026-09-27, on branch
+`claude/electron-installer`.** Decisions E1–E5 (tray-on-close,
+check-and-guide Docker, opt-in autostart, public GHCR images, keep-data
+uninstall) and the full design are in `docs/ELECTRON_INSTALLER.md`. Built and
+verified: custom NSIS pages (prerequisites, finish with autostart, keep/remove
+data), startup progress window, tray lifecycle, headless uninstall helper,
+per-release image publishing incl. sandbox images, `thefactory-app` compose
+project isolation. Silent install → helper → silent uninstall proven on this
+machine. **Open:** (1) install-mode page defaults to all users (admin) — make
+per-user the default; (2) the operator's first interactive all-users install
+failed — diagnose via `factory.log`; a leftover test install sits in
+`C:\Program Files\theFactory Mission Control`; (3) first `v*` release +
+making GHCR packages public (owner) + optional code signing.
+
 ---
 
 **NEW — 2026-08-17: next initiative is the PM-led SOW factory.** End state:
