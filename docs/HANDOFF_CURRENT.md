@@ -12,7 +12,7 @@ Audience: Maintainers, operators, and AI coding agents
 **NEW — 2026-09-27: enterprise-hardening pass — merged to `main` via [PR #538](https://github.com/kherrera6219/theFactory/pull/538).**
 Operator decisions this session: fix every finding from the 2026-09-27 status
 review, **take WQ7 Option 2**, aim everything else at enterprise grade, and do
-the **Electron build-out next**.
+the **Electron build-out** (done — see below).
 
 | Area | What changed | Evidence |
 |---|---|---|
@@ -32,7 +32,8 @@ the **Electron build-out next**.
    out Group A (`mission-769bf926`, `mission-db901d98`).
 3. **Canary credential (operator action):** add a `QUALIFICATION_GEMINI_API_KEY`
    repository secret so Weekly Qualification's `full` mode proves generation.
-4. **Electron build-out** (WQ #9) — next initiative, operator-approved.
+4. ~~**Electron build-out** (WQ #9)~~ — **DONE 2026-09-27** (#541 build-out, #542 installed-app
+   fixes + Gemini 3.8). Next for it: first `v*` release + public GHCR packages.
 5. WQ13: measure behavioural equivalence across ≥20 missions before enabling
    `MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED`.
 6. Open Dependabot majors held for browser verification: electron 44, vitest 5.
