@@ -1,7 +1,7 @@
 # Windows Installer and Desktop App
 
 Document version: 2026.09.27
-Status: Implemented (WQ #9) — two known issues open (below); first public release pending
+Status: Implemented and validated end to end on Windows (WQ #9); first public release pending
 Audience: Maintainers, release managers, operators
 
 `theFactory-MissionControl-Setup-<version>.exe` installs Mission Control as a
@@ -120,27 +120,35 @@ Three properties are guarded by tests:
 
 | Check | Result |
 |---|---|
-| `npm run electron:package` | `theFactory-MissionControl-Setup-0.1.0.exe`, 172 MB; NSIS warnings-as-errors, both passes clean |
-| Silent per-user install (`/S /D=%TEMP%\hgr-install-smoke`) | exit 0; app, `resources\maintenance\*.js`, installer overlay, sandbox-images, `.env.example`, uninstall registry entry and Start-menu shortcut present; no autostart value (opt-in) |
-| Maintenance helper via installed exe (`ELECTRON_RUN_AS_NODE=1`) | `stop` and `down` against project `thefactory-app` exit 0 with per-step progress; bad action exit 2; developer `deploy` stack untouched (56 containers) |
-| Silent uninstall | exit 0; files, registry entry, Start-menu and desktop shortcuts removed; developer stack untouched |
-| Unit tests | Vitest 194/194 (stack contract, maintenance, env upsert, tray menu); `test_installer_overlay.py` 4/4 |
-| Interactive custom pages | **Not yet captured** — see known issue 1 |
+| `npm run electron:package` | `theFactory-MissionControl-Setup-0.1.0.exe` (~174 MB); NSIS warnings are errors, both passes clean; build fails if a sandboxed preload requires anything but `electron` |
+| Install (per-user, `/S /currentuser`) | exit 0, no UAC; app under `%LOCALAPPDATA%\Programs`, **desktop icon** and Start-menu entry created; no autostart value (opt-in) |
+| Launch from the desktop icon | Mission Control renders with minimize / maximize / close; content starts below the titlebar; home page shows live missions and gateway READY, Redis and orchestrator HEALTHY |
+| Second launch | brings the running window forward (single instance); closing hides to the tray |
+| Maintenance helper via installed exe (`ELECTRON_RUN_AS_NODE=1`) | `stop` / `down` against project `thefactory-app` exit 0 with per-step progress; bad action exit 2; developer `deploy` stack untouched |
+| Uninstall (silent) | exit 0; files, registry entry, Start-menu and desktop shortcuts removed; developer stack untouched |
+| Interactive all-users uninstall (operator) | completed after UAC approval; Program Files clean |
+| Unit tests | Vitest 201/201; `test_installer_overlay.py` 4/4 |
 
-## Known issues (open)
+Local validation note: on the development machine the installed app attaches to
+the already-running dev stack on :8100, so for validation its `backend.env` was a
+copy of the repository `.env` (the keys that stack runs with). A real install
+generates its own.
 
-1. **The install-mode page pre-selects "Anyone who uses this computer (all
-   users)"**, which requires administrator rights and installs into
-   `C:\Program Files`. A desktop app for one operator should default to
-   *Only for me* (no UAC). Seen 2026-09-27 during the first interactive run.
-   Fix: make the per-user choice the default (or skip the page), then
-   re-verify the prerequisites, finish and uninstall pages visually.
-2. **The operator's first interactive install (all users, v0.1.0) was
-   reported as failed.** It left `C:\Program Files\theFactory Mission Control`
-   and an HKLM uninstall entry on the development machine. Not yet diagnosed.
-   The expected first-launch failure for any build before the first `v*`
-   release is *Download factory images* (no `thefactory-*:v0.1.0` images exist
-   on GHCR yet) — check `%APPDATA%\theFactory Mission Control\Logs\factory.log`
-   before assuming a different cause. Remove the test install with
-   *Settings > Apps > theFactory Mission Control > Uninstall* (keep data; there
-   is none).
+## Defects found by installing and running the app (all fixed)
+
+| # | Symptom | Cause | Fix |
+|---|---|---|---|
+| 1 | Installed app crashed on launch: `spawn ...\theFactory Mission Control.exe ENOENT` | The embedded Next.js server was spawned with its working directory **inside `app.asar`**, an archive file a process cannot use as a cwd; the spawn error was unhandled | `asarUnpack: .next/standalone/**`; the server is resolved from `app.asar.unpacked`; a spawn failure is reported instead of crashing |
+| 2 | No minimize / maximize / close; first-run wizard could not submit; status window never updated | All three preload scripts `require`d a local module, which a **sandboxed** preload cannot load, so `window.electronAPI` never existed | Preloads bundled with esbuild into self-contained files; the build fails if one requires anything but `electron` |
+| 3 | Titlebar covered the page header and brand | Shell, sidebar and main column are `100vh`; padding pushed their tops under the fixed titlebar | Sidebar and main column sized to `100vh - titlebar` when the titlebar is mounted |
+| 4 | "Mission metrics are unavailable" on a working stack | The embedded server received none of the Mission Control container's keys or URLs | `embeddedServerEnv()` passes the same secrets, host-side gateway/orchestrator URLs, and a vault path in the app's data folder |
+| 5 | Saved provider keys would not persist on a fresh install | Generated secrets were 24 bytes; the vault's AES-256 key must be exactly 64 hex chars | All generated secrets are 32 bytes (what `.env.example` asks for) |
+| 6 | Logs / data in `%APPDATA%\mission-control`, not where docs and the uninstaller look | Electron named userData after package `name` | userData pinned to `%APPDATA%\theFactory Mission Control` |
+
+The install-mode page pre-selecting *all users* is electron-builder's upgrade
+behaviour: it keeps the mode of an existing machine-wide install it finds under
+`HKLM\Software\<app GUID>`. On a clean machine the default is *Only for me*
+(verified: `/currentuser` installs need no UAC).
+
+Model: all agents default to **`gemini-3.8-flash`** (2026-09-27). A vault slot
+still pinned to 3.5 / 3.6 / 3.7 migrates to 3.8 on read.

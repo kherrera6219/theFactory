@@ -8,6 +8,9 @@ import {
   overallProgress,
   sandboxRetags,
   stackCommands,
+  standaloneServerCandidates,
+  embeddedServerEnv,
+  parseEnvText,
 } from "./factory-stack";
 import { describe as describeStep, parseArgs, runMaintenance } from "./maintenance";
 
@@ -142,5 +145,51 @@ describe("uninstall maintenance", () => {
   it("describes steps in operator language", () => {
     expect(describeStep(["compose", "stop"])).toMatch(/Stopping/);
     expect(describeStep(["image", "rm", "--force", "x:1"])).toBe("Removing image x:1");
+  });
+});
+
+describe("packaged server location", () => {
+  it("prefers the unpacked server over a path inside app.asar", () => {
+    // A child process cannot use a directory inside app.asar as its cwd:
+    // that crashed the first installed build with "spawn ... ENOENT".
+    const appPath = path.join("C:", "Program Files", "theFactory", "resources", "app.asar");
+    const [first, second] = standaloneServerCandidates(appPath, "C:/cwd");
+    expect(first).toBe(path.join("C:", "Program Files", "theFactory", "resources",
+      "app.asar.unpacked", ".next", "standalone", "server.js"));
+    expect(second).toContain(path.join("app.asar", ".next"));
+  });
+
+  it("uses the app directory itself when unpackaged", () => {
+    const [first] = standaloneServerCandidates("C:/repo/apps/mission-control", "C:/cwd");
+    expect(first).toBe(path.join("C:/repo/apps/mission-control", ".next", "standalone", "server.js"));
+  });
+});
+
+describe("embedded server environment", () => {
+  const backend = parseEnvText([
+    "# comment",
+    "INTERNAL_SERVICE_API_KEY=aaa",
+    "MISSION_CONTROL_ADMIN_KEY=bbb",
+    'MISSION_CONTROL_SESSION_SECRET="ccc"',
+    "API_GATEWAY_HOST_PORT=8200",
+    "POSTGRES_PASSWORD=never-forwarded",
+  ].join("\r\n"));
+
+  it("parses env files, quotes and CRLF included", () => {
+    expect(backend.MISSION_CONTROL_SESSION_SECRET).toBe("ccc");
+    expect(backend.API_GATEWAY_HOST_PORT).toBe("8200");
+  });
+
+  it("gives the embedded server the container's keys and host-side URLs", () => {
+    const env = embeddedServerEnv(backend, "C:/data/vault/vault.json");
+    expect(env.INTERNAL_SERVICE_API_KEY).toBe("aaa");
+    expect(env.MISSION_CONTROL_ADMIN_KEY).toBe("bbb");
+    expect(env.MISSION_API_BASE_URL).toBe("http://localhost:8200");
+    expect(env.ORCHESTRATOR_INTERNAL_BASE_URL).toBe("http://localhost:8101");
+    expect(env.VAULT_DATA_PATH).toBe("C:/data/vault/vault.json");
+  });
+
+  it("forwards only what Mission Control needs", () => {
+    expect(embeddedServerEnv(backend, "v").POSTGRES_PASSWORD).toBeUndefined();
   });
 });

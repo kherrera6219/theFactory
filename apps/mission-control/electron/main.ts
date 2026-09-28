@@ -19,12 +19,27 @@ import {
   imageTagForVersion,
   imagesToPull,
   overallProgress,
+  standaloneServerCandidates,
+  embeddedServerEnv,
+  gatewayBaseUrl,
+  parseEnvText,
   sandboxRetags,
   stackCommands,
   type StackPaths,
   type StartupStepId,
 } from "./factory-stack";
 import type { StatusUpdate } from "./starting-preload";
+
+/**
+ * Product name, and therefore the user-data folder. Electron otherwise names
+ * the folder after package.json "name" (mission-control), which is not where
+ * the docs point operators for logs, nor where the uninstaller's "Remove
+ * everything" deletes app data ($APPDATA\${PRODUCT_NAME} in installer.nsh).
+ * Must run before anything calls app.getPath("userData").
+ */
+export const PRODUCT_NAME = "theFactory Mission Control";
+app.setName(PRODUCT_NAME);
+app.setPath("userData", path.join(app.getPath("appData"), PRODUCT_NAME));
 
 // A8 — install application-boundary crash handlers before anything else can throw.
 installCrashHandlers();
@@ -112,10 +127,7 @@ function findFreePort(): Promise<number> {
 }
 
 function standaloneServerPath(): string {
-  const candidates = [
-    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
-    path.join(process.cwd(), ".next", "standalone", "server.js"),
-  ];
+  const candidates = standaloneServerCandidates(app.getAppPath(), process.cwd());
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
 }
 
@@ -148,6 +160,7 @@ async function startEmbeddedServer(): Promise<string> {
     cwd: path.dirname(serverPath),
     env: {
       ...process.env,
+      ...embeddedServerConfig(),
       PORT: String(port),
       // "localhost", not "127.0.0.1" -- matches the setWindowOpenHandler /
       // will-navigate origin checks below, which only trust http://localhost.
@@ -166,17 +179,38 @@ async function startEmbeddedServer(): Promise<string> {
   embeddedServerProcess.stderr?.on("data", (chunk: Buffer) => {
     console.error(`[embedded-server] ${chunk.toString().trim()}`);
   });
+  const spawnFailure = new Promise<Error>((resolve) => {
+    embeddedServerProcess?.once("error", (error) => {
+      console.error("Embedded Next.js server failed to start:", error);
+      resolve(error);
+    });
+  });
   embeddedServerProcess.on("exit", (code) => {
     console.log(`Embedded Next.js server exited with code ${code}`);
     embeddedServerProcess = null;
   });
 
   const url = `http://localhost:${port}`;
-  const ready = await waitForServerReady(url);
-  if (!ready) {
+  const outcome = await Promise.race([
+    waitForServerReady(url),
+    spawnFailure,
+  ]);
+  if (outcome instanceof Error) {
+    throw new Error(`Mission Control's built-in server could not start (${outcome.message}).`);
+  }
+  if (!outcome) {
     throw new Error("Embedded Next.js server did not become ready in time.");
   }
   return url;
+}
+
+/** The installed stack's settings for the embedded server; {} when not configured. */
+function embeddedServerConfig(): Record<string, string> {
+  const envPath = path.join(app.getPath("userData"), "backend.env");
+  if (!fs.existsSync(envPath)) return {};
+  const vaultDir = path.join(app.getPath("userData"), "vault");
+  fs.mkdirSync(vaultDir, { recursive: true });
+  return embeddedServerEnv(parseEnvText(fs.readFileSync(envPath, "utf-8")), path.join(vaultDir, "vault.json"));
 }
 
 function stopEmbeddedServer(): void {
@@ -441,9 +475,16 @@ async function ensureImages(): Promise<boolean> {
   return true;
 }
 
+function gatewayReadyzUrl(): string {
+  if (process.env.MISSION_CONTROL_GATEWAY_READYZ_URL?.trim()) return GATEWAY_READYZ_URL;
+  const envPath = userDataEnvPath();
+  if (!fs.existsSync(envPath)) return GATEWAY_READYZ_URL;
+  return `${gatewayBaseUrl(parseEnvText(fs.readFileSync(envPath, "utf-8")))}/readyz`;
+}
+
 async function isBackendReady(): Promise<boolean> {
   try {
-    const response = await fetch(GATEWAY_READYZ_URL);
+    const response = await fetch(gatewayReadyzUrl());
     return response.ok;
   } catch {
     return false;

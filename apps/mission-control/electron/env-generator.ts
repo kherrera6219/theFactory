@@ -19,6 +19,14 @@ function randomHex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
 }
 
+/**
+ * Every generated secret is 32 bytes (64 hex chars) -- what the template asks
+ * for (`openssl rand -hex 32`) and exactly what Mission Control's vault
+ * requires of MISSION_CONTROL_ADMIN_KEY, its AES-256 key. 24-byte values made
+ * the vault refuse to encrypt, so saved provider keys never persisted.
+ */
+const SECRET_BYTES = 32;
+
 // Maps an env var name to a secretFamily id. Vars sharing a family get the
 // exact same generated value (required for connection strings that embed a
 // password also set as its own separate var); vars with a unique family id
@@ -85,7 +93,7 @@ export function generateEnvFile(options: {
       if (!family) {
         // Unrecognized CHANGE_ME var -- generate a unique value keyed by
         // the var name itself rather than silently leaving a placeholder.
-        const value = secretValues.get(key) ?? randomHex(24);
+        const value = secretValues.get(key) ?? randomHex(SECRET_BYTES);
         secretValues.set(key, value);
         // Bounded to letters/digits/underscore/plus so this stops at the
       // placeholder token itself instead of greedily consuming the rest of
@@ -94,7 +102,7 @@ export function generateEnvFile(options: {
       }
       let value = secretValues.get(family);
       if (!value) {
-        value = randomHex(24);
+        value = randomHex(SECRET_BYTES);
         secretValues.set(family, value);
       }
       // Bounded to letters/digits/underscore/plus so this stops at the

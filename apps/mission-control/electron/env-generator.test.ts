@@ -2,7 +2,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { upsertEnvValues } from "./env-generator";
+import { generateEnvFile, upsertEnvValues } from "./env-generator";
+import { parseEnvText } from "./factory-stack";
 
 const dirs: string[] = [];
 function tempEnv(content: string): string {
@@ -34,5 +35,25 @@ describe("upsertEnvValues", () => {
     expect(() => upsertEnvValues(file, { A: "x\nEVIL=1" })).toThrow(/refusing/);
     expect(() => upsertEnvValues(file, { "bad key": "x" })).toThrow(/refusing/);
     expect(fs.readFileSync(file, "utf-8")).toBe("A=1\n");
+  });
+});
+
+describe("generateEnvFile", () => {
+  it("makes a vault key the vault can actually use", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hgr-gen-"));
+    dirs.push(dir);
+    const out = path.join(dir, "backend.env");
+    generateEnvFile({
+      templatePath: path.join(__dirname, "..", "..", "..", ".env.example"),
+      outputEnvPath: out,
+      llmKeys: { gemini: "test-key" },
+    });
+    const env = parseEnvText(fs.readFileSync(out, "utf-8"));
+    // vault.ts isValidEncryptionKey: exactly 64 hex chars (AES-256).
+    expect(env.MISSION_CONTROL_ADMIN_KEY).toMatch(/^[0-9a-f]{64}$/);
+    // ORCHESTRATOR_API_KEYS is "<key>=<scopes>": the gateway must accept the
+    // very key Mission Control calls it with.
+    expect(env.ORCHESTRATOR_API_KEYS.split("=")[0]).toBe(env.INTERNAL_SERVICE_API_KEY);
+    expect(Object.values(env).some((v) => v.includes("CHANGE_ME"))).toBe(false);
   });
 });
