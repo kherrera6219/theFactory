@@ -23,6 +23,18 @@ from .sandbox_exec import (
 )
 
 RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
+#: Version of the QC *harness* -- how an artifact is prepared and invoked --
+#: stamped on every stored report. Bump it whenever a change means an old
+#: verdict can no longer be trusted, so missions blocked by that verdict are
+#: re-qualified instead of re-reading it forever.
+#:   1  reports before this field existed
+#:   2  2026-09-27: bundle headers stripped, source-code usage examples no
+#:      longer shell-split into argv, generated tests stored with newlines,
+#:      test-only dependencies separated, vendored offline test runners,
+#:      sandbox infrastructure errors never a FAIL
+#:   3  2026-09-28: derived program arguments no longer appended to test
+#:      commands; Python tests run on pytest (vendored image)
+RQCA_HARNESS_VERSION = 3
 
 # --- Language runtimes -----------------------------------------------------
 #
@@ -1052,6 +1064,7 @@ _VENDORED_TEST_RUNTIMES: dict[str, dict[str, Any]] = {
     "scala": {"image": "thefactory/sandbox-test-scala:1", "frameworks": ("scalatest", "scalactic")},
     "php": {"image": "thefactory/sandbox-test-php:1", "frameworks": ("phpunit",)},
     "r": {"image": "thefactory/sandbox-test-r:1", "frameworks": ("testthat",)},
+    "python": {"image": "thefactory/sandbox-test-python:1", "frameworks": ("pytest",)},
     "javascript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
     "typescript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
     "csharp": {"image": "thefactory/sandbox-csharp:1", "frameworks": ("xunit", "microsoft.net.test.sdk")},
@@ -1631,7 +1644,10 @@ async def _execute_in_sandbox(
             # Appending targets the RUN step: every entry in _LANGUAGE_RUNTIMES
             # puts it last, with any build step joined ahead of it by ' && '.
             invoked_command = run_command
-            if invocation_args:
+            # Derived arguments belong to the PROGRAM. Appended to a test-runner
+            # command they became `unittest discover ... --mock`, which the
+            # runner rejects: a FAIL that said nothing about the artifact.
+            if invocation_args and not tests_selected:
                 invoked_command = run_command + " " + " ".join(
                     shlex.quote(argument) for argument in invocation_args
                 )

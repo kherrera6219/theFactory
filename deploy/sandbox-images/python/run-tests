@@ -1,0 +1,13 @@
+#!/bin/sh
+# Usage: run-tests <artifact.py> <test_artifact.py>
+# Runs the generated tests with pytest (which also collects unittest classes)
+# from a writable copy of the read-only workspace. Exit code is the verdict:
+# 0 passed, 1 a test failed, 2+ collection/usage errors, 5 no tests found.
+set -eu
+export HOME=/tmp
+export PYTHONDONTWRITEBYTECODE=1
+tests=$(basename "$2")
+mkdir -p /tmp/w
+cp -R /workspace/. /tmp/w/
+cd /tmp/w
+exec python -m pytest -q -p no:cacheprovider --rootdir=/tmp/w "$tests"

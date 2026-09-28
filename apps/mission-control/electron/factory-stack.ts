@@ -39,6 +39,7 @@ export const SERVICE_IMAGES = [
 ] as const;
 
 export const SANDBOX_IMAGES: ReadonlyArray<{ published: string; local: string }> = [
+  { published: "sandbox-test-python", local: "thefactory/sandbox-test-python:1" },
   { published: "sandbox-test-java", local: "thefactory/sandbox-test-java:1" },
   { published: "sandbox-test-kotlin", local: "thefactory/sandbox-test-kotlin:1" },
   { published: "sandbox-test-scala", local: "thefactory/sandbox-test-scala:1" },
