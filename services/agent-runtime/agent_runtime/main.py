@@ -276,7 +276,7 @@ async def _request(
                 last_response = response
                 if response.status_code < 500 and response.status_code != 429:
                     _CIRCUIT.record_success()
-                    return response
+                    break
                 _CIRCUIT.record_failure()
             except httpx.HTTPError as exc:
                 last_error = exc

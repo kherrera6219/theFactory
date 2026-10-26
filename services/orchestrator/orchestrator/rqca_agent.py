@@ -6,6 +6,7 @@ import json
 import re
 import shlex
 import tempfile
+from contextlib import suppress
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
@@ -932,6 +933,8 @@ async def _node_syntax_check(
             )
         except asyncio.TimeoutError:
             proc.kill()
+            with suppress(Exception):
+                await asyncio.wait_for(proc.communicate(), timeout=5.0)
             return {
                 "verdict": "TIMEOUT",
                 "passed": False,
@@ -1622,6 +1625,8 @@ async def _execute_in_sandbox(
                     )
                 except asyncio.TimeoutError:
                     proc.kill()
+                    with suppress(Exception):
+                        await asyncio.wait_for(proc.communicate(), timeout=5.0)
                     return _timeout_report(
                         mission_id=mission_id, language=language, filename=filename,
                         timeout_seconds=timeout, started_at=started_at,

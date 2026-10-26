@@ -217,7 +217,11 @@ def test_request_retries_until_success(monkeypatch) -> None:
     )
 
     calls: list[tuple[str, str, dict[str, str]]] = []
-    responses = [DummyResponse(500), DummyResponse(200, {"ok": True})]
+    responses = [
+        DummyResponse(500),
+        DummyResponse(200, {"ok": True}),
+        DummyResponse(200, {"ok": True}),
+    ]
 
     class FakeAsyncClient:
         async def __aenter__(self):
@@ -237,6 +241,7 @@ def test_request_retries_until_success(monkeypatch) -> None:
     assert calls[0][1] == "http://orchestrator.test/missions/mission-1"
     assert calls[0][2]["x-api-key"] == "svc-key"
     assert calls[0][2]["x-agent-id"] == "AGENT-03-BROKER"
+    assert calls[-1][1] == "http://orchestrator.test/internal/audit-events"
 
 
 def test_request_returns_last_response_or_last_error(monkeypatch) -> None:

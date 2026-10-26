@@ -103,8 +103,8 @@ try {
         }
     }
 
-    // 6c. Bundle tls-certs.ts so node-forge is inlined at build time and does
-    // not ship in production dependencies (where GHSA-86w9-cpqp-85rv is unfixed).
+    // 6c. Bundle tls-certs.ts (native node:crypto X.509 generator) for main process.
+    // Zero external certificate dependencies are shipped in the installer.
     buildSync({
         entryPoints: [path.join(process.cwd(), 'electron', 'tls-certs.ts')],
         outfile: path.join(electronOutDir, 'tls-certs.js'),

@@ -25,7 +25,8 @@ import time
 def run_cmd(cmd):
     try:
         # Using subprocess.run for better control
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
+        args = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+        result = subprocess.run(args, shell=False, capture_output=True, text=True)  # nosec B603
         return result.stdout
     except Exception:
         return ""
@@ -41,17 +42,22 @@ def _is_full_dedicated_running():
 def kill_port(port):
     print(f"Checking port {port}...")
     # Specifically look for LISTENING state on the port
-    output = run_cmd("netstat -aon | findstr LISTENING")
+    output = run_cmd(["netstat", "-aon"])
     pids = set()
     for line in output.splitlines():
-        if f":{port}" in line:
+        if "LISTENING" in line and f":{port}" in line:
             parts = line.strip().split()
             if len(parts) > 4:
                 pids.add(parts[-1])
     
     for pid in pids:
         print(f"Force-terminating PID {pid} (holding port {port})...")
-        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)  # nosec B602
+        if str(pid).isdigit():
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(int(pid))],
+                shell=False,
+                capture_output=True,
+            )  # nosec B603
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -155,10 +161,10 @@ def main(argv: list[str] | None = None):
     time.sleep(1) # Give OS a moment to release sockets
     failed_ports = []
     for port in target_ports:
-        output = run_cmd("netstat -aon | findstr LISTENING")
+        output = run_cmd(["netstat", "-aon"])
         is_active = False
         for line in output.splitlines():
-            if f":{port}" in line:
+            if "LISTENING" in line and f":{port}" in line:
                 is_active = True
                 break
         

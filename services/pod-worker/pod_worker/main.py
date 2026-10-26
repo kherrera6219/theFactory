@@ -1079,14 +1079,18 @@ async def _request(
                     LAST_INTERNAL_AUTH_STATUS = response.status_code
                     INTERNAL_AUTH_REJECTIONS.labels(pod_name=POD_NAME).inc()
                 if response.status_code < 500 and response.status_code != 429:
-                    return response
+                    break
             except httpx.HTTPError as exc:
                 last_error = exc
             if attempt < REQUEST_MAX_RETRIES:
                 await asyncio.sleep(min(2 ** attempt * 0.5, 30.0))
 
     if last_response is not None:
-        if emit_audit and path != "/internal/audit-events":
+        if (
+            emit_audit
+            and path != "/internal/audit-events"
+            and last_response.status_code not in {401, 403}
+        ):
             await _emit_audit_event(
                 mission_id=_mission_id_for_request(path, json_body=json_body, params=params),
                 agent_id=agent_id,

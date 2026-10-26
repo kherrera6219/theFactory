@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from re import Pattern
 from typing import Any
@@ -105,25 +106,51 @@ def parse_date_time(value: str) -> datetime:
     return parsed
 
 
+@lru_cache(maxsize=16)
+def _read_event_schema_cached(resolved_path: str, mtime_ns: int, size: int) -> dict[str, Any]:
+    _ = (mtime_ns, size)
+    return json.loads(Path(resolved_path).read_text(encoding="utf-8"))
+
+
 def load_event_schema(path: Path) -> dict[str, Any]:
     """Load the canonical event-envelope JSON schema from disk."""
     if not path.exists():
         raise ProtocolValidationError(f"event schema not found: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    stat = path.stat()
+    return dict(_read_event_schema_cached(str(path.resolve()), stat.st_mtime_ns, stat.st_size))
+
+
+@lru_cache(maxsize=16)
+def _read_topics_cached(resolved_path: str, mtime_ns: int, size: int) -> frozenset[str]:
+    _ = (mtime_ns, size)
+    return frozenset(
+        raw_line.strip()[2:].strip()
+        for raw_line in Path(resolved_path).read_text(encoding="utf-8").splitlines()
+        if raw_line.strip().startswith("- ")
+    )
 
 
 def load_topics(path: Path) -> set[str]:
     """Load the protocol topic allow-list from a YAML-style file."""
     if not path.exists():
         raise ProtocolValidationError(f"topics file not found: {path}")
-    topics: set[str] = set()
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if line.startswith("- "):
-            topics.add(line[2:].strip())
+    stat = path.stat()
+    topics = set(_read_topics_cached(str(path.resolve()), stat.st_mtime_ns, stat.st_size))
+
+
+
+
     if not topics:
         raise ProtocolValidationError("no topics configured")
     return topics
+
+
+@lru_cache(maxsize=16)
+def _compiled_validator(schema_json: str) -> Draft202012Validator:
+    return Draft202012Validator(
+        json.loads(schema_json),
+        format_checker=Draft202012Validator.FORMAT_CHECKER,
+    )
 
 
 def validate_envelope(
@@ -148,7 +175,7 @@ def validate_envelope(
     _ = payload_ref_pattern
     # FormatChecker activates the "date-time" and "pattern" assertions in the
     # schema (jsonschema treats "format" as advisory unless a checker is given).
-    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    validator = _compiled_validator(json.dumps(schema, sort_keys=True))
     try:
         validator.validate(envelope)
     except JSONSchemaValidationError as exc:
