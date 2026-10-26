@@ -29,11 +29,13 @@ Smelt-cycle phase stepper showing every state it passed through.*
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-09-27 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
+> **Version:** 1.3.0 · **Last updated:** 2026-10-26 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
 > **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.8 Flash**. Runtime QC runs generated tests when they exist — **in every routed language, offline**, via vendored test-runner images (JUnit, kotlin-test, ScalaTest, PHPUnit, testthat, vitest, xUnit, minitest, Julia `Test`); a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
 >
-> **Recent on `main` (2026-09-27, [#538](https://github.com/kherrera6219/theFactory/pull/538)):** **Every routed language now executes in the sandbox** — C# joined via a .NET 10 image, and generated tests run offline in vendored, checksum-pinned test-runner images, CI-verified to pass a correct artifact and fail a broken one. **BUILD_NEW missions now get behavioural equivalence** from their approved contract (an oracle that never sees the implementation). The object store moved from MinIO — whose image was withdrawn and project archived — to **SeaweedFS** with the same Object Lock guarantees. A Next.js remote-code-execution advisory was closed (`npm audit`: 0). A missing sandbox image is now reported as infrastructure, never as the generated code failing. **Windows desktop app** ([#541](https://github.com/kherrera6219/theFactory/pull/541), [#542](https://github.com/kherrera6219/theFactory/pull/542)): a real installer (location choice, Docker Desktop prerequisites page, progress, desktop and Start-menu icons, opt-in start with Windows), a startup progress window, tray lifecycle, and an uninstaller that keeps your data unless you twice-confirm removing it — installed and validated end to end. All agents now default to **Gemini 3.8 Flash**. Ordered work: [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
+> **Latest on `main` (2026-10-26 audit & security pass):** Production and staging Compose overlays now default to **Mission Flow v2** (`MISSION_FLOW_V2_ENABLED=true`, `LANGGRAPH_ENABLED=false`) per ADR decision `UPG-71`; dedicated pod-manager language routing (`go`, `haskell`, `ocaml`) and `PYTHON_AST_EXTRACTOR_ENABLED=true` are aligned across all topologies; `npm run electron:dev` bundles sandboxed preloads and `electron/tls-certs.ts` via `esbuild --electron-only` without a full Next.js rebuild; `release.yml` waits for `publish-images` before packaging installers; `scripts/validate_documentation.py` and 80% per-module coverage floors on `contract_oracle.py`, `equivalence_execution.py`, and `storage_projects.py` are enforced in CI; and all Python/Node dependencies are patched with **0 vulnerabilities** across Trivy, `pip-audit`, `npm audit`, Bandit, and CodeQL.
+>
+> **Earlier on `main` (2026-09-27, [#538](https://github.com/kherrera6219/theFactory/pull/538)):** **Every routed language now executes in the sandbox** — C# joined via a .NET 10 image, and generated tests run offline in vendored, checksum-pinned test-runner images, CI-verified to pass a correct artifact and fail a broken one. **BUILD_NEW missions now get behavioural equivalence** from their approved contract (an oracle that never sees the implementation). The object store moved from MinIO — whose image was withdrawn and project archived — to **SeaweedFS** with the same Object Lock guarantees. A Next.js remote-code-execution advisory was closed (`npm audit`: 0). A missing sandbox image is now reported as infrastructure, never as the generated code failing. **Windows desktop app** ([#541](https://github.com/kherrera6219/theFactory/pull/541), [#542](https://github.com/kherrera6219/theFactory/pull/542)): a real installer (location choice, Docker Desktop prerequisites page, progress, desktop and Start-menu icons, opt-in start with Windows), a startup progress window, tray lifecycle, and an uninstaller that keeps your data unless you twice-confirm removing it — installed and validated end to end. All agents now default to **Gemini 3.8 Flash**. Ordered work: [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 >
 > **Earlier (2026-08-21/22):** Project continuity bus (migration `V010`) so follow-on missions resume shared project state — [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md). Repo ZIP import Phases 5–7 with the Chat UI trigger seam closed — [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md).
 >
@@ -147,7 +149,7 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
 - **Gemini 3.8 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.8-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
 - **Windows Desktop App & Installer** — `theFactory-MissionControl-Setup-<version>.exe`: per-user install (no admin), install-location choice, Docker Desktop / WSL 2 prerequisites page, desktop and Start-menu icons, opt-in *Start with Windows*; a five-step startup progress window; closing the window keeps the factory running in the tray; the uninstaller keeps missions, vault and audit evidence by default. See [`docs/ELECTRON_INSTALLER.md`](docs/ELECTRON_INSTALLER.md). Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
-- **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend suite: 2,200+ tests at 84% coverage against an 80% floor, plus per-file floors on privilege, money and sandbox paths; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 172 tests. Do not treat a green audit badge as “zero vulnerabilities.”
+- **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend suite: 2,225 tests at ~84% mixed / ~87% line coverage against an 80% floor, plus strict per-file floors (80%–100%) on privilege, money, sandbox, contract-oracle, equivalence-execution, and project-continuity paths; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 181 tests across 28 test files. Documentation headers and public docstrings are validated in CI via `scripts/validate_documentation.py`. Do not treat a green audit badge as “zero vulnerabilities.”
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
@@ -215,7 +217,7 @@ OBSERVABILITY PLANE
 
 The operator-facing mission model surfaces 7 key checkpoint events. These map to the condensed smelt-cycle phase model visible in Mission Control and audit reports.
 
-> **Note:** The shipped default runtime is the **11-phase Mission Flow v2 engine** (`mission_flow_v2.py`). It expands the coarse `QUEUED → RUNNING → VERIFIED → COMPLETE` arc into 11 internal phases that include PM intake, CEO delegation, pod assignment, and specialist assignment steps before RUNNING. The 7 events below are the operator-visible subset of those phases.
+> **Note:** The shipped default runtime is the **11-phase Mission Flow v2 engine** (`services/orchestrator/orchestrator/mission_flow_v2/`). It expands the coarse `QUEUED → RUNNING → VERIFIED → COMPLETE` arc into 11 internal phases that include PM intake, CEO delegation, pod assignment, and specialist assignment steps before RUNNING. The 7 events below are the operator-visible subset of those phases.
 
 | Phase | Event | Description |
 |-------|-------|-------------|
@@ -290,8 +292,8 @@ Runtime persona and delegation metadata currently support provider-aware recomme
 
 Current runtime default: all 41 agents route to Gemini 3.8 Flash
 (`gemini-3.8-flash`) with high thinking. Mission Control Settings exposes three
-operator-selectable vault-slot model routes for testing: ChatGPT 5.5, Claude
-Opus 4.8, and Gemini 3.8 Flash. OpenAI and Anthropic remain supported provider
+operator-selectable vault-slot model routes for testing: ChatGPT 5.6 (`gpt-5.6`), Claude
+Opus 4.8 (`claude-opus-4-8`), and Gemini 3.8 Flash (`gemini-3.8-flash`). OpenAI and Anthropic remain supported provider
 routes, but they are not the default assignment for any agent.
 
 
@@ -316,8 +318,8 @@ QUEUED ─→ RUNNING ─→ VERIFIED ─→ COMPLETE
 
 Lifecycle engine behavior in the shipped defaults:
 
-- **Mission Flow v2 is enabled by default** via `MISSION_FLOW_V2_ENABLED=true`
-- **LangGraph is optional** via `LANGGRAPH_ENABLED=true` and is disabled by default
+- **Mission Flow v2 is enabled by default** via `MISSION_FLOW_V2_ENABLED=true` across all Compose profiles (`local`, `staging`, and `prod`, per ADR `UPG-71`)
+- **LangGraph is optional** via `LANGGRAPH_ENABLED=true` and is disabled by default across all profiles
 - **Legacy lifecycle fallback** remains available when both newer paths are disabled or fail open
 - **Postgres checkpointer** (`LANGGRAPH_CHECKPOINTER=postgres`) is available when LangGraph is enabled
 - **Startup rehydration** exists for in-flight missions
@@ -364,7 +366,8 @@ Each extracted concept becomes a **LogicNode** with:
 | `audit-worker` | — | FastAPI | Verification stream processing |
 | `dashboard` | 8180 | FastAPI | Lightweight operational status UI |
 | `agent-runtime` | — | FastAPI | Dedicated single-agent runtime used by the full dedicated topology |
-| `mission-control` | 3100 | Next.js 16 | Primary operator console |
+| `sandbox-runner` | 8105 (internal) | FastAPI / Docker CLI | Hardened sandbox execution service; the only container that mounts `docker.sock` for RQCA and behavioural equivalence |
+| `mission-control` | 3100 | Next.js 16 | Primary operator console (web + packaged Electron desktop app) |
 
 ---
 
@@ -757,8 +760,10 @@ npm install
 npm run dev        # Dev server (http://localhost:3000)
 npm run build      # Production build
 npm run lint       # tsc --noEmit (there is no ESLint config)
-npm run test       # Vitest unit tests
-npm run test:e2e   # Playwright critical-path E2E
+npm run test             # Vitest unit tests (181 tests)
+npm run test:e2e         # Playwright critical-path E2E
+npm run electron:dev     # Bundle Electron preloads (--electron-only) & launch desktop shell
+npm run electron:package # Build full standalone Next.js + Windows NSIS installer (.exe)
 ```
 
 ### Full Make Reference
@@ -773,7 +778,9 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make up-condensed` | Build and start the lightweight condensed worker topology |
 | `make down-condensed` | Stop the condensed worker topology — **volumes preserved** |
 | `make down-condensed-wipe` | Stop the condensed topology **and delete all volumes**. Irreversible |
-| `make validate` | Validate schema contracts |
+| `make sandbox-images` | Build vendored, digest/checksum-pinned offline sandbox test-runner images |
+| `make verify-sandbox-images` | Verify every sandbox test-runner image passes a good artifact and fails a broken one |
+| `make validate` | Validate schema contracts, documentation headers/links, and public docstrings |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
 | `make test-ui` | Mission Control lint + unit tests |
@@ -813,10 +820,11 @@ npm run test:e2e   # Playwright critical-path E2E
 | Gate | Target | Enforcement |
 |------|--------|-------------|
 | Global Python coverage | line ≥80%, branch ≥70%, mixed ≥80% | CI + `make test` |
-| Critical module coverage | Strict per-file floors (`80%`–`100%`) on privilege / money / PORT / protocol files | `scripts/check_coverage_thresholds.py` |
+| Critical module coverage | Strict per-file floors (`80%`–`100%`) on privilege / money / PORT / protocol / oracle / equivalence / project-bus files | `scripts/check_coverage_thresholds.py` |
+| Documentation & docstrings | 0 errors across markdown metadata, links, and public AST docstrings | CI + `scripts/validate_documentation.py` |
 | Production audit | 23/23 checks pass; `INF-008` closed | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
-| Frontend unit tests | 172 passing | `apps/mission-control` Vitest |
+| Frontend unit tests | 181 passing (28 test files) | `apps/mission-control` Vitest |
 | Sandbox test runners | every image passes a correct artifact and fails a broken one | CI `sandbox-images` job (`scripts/verify_sandbox_images.py`) |
 | Dependency audit | `npm audit` 0 (prod + dev) | `security.yml` Node Audit |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
@@ -842,7 +850,9 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-09-27):** Enterprise-hardening pass ([#538](https://github.com/kherrera6219/theFactory/pull/538)): Next.js RCE closed (`npm audit` 0), MinIO replaced by SeaweedFS after the MinIO image was withdrawn and the project archived, WQ7 contract-oracle behavioural equivalence for BUILD_NEW, offline test runners for every routed language including C#, and a new CI job that executes every runner in the real sandbox. Full backend suite green at 84% coverage.
+**Validation snapshot (2026-10-26):** Full-repo audit and CI/security hardening pass (`7810ed7`, `f2f22c5`, `a9c76e1`, `ab88808`): prod/staging Compose overlays aligned with Mission Flow v2 default (`UPG-71`), dedicated pod-worker language/AST parity restored, `electron:dev` fast preload bundling (`--electron-only`) with `node-forge` build-time bundling, `release.yml` image-before-installer ordering, `validate_documentation.py` (0 errors) and new 80% module coverage floors (`contract_oracle.py`, `equivalence_execution.py`, `storage_projects.py` at 100%) wired into CI, Windows installer rebuilt and reinstalled (`theFactory-MissionControl-Setup-0.1.0.exe`), and all Python/Node dependencies upgraded to 0 advisories (`CI`, `Security Checks`, and `CodeQL` all green on `main`).
+
+**Earlier snapshot (2026-09-27):** Enterprise-hardening pass ([#538](https://github.com/kherrera6219/theFactory/pull/538)): Next.js RCE closed (`npm audit` 0), MinIO replaced by SeaweedFS after the MinIO image was withdrawn and the project archived, WQ7 contract-oracle behavioural equivalence for BUILD_NEW, offline test runners for every routed language including C#, and a new CI job that executes every runner in the real sandbox. Full backend suite green at 84% coverage.
 
 **Earlier snapshot (2026-08-21):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main` (PR #462). Coverage gates (line ≥80%, branch ≥70%, privilege-path floors) landed in PR #463 (`dd13785`). Every critical file is floored at **at least 80%**. Full-dedicated stack rebuilt 2026-08-17; `sandbox-runner` is healthy. **Project continuity bus** landed on `main` (`ce9e042`, 2026-08-22) with migration `V010` and unit tests. **Repo ZIP Phases 5–7** backend + Chat UI trigger seam verified closed 2026-08-21 ([`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md)); WORK_QUEUE item #8 closed. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Live PORT-through-SOW and failing-QC-blocks-COMPLETE evidence is in [`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json). Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are in [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json).
 
@@ -1056,6 +1066,9 @@ theFactory/
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) | Ordered next work — start here for “what is actually next” |
 | [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md) | Project continuity bus — handoff, work ledger, plan authority across missions |
+| [`docs/ELECTRON_INSTALLER.md`](docs/ELECTRON_INSTALLER.md) | Windows desktop app & NSIS installer architecture, prerequisites, and build/install guide |
+| [`docs/OBJECT_STORE_MIGRATION.md`](docs/OBJECT_STORE_MIGRATION.md) | Migration from archived MinIO to SeaweedFS S3 with COMPLIANCE Object Lock |
+| [`docs/COMPOSE_ENVIRONMENT_PROFILES.md`](docs/COMPOSE_ENVIRONMENT_PROFILES.md) | Local, staging, and production Docker Compose profiles and environment defaults |
 | [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md) | Repo ZIP Phases 5–7 source verification (index guard, ingestion, context, UI seam) |
 | [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md) | Session-level current status and active queue |
 | [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md) | Cold-start handoff for maintainers and coding agents |
@@ -1089,27 +1102,27 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-09-27): **active development, feature-complete against the
+Current state (2026-10-26): **active development, feature-complete against the
 v1.3 mission-pipeline scope.** Infrastructure, security, the protocol bus, the
 data plane, the operator UI, and the test surface are mature and CI-verified.
 Every routed language now has sandbox execution, and BUILD_NEW missions carry
 contract-derived behavioural evidence. The semantic engine is partially realised
 and honestly labelled. Live BUILD_NEW missions have reached `COMPLETE`. The
-system is **not production-ready**; the Windows installer is built and validated, and the first public
+system is **not production-ready**; the Windows installer is built, installed, and validated, and the first public
 release (tag + public GHCR images) is the next release step.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
-| **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default, 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.8 Flash default route. |
-| **Project continuity** | **Foundation on `main`** | Migration `V010`, `project_bus` ensure/finalize hooks, unit tests (`ce9e042`). Follow-on missions can resume handoff + work ledger. Project detail UI and public work-item APIs are follow-ups. |
+| **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default across all profiles (`local`, `staging`, `prod`), 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.8 Flash default route. |
+| **Project continuity** | **Foundation on `main`** | Migration `V010`, `project_bus` ensure/finalize hooks, 100% unit test coverage on `storage_projects.py`. Follow-on missions can resume handoff + work ledger. Project detail UI and public work-item APIs are follow-ups. |
 | **Repo ZIP knowledge path** | **Phases 5–7 closed** | Launch index guard, knowledge ingestion, agent context load, and Chat UI trigger seam verified 2026-08-21. Optional polish: index-status visibility in UI and live closed-loop proof under `LIVE_STACK_REQUIRED=1`. |
 | **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — type recovery for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. BUILD_NEW does not extract LogicNodes. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
 | **Live mission evidence** | **Sprint 1.1 + EDCP recorded** | Go `mission-f8a5accf`, PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`, PORT `mission-dc0c8c4e`, fail-QC `mission-8db1af71`, injection `mission-6ee8b1fe`, fallback `mission-db901d98`, EDCP `mission-56bfd2dc`, spend-cap `mission-c1aedfbd`. |
 | **Runtime QC honesty** | **Shipped (PR #460, #538)** | Generated tests are the sandbox command, in every routed language, offline. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN; sandbox infrastructure errors are never a FAIL. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
 | **BUILD_NEW behavioural equivalence** | **Shipped, advisory (PR #538, WQ7)** | Contract-oracle vectors, implementation-blind, falsifiable, executed in the shared sandbox. Enforcement waits on ≥20 measured missions (WQ13). |
-| **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Backend 2,200+ tests, 84% coverage (floor 80%); `runtime.py` 100% line / 99% branch. Mission Control 172 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
-| **Desktop Packaging Path** | **Windows installer built and validated (#541, #542)** | Per-user NSIS installer with prerequisites page, progress, desktop/Start-menu icons and opt-in autostart; tray lifecycle; keep-data uninstaller. Validated by install → launch from the desktop icon → uninstall on Windows. Remaining: first `v*` release, public GHCR packages, optional code signing ([`docs/ELECTRON_INSTALLER.md`](docs/ELECTRON_INSTALLER.md)). |
-| **CI & Release Pipeline** | **Green on `main`; qualification being re-proven** | Lint/test, CodeQL, Docker builds, Security Checks, the new `sandbox-images` job, and the promotion gate run in Actions. Weekly Qualification was red from 2026-09-14 because the MinIO image was withdrawn from Docker Hub; #538 replaced it, and the next scheduled run is the proof. Its full end-to-end canary additionally needs a `QUALIFICATION_*_API_KEY` repository secret. |
+| **Audit & Quality Standards** | **Hygiene & CI gates green, not a release certificate** | `production_review_audit.py` (23/23) and `validate_documentation.py` (0 errors) enforced in CI. Backend 2,225 tests, ~84% mixed / ~87% line coverage (floor 80%) plus strict per-file floors; `runtime.py` 100% line / 99% branch. Mission Control 181 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
+| **Desktop Packaging Path** | **Windows installer built and validated (#541, #542, 2026-10-26)** | Per-user NSIS installer with prerequisites page, progress, desktop/Start-menu icons and opt-in autostart; tray lifecycle; keep-data uninstaller; `electron:dev` fast preload bundling (`--electron-only`). Rebuilt and reinstalled 2026-10-26. Remaining: first `v*` release, public GHCR packages, optional code signing ([`docs/ELECTRON_INSTALLER.md`](docs/ELECTRON_INSTALLER.md)). |
+| **CI & Release Pipeline** | **All workflows green on `main` (`ab88808`)** | `CI` (13 jobs incl. `Lint and Test`, `Electron E2E Smoke`, `sandbox-images`, 7 Docker builds, `Performance Smoke`, `SBOM`, and `Release Trust and Promotion Gate`), `Security Checks` (`Secret Scan`, `Container and Filesystem Scan`, `Python Dependency and SAST`, `Node Audit`), and `CodeQL` are all passing on `main`. `release.yml` waits on `publish-images` before building installers. |
 
 ---
 
