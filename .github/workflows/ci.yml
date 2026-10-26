@@ -19,7 +19,8 @@ env:
 jobs:
   lint-test:
     name: Lint and Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # Pin ubuntu-24.04 LTS: Playwright 1.60.0 --with-deps does not yet support ubuntu-26.04.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -309,7 +310,8 @@ jobs:
     # Production signal: run on main pushes and release tags, with manual
     # dispatch retained for explicit operator validation.
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
-    runs-on: ubuntu-latest
+    # Pin ubuntu-24.04 LTS: Playwright 1.60.0 --with-deps does not yet support ubuntu-26.04.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

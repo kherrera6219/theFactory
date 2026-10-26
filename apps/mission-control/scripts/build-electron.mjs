@@ -103,6 +103,18 @@ try {
         }
     }
 
+    // 6c. Bundle tls-certs.ts so node-forge is inlined at build time and does
+    // not ship in production dependencies (where GHSA-86w9-cpqp-85rv is unfixed).
+    buildSync({
+        entryPoints: [path.join(process.cwd(), 'electron', 'tls-certs.ts')],
+        outfile: path.join(electronOutDir, 'tls-certs.js'),
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        target: 'node20',
+        logLevel: 'warning',
+    });
+
     // 7. The uninstaller runs the maintenance helper under plain Node
     // (ELECTRON_RUN_AS_NODE=1) from resources\maintenance -- outside app.asar,
     // so it needs no asar support. It imports only factory-stack.
