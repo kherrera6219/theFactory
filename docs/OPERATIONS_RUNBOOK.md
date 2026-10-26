@@ -227,7 +227,7 @@ Pairing" above. Do not run the base compose file alone to restart or
 recreate containers on a full-dedicated-agent deployment.
 
 > **Teardown preserves data.** `make down*` stops containers and **keeps** every
-> named volume — the mission database, Redis, Qdrant, Neo4j, MinIO, Milvus, and
+> named volume — the mission database, Redis, Qdrant, Neo4j, SeaweedFS (`object-store`), Milvus, and
 > the operator vault (stored provider API keys). Deleting them is a separate,
 > explicit action: `make down-wipe` / `make down-condensed-wipe`, or
 > `python scripts/force_stop.py --wipe-volumes`.

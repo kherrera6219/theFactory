@@ -341,7 +341,7 @@ See `.env.example` for all variables. Critical ones:
 | `POD_NAME` | `podA` | Pod worker identity (`podA` \| `podB` \| `podC` \| `podD`) |
 | `AGENT_BINDING` | `""` | Dedicated worker agent binding (e.g. `AGENT-14-PY`) |
 | `NEO4J_ENABLED` | `true` | Enable Neo4j graph adapter (on by default) |
-| `OBJECT_STORAGE_ENABLED` | `true` | Enable MinIO/S3 adapter (on by default) |
+| `OBJECT_STORAGE_ENABLED` | `true` | Enable SeaweedFS/S3 object-storage adapter (on by default) |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8100` | Gateway URL for Mission Control |
 | `ORCHESTRATOR_INTERNAL_BASE_URL` | `http://localhost:8101` | Orchestrator internal URL for Mission Control review approval persistence |
 | `APPROVAL_HMAC_SECRET` | — | HMAC secret used by Mission Control to sign and verify durable review approvals |

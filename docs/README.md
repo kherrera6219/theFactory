@@ -1,7 +1,7 @@
 # theFactory Docs
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -28,8 +28,8 @@ under `docs/archive/` and should not be used as current implementation truth.
 theFactory is an active local-first AI software factory application, not a
 production-ready release. The current runtime includes Mission Control,
 api-gateway, orchestrator, protocol-bus MCP, pod workers, audit worker,
-dedicated agent runtime containers, PostgreSQL, Redis, Qdrant, Milvus, Neo4j,
-MinIO, and an observability stack.
+dedicated agent runtime containers, `sandbox-runner`, PostgreSQL, Redis, Qdrant, Milvus, Neo4j,
+SeaweedFS (`object-store`), and an observability stack.
 
 Current validated proof points:
 
@@ -43,20 +43,20 @@ Current validated proof points:
   [end_state_live_proof_20260817.json](evidence/end_state_live_proof_20260817.json).
 - Live BUILD_NEW: Go S1-01 `mission-f8a5accf`, chat-driven PyQt6
   `mission-e42fd7e2`, stdlib Snake `mission-911a6b3f`.
+- Every routed language (including C# via .NET 10) executes in the hardened sandbox with vendored offline test-runner images (`deploy/sandbox-images`), and BUILD_NEW missions run implementation-blind contract-oracle behavioural equivalence (`contract_oracle.py`).
+- Windows NSIS desktop installer (`theFactory-MissionControl-Setup-0.1.0.exe`) is built, installed, and validated ([ELECTRON_INSTALLER.md](ELECTRON_INSTALLER.md)).
 - Coverage gates: line ≥80%, branch ≥70%, mixed ≥80%. Every critical
   file is floored at **at least 80%** (`rqca_agent`, `sow_estimator`,
-  `file_tree`, `port_coordinator`, sandbox/SOW). Latest sweep: line
-  85.80%, branch 72.82%, mixed 82.72%. A mixed score above 80% cannot
+  `file_tree`, `port_coordinator`, `contract_oracle`, `equivalence_execution`, `storage_projects`, sandbox/SOW). Latest CI sweep (2026-10-26): line
+  86.68%, branch 74.50%, mixed 83.77% across 2,225 tests. A mixed score above 80% cannot
   hide a line score below 80%.
-- Production audit (`production_review_audit.py`) is a hygiene check, not
-  a release certificate.
+- Production audit (`production_review_audit.py`, 23/23) and documentation validation (`validate_documentation.py`, 0 errors) run in CI.
 
 Tracked remaining gaps:
 
-- Chat ZIP UI walkthrough (API path is proven).
-- BUILD_NEW equivalence decision (ADR if option 2).
-- Electron installer / uninstall decisions (operator sign-off).
-- Public hosting, customer isolation, and a production auth story.
+- Behavioural equivalence measurement across ≥20 missions before raising `MISSION_BEHAVIOURAL_ENFORCEMENT_ENABLED` (WQ13).
+- First public `v*` release tag + public GHCR container images + optional Windows code signing.
+- Public hosting, customer isolation, and a multi-tenant production auth story.
 
 ## Maintenance Rules
 

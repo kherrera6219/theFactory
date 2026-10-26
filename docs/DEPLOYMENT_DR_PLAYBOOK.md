@@ -150,7 +150,7 @@ make backup
 ### Backup Storage
 
 Backups are written to `backups/` in the repository root. For production:
-- Copy backups to an off-host location (MinIO, S3, network share)
+- Copy backups to an off-host location (SeaweedFS/S3, external S3, network share)
 - Do **not** commit backup files to Git
 
 ---

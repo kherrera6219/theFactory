@@ -79,7 +79,7 @@ The "build a new application from scratch" mission produces a related but differ
 - Databases (Postgres, MySQL, MongoDB, etc.)
 - Caches (Redis, Memcached)
 - Queues (RabbitMQ, Kafka, SQS)
-- Object storage (S3, MinIO)
+- Object storage (S3, SeaweedFS, MinIO)
 - Vector databases (Qdrant, Milvus, Pinecone)
 - Graph databases (Neo4j)
 - Required environment variables

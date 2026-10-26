@@ -1,13 +1,13 @@
 # theFactory Documentation Index
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.08.18
+**Version:** 2026.10.26
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-08-18
+**Last reviewed:** 2026-10-26
 
 This index maps the active theFactory documentation set. Historical source
 material, superseded phase plans, run-specific evidence, and archived review
@@ -37,9 +37,9 @@ are not listed as current implementation truth unless called out explicitly.
 | [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) | Read-only audit behind that plan — 143 design documents vs live source, with file/line evidence for every divergence | Maintainers, Architects, AI coding agents |
 | [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
 | [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps. Refreshed 2026-08-18 (honesty pass: fallback QC ADVISORY, Knowledge Lake seed, PORT default aligned) | All |
-| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-08-18) | Maintainers, Operators |
-| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-08-18) | Maintainers, AI coding agents |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps (refreshed 2026-10-26) | All |
+| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-10-26) | Maintainers, Operators |
+| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-10-26) | Maintainers, AI coding agents |
 | [reviews/theFactory_Deep_Code_Review_2026-08-18.md](reviews/theFactory_Deep_Code_Review_2026-08-18.md) | Pass-2 deep review at `c1b044f`. N1–N4 actioned in `af88a79`. Electron deferred. | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
 | [PM_SOW_FACTORY_PLAN_2026-08-17.md](PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |
@@ -120,7 +120,9 @@ are not listed as current implementation truth unless called out explicitly.
 
 | File | Description | Audience |
 |---|---|---|
-| [STORAGE_LAYER.md](STORAGE_LAYER.md) | Complete storage layer reference — `storage_core.py` (connection pool, migration entry, helpers), `storage.py` façade, and all 5 domain modules: missions, pods, logicnodes, artifacts, agents | Developers |
+| [STORAGE_LAYER.md](STORAGE_LAYER.md) | Complete storage layer reference — `storage_core.py` (connection pool, migration entry, helpers), `storage.py` façade, and all 6 domain modules: missions, pods, logicnodes, artifacts, agents, projects | Developers |
+| [PROJECT_CONTINUITY_BUS.md](PROJECT_CONTINUITY_BUS.md) | Project continuity bus (`V010` migration, `storage_projects.py`, `project_bus.py`) — durable project handoff and work ledger across missions | Developers, Architects |
+| [OBJECT_STORE_MIGRATION.md](OBJECT_STORE_MIGRATION.md) | Migration from archived MinIO to SeaweedFS (`object-store`) with S3 Object Lock legal-hold parity | Operators, Developers |
 | [SCHEMA_REGISTRY_AND_VERSIONING.md](SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry and DB versioning strategy — charter field embedding, migration governance, and backward-compatibility rules | Developers, Architects |
 
 ---
@@ -168,6 +170,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md) | Sensitive code handling policy — detection rules, escalation thresholds, and operator override procedures | Security, Developers |
 | [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source license strategy and dependency license compliance | Legal, Developers |
 | [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
+| [SECURITY_ALERT_REMEDIATION.md](SECURITY_ALERT_REMEDIATION.md) | CodeQL, Trivy, `pip-audit`, and `npm audit` remediation record (through 2026-10-26) | Security, Maintainers |
 
 ---
 
@@ -188,6 +191,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | Day-to-day operations runbook — incident response, alert triage, and escalation procedures | Operators |
 | [RELEASE_TRUST_PROMOTION_GATE.md](RELEASE_TRUST_PROMOTION_GATE.md) | Release trust gate, attestation expectations, and promotion evidence requirements | Maintainers, Operators |
 | [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Runtime QC system and test environment management | Developers, Operators |
+| [ELECTRON_INSTALLER.md](ELECTRON_INSTALLER.md) | Windows desktop app and NSIS installer (`theFactory-MissionControl-Setup-0.1.0.exe`) architecture, build, and release guide | Operators, Maintainers |
 | [runbooks/dr_validation_runbook.md](runbooks/dr_validation_runbook.md) | Disaster-recovery validation procedure | Operators |
 | [runbooks/protocol_bus_incident_runbook.md](runbooks/protocol_bus_incident_runbook.md) | Protocol Bus incident triage and recovery procedure | Operators |
 | [runbooks/dedicated_agent_canary_runbook.md](runbooks/dedicated_agent_canary_runbook.md) | Dedicated-agent canary validation procedure | Operators |
@@ -265,5 +269,8 @@ All high, medium, and low priority undocumented modules have been resolved. The 
 | `system_maintenance.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `protocol.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `project_identity.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `storage_projects.py` + `project_bus.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md), [PROJECT_CONTINUITY_BUS.md](PROJECT_CONTINUITY_BUS.md) |
+| `contract_oracle.py` + `equivalence_execution.py` | 🟠 Medium | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `sandbox_exec.py` + `sandbox_runner.py` | 🔴 High | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 
 > The documentation gap tracker is now fully clear. Every orchestrator module is documented. New undocumented modules should be added here as they are introduced.

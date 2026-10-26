@@ -1,7 +1,7 @@
 # Migration Guide
 
-Document version: 2026.06.26
-Last updated: 2026-06-26
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Operators, integrators, developers, and maintainers
 
@@ -14,6 +14,7 @@ storage contracts, deployment topology, or public API behavior.
 
 | Change | External action required | Status |
 |---|---:|---|
+| `minio` to `object-store` (SeaweedFS S3) migration | Yes (local `.env` / volumes) | Documented in [`docs/OBJECT_STORE_MIGRATION.md`](docs/OBJECT_STORE_MIGRATION.md) and below |
 | `semantic-bus` to `protocol-bus` rename | Yes | Documented below |
 
 ## Validation
@@ -72,3 +73,16 @@ No payload, schema-field, or wire-protocol changes are required.
 
 `SigmaPayload.embedding_ref` remains in the schema but is **reserved for future semantic
 routing**. It is not computed, stored, or matched anywhere today. Do not rely on it.
+
+---
+
+## `minio` → `object-store` (SeaweedFS S3) migration (2026-09-27)
+
+Upstream archived `github.com/minio/minio` on 2026-02-13 and withdrew the Docker Hub image tag `minio/minio:RELEASE.2025-02-18T16-25-55Z`. The S3-compatible object store in `deploy/docker-compose.yaml` is now **`object-store`** (`chrislusf/seaweedfs:4.19`, pinned by digest) serving the S3 API with `COMPLIANCE` Object Lock on internal port `8333` (host port `9000`).
+
+### Action required for operators upgrading an existing `.env`
+
+- Update `OBJECT_STORAGE_ENDPOINT` in `.env` from `http://minio:9000` to `http://object-store:8333`.
+- Remove any stale `minio` container (`docker rm -f thefactory-minio-1`).
+- See [`docs/OBJECT_STORE_MIGRATION.md`](docs/OBJECT_STORE_MIGRATION.md) for the step-by-step migration and backup instructions.
+

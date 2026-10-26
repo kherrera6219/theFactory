@@ -1,7 +1,7 @@
 # Storage Layer Reference
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Developers and operators
 
@@ -25,6 +25,7 @@ storage_pods.py         — pod assignments (table: mission_pod_assignments) + p
 storage_logicnodes.py   — LogicNode records + knowledge lake entries (table: mission_knowledge)
 storage_artifacts.py    — audit reports, review approvals, build artifacts, testdata, RQCA reports
 storage_agents.py       — agent heartbeats + action event audit ledger
+storage_projects.py     — project continuity bus (projects, project_handoff, project_work_items)
 storage.py              — re-export façade (callers import from here, not from domain files)
 ```
 
@@ -255,6 +256,24 @@ Manages `agent_runtime_heartbeats`, `agent_runtime_events`, and `agent_action_ev
 | `prune_audit_tables(settings, retention_days)` | Deletes audit rows older than the retention window |
 
 `insert_agent_action_event` is the **only write path to the audit ledger**. It fetches the digest of the most recent event for the same `mission_id` before inserting, creating the hash chain. This is done inside a single `get_connection()` block to prevent races on the `prev_event_digest_sha256` field.
+
+---
+
+### `storage_projects.py` — Project Continuity Bus
+
+Manages `projects`, `project_handoff`, and `project_work_items` tables (introduced in migration `V010_project_continuity_bus.sql`) so follow-on missions can resume shared project state, handoff phase, and work-item ledgers. See [`PROJECT_CONTINUITY_BUS.md`](PROJECT_CONTINUITY_BUS.md).
+
+| Function | Description |
+|----------|-------------|
+| `upsert_project(settings, *, project_id, ...)` | Inserts or updates a project record in `projects` |
+| `fetch_project(settings, project_id)` | Returns the project dict or `None` if not found |
+| `upsert_project_handoff(settings, *, project_id, ...)` | Upserts the single handoff state row for a project in `project_handoff` |
+| `fetch_project_handoff(settings, project_id)` | Returns the project handoff dict or `None` |
+| `upsert_work_item(settings, *, project_id, title, ...)` | Inserts or updates a work-ledger item in `project_work_items` |
+| `list_work_items(settings, project_id, *, status, limit)` | Lists work items for a project ordered by `sort_order` and `created_at` |
+| `mark_work_items_done_for_mission(settings, *, project_id, mission_id, ...)` | Marks claimed work items `done` when a mission completes with evidence |
+| `load_project_bus(settings, project_id)` | Returns composite project + handoff + open/all work items snapshot |
+| `resolve_project_id_for_mission(metadata, mission_id)` | Resolves normalized `project_id` from mission metadata or `mission_id` |
 
 ---
 

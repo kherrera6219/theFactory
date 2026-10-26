@@ -36,7 +36,7 @@ The system is organized into three planes:
 | Plane | Components |
 |-------|-----------|
 | **Control Plane** | API Gateway, Orchestrator, Mission Control UI |
-| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j, Milvus, MinIO/S3 |
+| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j, Milvus, SeaweedFS/S3 |
 | **Observability Plane** | Prometheus, Grafana, Loki, Promtail, Alertmanager, Jaeger |
 
 ---
@@ -256,7 +256,7 @@ Go, Haskell, and OCaml now ship as full concrete `SpecialistAgent` subclasses ra
 | Qdrant | 6334 | ✅ Active | Knowledge retrieval and vector indexing (PG fallback) |
 | Milvus | 19530 | ✅ Active | Extended vector-store path for retrieval flows; `MILVUS_ENABLED=true` by default |
 | Neo4j | 7474 | ✅ Active | Graph queries for mission/audit relationships; `NEO4J_ENABLED=true` by default |
-| MinIO/S3 | 9000 | ✅ Active | Immutable artifact retention (legal-hold, 90-day policy); `OBJECT_STORAGE_ENABLED=true` by default |
+| SeaweedFS/S3 (`object-store`) | 9000 (internal 8333) | ✅ Active | Immutable artifact retention (COMPLIANCE Object Lock, legal-hold, 90-day policy); `OBJECT_STORAGE_ENABLED=true` by default |
 
 ### Database Schema (PostgreSQL)
 

@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -44,10 +44,10 @@ The application currently includes:
 - Pod workers with real AST extractors for Python, JavaScript/TypeScript, and Java. Go, Haskell, OCaml, and Julia extractors are named AST but implemented as regex. Pre-flight toolchain checkers exist for all four pods.
 - LogicNode schema v2 — descriptive fields promoted to first-class optional properties; `types.in`/`types.out` populated from real AST signatures for Python, Java, and Haskell (see [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)). BUILD_NEW missions produce source artifacts; LogicNodes earn their keep on PORT/transform, not as a parallel semantic engine under every new app.
 - Refined-IR with a self-describing `projection_method` (`ast_v1` / `templated_v1` / `mixed_v1`). `ast_v1` requires recovered types; otherwise the projection is `templated_v1`.
-- Behavioural equivalence verification — Python only (`equivalence_execution.SUPPORTED_LANGUAGES`). BUILD_NEW skips it (no Refined-IR). Opt-in, advisory; see [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md)
+- Behavioural equivalence verification — Refined-IR vectors (opt-in, Python) plus BUILD_NEW implementation-blind contract-oracle vectors (`contract_oracle.py`, default on) across all 19 routed languages (`call` vectors for Python, `cli` vectors for every language). Advisory until ≥20 missions are measured; see [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md)
 - Audit worker for verification stream processing
 - Dedicated single-agent runtime containers (supporting condensed, dedicated, and full-dedicated topologies)
-- Integrated data plane: PostgreSQL, Redis, Qdrant, Milvus, Neo4j, and MinIO
+- Integrated data plane: PostgreSQL, Redis, Qdrant, Milvus, Neo4j, and SeaweedFS (`object-store`)
 - Prometheus/Grafana/Loki/Jaeger observability stack
 - Documentation validation, OpenAPI drift checks, and production review audit suite
 
@@ -72,7 +72,7 @@ The application currently includes:
 | Sandbox isolation | RQCA runtime QC and behavioural equivalence share **one** hardened Docker invocation (`sandbox_exec.py`); a test fails if either builds its own command line or drops a security flag |
 | Stack operations safety | Teardown preserves volumes by default; `start_app.bat` refuses a compose topology that conflicts with what is running |
 
-| Documentation controls | 76 metadata docs, 119 link docs, 17 docstring files, migration guide, and three diagram sets validated cleanly |
+| Documentation controls | 92 metadata docs, 137 link docs, 19 docstring files, migration guide, and three diagram sets validated cleanly (`scripts/validate_documentation.py`, enforced in CI) |
 | Production audit | Hygiene script, not a live-mission gate. Do not treat a green run as release evidence. |
 
 ---
@@ -89,7 +89,7 @@ The application currently includes:
 | Knowledge Lake / FETCH | **Bootstrap seed, not a lake** | `is_agent._BOOTSTRAP_DOCS` is 42 one-liners for Python, JavaScript, TypeScript, and Java. Other routed languages get no context. No crawler. Retrieval plumbing (`knowledge_lake.get_language_context` → codegen) is real. |
 | Orchestrator docker.sock | **Moved to sandbox-runner (2026-08-17)** | Condensed compose mounts `/var/run/docker.sock` on `sandbox-runner` only. Orchestrator calls `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. |
 | BUILD_NEW agent honesty (2026-08-16/17) | **Shipped on `main` (PR #460)** | Snake `mission-911a6b3f` showed a working prompt-chain and four role failures. Specialist plans derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; specified CLI/stdlib games no longer get generic product questions. Follow-up: generated tests run **as** the sandbox command (not after QC, not overwritten by a testdata default `run_command`); syntax-only success is ADVISORY; Tester `source=fallback` stubs (`assert True`) are ADVISORY, not PASS; `while True` / bare `.listen(` no longer force compile-only; cached `started_only` PASS reports are re-assessed. |
-| Desktop Packaging Path | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron exists and now uses the Next.js `/api/gateway` proxy (it previously called `:8100` with no API key). Installer signing and uninstall hooks remain open. |
+| Desktop Packaging Path | **Windows installer built, installed, and validated (#541, #542, 2026-10-26)** | `theFactory-MissionControl-Setup-0.1.0.exe` provides per-user NSIS install, prerequisites check, startup progress window, tray lifecycle, and keep-data uninstall ([ELECTRON_INSTALLER.md](ELECTRON_INSTALLER.md)). `npm run electron:dev` bundles preloads via `--electron-only`. Remaining: first `v*` release, public GHCR packages, optional code signing. |
 
 
 ---
@@ -110,15 +110,19 @@ The application currently includes:
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |
 | `LLM_PROVIDER` | `gemini` | Default provider route |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Default model for all agent routes (compose / gateway / vault). |
-| `OPENAI_MODEL` | `gpt-5.5` | Selectable non-default route |
+| `OPENAI_MODEL` | `gpt-5.6` | Selectable non-default route |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Selectable non-default route |
 | `MILVUS_ENABLED` | `true` | Extended vector store enabled in base stack |
 | `NEO4J_ENABLED` | `true` | Knowledge graph adapter enabled in base stack |
-| `OBJECT_STORAGE_ENABLED` | `true` | MinIO/S3 artifact storage enabled in base stack |
+| `OBJECT_STORAGE_ENABLED` | `true` | SeaweedFS/S3 artifact storage (`object-store`) enabled in base stack |
 
 ---
 
 ## Recent Phase Summary
+
+### Enterprise Audit, Installer Rebuild & CI/Security Remediation (2026-10-26)
+
+Completed on `main` (`7810ed7`..`a983a11`). Aligned `deploy/docker-compose.prod.yaml` and `deploy/docker-compose.staging.yaml` with ADR decision `UPG-71` (`MISSION_FLOW_V2_ENABLED=true`, `LANGGRAPH_ENABLED=false`). Restored dedicated pod-manager language routing (`go` on Pod B, `haskell,ocaml` on Pod D) and `PYTHON_AST_EXTRACTOR_ENABLED=true` across full-dedicated overlays. Added `--electron-only` fast preload bundling (`npm run electron:dev`), bundled `electron/tls-certs.ts` via `esbuild`, uninstalled/rebuilt/reinstalled `theFactory-MissionControl-Setup-0.1.0.exe`, and fixed `release.yml` to wait on `publish-images`. Wired `scripts/validate_documentation.py` (0 errors) and 80% per-module coverage floors on `contract_oracle.py`, `equivalence_execution.py`, and `storage_projects.py` (at 100%) into CI, and patched all Python and Node dependencies to 0 advisories (`CI`, `Security Checks`, and `CodeQL` all green).
 
 ### Mission Control UX Lock-In
 

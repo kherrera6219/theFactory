@@ -78,7 +78,7 @@ Artifacts may contain code snippets and mission output.  Apply appropriate acces
 
 theFactory does **not** share operator data with third parties except:
 1. **LLM Providers** — routing context only (see §2.3)
-2. **Operator-configured integrations** — any external service configured by the operator (e.g. Qdrant, Neo4j, MinIO) receives data as configured by the operator
+2. **Operator-configured integrations** — any external service configured by the operator (e.g. Qdrant, Neo4j, SeaweedFS/S3) receives data as configured by the operator
 
 ---
 

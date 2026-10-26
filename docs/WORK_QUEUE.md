@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.09.27
-Last updated: 2026-09-27
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -153,8 +153,10 @@ Cheap self-contained hardening follows, then evidence, then features.
   present.
 - [x] **P3 — approval-shaped chat confirm** *(2026-08-12, `d84d64e`)*.
 - [x] **Honesty / Gemini 3.7 / tests-as-QC** *(2026-08-16/17, PR #460)*.
-  `started_only` never PASS; all agents on `gemini-3.7-flash`; Tester output
+  `started_only` never PASS; all agents on `gemini-3.7-flash` (subsequently promoted to `gemini-3.8-flash` on 2026-09-27); Tester output
   is the sandbox command; `main` at `0b6ee4c`.
+- [x] **Full-repo audit, installer rebuild & CI/security remediation** *(2026-10-26, `7810ed7`..`a983a11`)*.
+  Prod/staging Compose overlays aligned with `UPG-71` (`MISSION_FLOW_V2_ENABLED=true`, `LANGGRAPH_ENABLED=false`); dedicated pod-worker language/AST parity restored; `electron:dev` `--electron-only` preload + `tls-certs` bundling; `release.yml` image-before-installer dependency; `validate_documentation.py` and 80% module coverage floors (`contract_oracle.py`, `equivalence_execution.py`, `storage_projects.py` at 100%) wired into CI; Windows installer rebuilt & reinstalled; all Python/Node dependencies patched (`CI`, `Security Checks`, `CodeQL` green on `main`).
 
 ---
 

@@ -35,7 +35,7 @@ All mission-lifecycle metrics are recorded via `record_mission_transition()`, ca
 
 ## `services/orchestrator/orchestrator/data_plane_metrics.py`
 
-Covers **optional adapters only** (Neo4j, object storage/MinIO) — not the core mission pipeline:
+Covers **optional adapters only** (Neo4j, object storage/SeaweedFS) — not the core mission pipeline:
 
 | Metric | Type | Labels | Purpose |
 |---|---|---|---|

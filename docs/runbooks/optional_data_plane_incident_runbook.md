@@ -1,7 +1,7 @@
 # Incident Runbook — Optional Data-Plane (Neo4j / Object Storage)
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.10.26  
+Last updated: 2026-10-26  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -64,19 +64,19 @@ Common causes:
 ### Object Storage Not Ready
 
 ```bash
-# Check MinIO/S3 container
-docker compose -f deploy/docker-compose.yaml ps minio
+# Check SeaweedFS (object-store) S3 container
+docker compose -f deploy/docker-compose.yaml ps object-store
 
-# Check MinIO logs
-docker compose -f deploy/docker-compose.yaml logs minio --tail 100
+# Check object-store logs
+docker compose -f deploy/docker-compose.yaml logs object-store --tail 100
 
-# Test MinIO endpoint
-curl http://localhost:9000/minio/health/live
+# Test SeaweedFS S3 health endpoint (mapped to host port 9000, internal 8333)
+curl http://localhost:9000/status
 ```
 
 Common causes:
-- MinIO container not started (start extended profile)
-- S3 endpoint unreachable (check `OBJECT_STORAGE_ENDPOINT` in `.env`)
+- `object-store` container not started or unhealthy
+- Stale `OBJECT_STORAGE_ENDPOINT=http://minio:9000` in `.env` (must be `http://object-store:8333`; see `docs/OBJECT_STORE_MIGRATION.md`)
 - Bad credentials (check `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`)
 
 ---
@@ -89,8 +89,8 @@ Common causes:
 # Restart Neo4j
 docker compose -f deploy/docker-compose.yaml restart neo4j
 
-# Restart MinIO
-docker compose -f deploy/docker-compose.yaml restart minio
+# Restart SeaweedFS object-store
+docker compose -f deploy/docker-compose.yaml restart object-store
 ```
 
 ### Restart Orchestrator (after adapter is back)
@@ -120,7 +120,7 @@ After recovery, run disruption tests to validate:
 LIVE_ENABLE_DISRUPTION_TESTS=true make test-live-extended
 ```
 
-These tests validate Neo4j and MinIO disruption recovery behavior.
+These tests validate Neo4j and object-store (SeaweedFS S3) disruption recovery behavior.
 
 ---
 

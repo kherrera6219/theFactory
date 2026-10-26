@@ -1,7 +1,7 @@
 # Supporting Modules Reference
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Developers and operators
 
@@ -292,6 +292,26 @@ Gated on `mission_equivalence_python_execution_enabled` (default `false`; flag o
 Phase 4 leaves `out.expected` as `null` on purpose, because the expected output is unknowable without execution. Promoting `executed_without_error` to `passed` would improve every figure on the report while recreating exactly the "check that can never fail" this work removed. Per UPG-53 behavioural results are advisory — they do not touch the correctness report's `status`/`passed`/`blocking` — until pass rates have been measured across real missions.
 
 The driver injects argument values via `json.loads` of an embedded literal rather than interpolating them into source, and reads only a sentinel-prefixed line from stdout, so neither a hostile vector value nor arbitrary artifact output can influence the verdict.
+
+---
+
+## `contract_oracle.py` — BUILD_NEW Implementation-Blind Contract Oracle
+
+**Source:** `services/orchestrator/orchestrator/contract_oracle.py`
+
+Generates falsifiable behavioural equivalence vectors from a mission's approved acceptance criteria when no source-code Refined-IR exists (`BUILD_NEW` missions, WQ7). The oracle sees the approved feature contract and target file/interface signatures (`extract_public_interface`), but **never** sees the specialist's implementation body.
+
+- Produces `call` vectors (Python functions) or `cli` vectors (`argv`/`stdin` → expected `stdout`/`exit_code`, supported across all 19 routed languages).
+- Every accepted vector must carry a concrete, falsifiable expectation; vectors without one are rejected before execution.
+- When no live LLM provider is available, returns `skipped` (`no_live_model_for_oracle`), never a synthetic stub.
+
+---
+
+## `sandbox_runner.py` — Isolated Docker Socket Execution Service
+
+**Source:** `services/orchestrator/orchestrator/sandbox_runner.py`
+
+FastAPI microservice (`sandbox-runner`, internal port `8105`) that owns the `/var/run/docker.sock` mount in Docker Compose so the orchestrator container never mounts the Docker socket directly. Exposes `GET /internal/sandbox/health` and `POST /internal/sandbox/execute` (authenticated via `INTERNAL_SERVICE_API_KEY` bearer token) and delegates execution to `sandbox_exec.run_in_sandbox` with `SANDBOX_SECURITY_FLAGS` enforced.
 
 ---
 

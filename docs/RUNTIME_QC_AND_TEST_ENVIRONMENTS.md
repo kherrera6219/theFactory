@@ -223,7 +223,7 @@ The Ephemeral Test Environment Manager supports services in this priority order:
 | P0 | Redis |
 | P1 | MySQL / MariaDB |
 | P1 | MongoDB |
-| P1 | MinIO / S3-compatible storage |
+| P1 | SeaweedFS / S3-compatible storage |
 | P2 | SQL Server |
 | P2 | Qdrant |
 | P2 | Neo4j |

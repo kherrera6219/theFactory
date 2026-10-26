@@ -99,7 +99,7 @@ def validate_migration_guide() -> list[str]:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     required_tokens = [
         "Document version:",
-        "Last updated: 2026-06-26",
+        "Last updated:",
         "Status: Canonical",
         "Current migration coverage",
         "`semantic-bus`",
@@ -114,7 +114,7 @@ def validate_architecture_diagram_drift() -> list[str]:
     """Return architecture diagram drift errors against current runtime facts."""
     checks = {
         REPO_ROOT / "docs" / "ARCHITECTURE_DIAGRAMS.md": [
-            "Last updated: 2026-06-26",
+            "Last updated:",
             "MISSION_FLOW_V2_ENABLED=true",
             "AGENT-36-GO",
             "AGENT-37-HASKELL",

@@ -1,7 +1,7 @@
 # Testing & Quality Gates
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -28,12 +28,12 @@ Audience: Operators, developers, maintainers, and auditors
         │       7 tests       │  operations, vault, builder, intake, errors, a11y
         └─────────────────────┘
        ┌───────────────────────────┐
-       │  Integration Tests        │  Live mission flow, Neo4j/MinIO
+       │  Integration Tests        │  Live mission flow, Neo4j/SeaweedFS
        │  (skip-safe when offline) │  disruption recovery
        └───────────────────────────┘
       ┌─────────────────────────────────┐
-      │  Frontend Unit Tests (Vitest)   │  63 tests — API routes,
-      │                                 │  API client, vault flows, helpers
+      │  Frontend Unit Tests (Vitest)   │  181 tests (28 files) — API routes,
+      │                                 │  API client, vault, Electron, helpers
       └─────────────────────────────────┘
      ┌───────────────────────────────────────┐
      │  Backend Unit & Service Tests (pytest) │  Full multi-service suite covering
@@ -67,7 +67,7 @@ python -m pytest tests/services/test_live_mission_flow_integration.py -q
 # End-state live proof (requires stack; stop Mission Control first to avoid 429)
 python scripts/prove_end_state_live.py
 
-# Extended live tests (Neo4j/MinIO disruption recovery)
+# Extended live tests (Neo4j/object-store disruption recovery)
 LIVE_ENABLE_DISRUPTION_TESTS=true make test-live-extended
 ```
 
@@ -112,11 +112,11 @@ Enforced by:
 
 A red suite invalidates the coverage number. `pytest` must exit 0.
 
-**Latest local sweep (2026-08-17):** mixed **82.72%**, line **85.80%**,
-branch **72.82%**. The checker **fails line <80% even when mixed is above
+**Latest CI sweep (2026-10-26):** mixed **83.77%**, line **86.68%**,
+branch **74.50%** across **2,225** tests. The checker **fails line <80% even when mixed is above
 80%** (`test_line_floor_fails_when_mixed_still_passes`). Every critical
-file is floored at **at least 80%** (`rqca_agent` raised from 70%;
-`sow_estimator` and `file_tree` added).
+file is floored at **at least 80%** (`rqca_agent`, `sow_estimator`, `file_tree`,
+`contract_oracle`, `equivalence_execution`, and `storage_projects` included).
 
 ### Core Module Gates
 
@@ -139,6 +139,9 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/orchestrator/orchestrator/file_tree.py` | Multi-file delivery tree parse / write |
 | `services/orchestrator/orchestrator/port_coordinator.py` | PORT two-phase extraction / generation |
 | `services/orchestrator/orchestrator/rqca_agent.py` | Runtime QC verdict; FAIL blocks COMPLETE |
+| `services/orchestrator/orchestrator/contract_oracle.py` | BUILD_NEW implementation-blind contract oracle (WQ7) |
+| `services/orchestrator/orchestrator/equivalence_execution.py` | Sandboxed behavioural equivalence execution (`call` + `cli` vectors) |
+| `services/orchestrator/orchestrator/storage_projects.py` | Project continuity bus persistence (projects, handoff, work items) |
 
 | File | Coverage floor |
 |------|----------------|
@@ -158,6 +161,9 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/orchestrator/orchestrator/file_tree.py` | `80%` |
 | `services/orchestrator/orchestrator/port_coordinator.py` | `80%` |
 | `services/orchestrator/orchestrator/rqca_agent.py` | `80%` |
+| `services/orchestrator/orchestrator/contract_oracle.py` | `80%` |
+| `services/orchestrator/orchestrator/equivalence_execution.py` | `80%` |
+| `services/orchestrator/orchestrator/storage_projects.py` | `80%` (measured: 100%) |
 
 These floors preserve exhaustive coverage for narrow protocol/configuration modules and enforce maintained baselines for the larger runtime/worker entry points, which are covered primarily through broader service tests.
 
@@ -196,15 +202,14 @@ Mission Control unit coverage is measured on `app/lib/**` (not page chrome).
 `npm run test:coverage` enforces **60% lines/statements** on that tree. Playwright
 covers the sold journeys (Chat SOW front door, repo → PM handoff, cost panel).
 
-### Vitest Unit Tests (63 tests)
+### Vitest Unit Tests (181 tests across 28 test files)
 
-Located in `apps/mission-control/` alongside components. Cover:
-- API client request/response handling
+Located in `apps/mission-control/` alongside components and Electron helpers. Cover:
+- API client request/response handling and status propagation (`404`/`500`/`503`)
 - SSE client connection and event parsing
 - `smelt-cycle.ts` — 7-phase lifecycle mapping
-- Component render output for key views
-
-The suite grew from 45 to 63 tests; the 5 most recent additions cover gateway status propagation and unreachable-backend `503` handling.
+- Chat SOW, Repo ZIP import helpers (`chat-repo-import.ts`), and cost panel calculations
+- Electron diagnostics, compose preflight, and desktop lifecycle helpers
 
 ### Playwright E2E (23 tests across 7 journey groups)
 
@@ -271,7 +276,7 @@ make audit
 python scripts/production_review_audit.py
 ```
 
-Current baseline: **22/23 passing** with `INF-008` open. If any `CRITICAL` check fails, CI returns exit code 1.
+Current baseline: **23/23 passing** (`INF-008` closed). If any `CRITICAL` check fails, CI returns exit code 1.
 
 The table below lists a representative subset of the gated checks; run the audit for the full enumeration.
 

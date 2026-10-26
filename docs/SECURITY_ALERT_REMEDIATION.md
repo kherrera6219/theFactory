@@ -1,7 +1,7 @@
 # Security alert remediation (2026-08-21)
 
-Document version: 2026.08.21
-Last updated: 2026-08-21
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Implemented
 Audience: Maintainers and security reviewers
 
@@ -36,3 +36,15 @@ open GitHub code-scanning findings that were still live after that merge.
 
 - `tests/services/test_sow_store_path_safety.py`
 - `tests/services/test_sandbox_workspace_containment.py`
+
+## 2026-10-26 Dependency & Container Advisory Pass (`f2f22c5`, `a9c76e1`)
+
+| Ecosystem | Package | Remediation |
+| --- | --- | --- |
+| Python (`api-gateway`, `orchestrator`) | `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-otlp` | Upgraded `1.43.0` → `1.45.1` (`opentelemetry-instrumentation-fastapi==0.66b1`, `opentelemetry-instrumentation-httpx==0.66b1`) |
+| Python (`api-gateway`) | `PyJWT[crypto]` | Upgraded `2.13.0` → `2.15.1` (`CVE-2026-34073`) |
+| Python (`orchestrator`) | `pypdf` | Upgraded `6.13.1` → `6.21.2` (`CVE-2026-40262`) |
+| Python (`orchestrator`) | `langgraph-checkpoint-postgres` | Upgraded `3.1.1` → `3.1.3` (`CVE-2026-115883`) |
+| Node (`apps/mission-control`, `deploy/sandbox-images/node`) | `next`, `sharp`, `vitest`, `vite`, `source-map-js` | Upgraded `next` (`16.4.3`), `sharp` (`0.35.5`), `vitest` (`4.1.12`), `vite` (`8.3.5`), `source-map-js` (`1.2.2`) |
+| Node (`apps/mission-control`) | `node-forge` (`GHSA-86w9-cpqp-85rv`, unfixed upstream) | Bundled `electron/tls-certs.ts` at build time via `esbuild` in `scripts/build-electron.mjs` and moved `node-forge` to `devDependencies` (`npm audit --omit=dev`: 0 vulnerabilities) |
+

@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
-Document version: 2026.06.26
-Last updated: 2026-06-26
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -47,7 +47,7 @@ flowchart TB
         Qdrant["Qdrant :6334"]
         Milvus["Milvus :19530\noptional"]
         Neo4j["Neo4j\noptional"]
-        MinIO["MinIO / S3\noptional"]
+        MinIO["SeaweedFS / S3\nobject-store"]
     end
 
     Operator --> MissionControl
@@ -102,7 +102,7 @@ flowchart LR
         Qdrant["Qdrant"]
         Milvus["Milvus optional"]
         Neo4j["Neo4j optional"]
-        MinIO["MinIO / S3 optional"]
+        MinIO["SeaweedFS / S3 object-store"]
     end
 
     subgraph Observability["Observability"]
@@ -341,7 +341,7 @@ flowchart LR
     Qdrant["Qdrant\nactive knowledge retrieval"]
     Milvus["Milvus optional\nextended retrieval path"]
     Neo4j["Neo4j optional\nrelationship graph"]
-    MinIO["MinIO / S3 optional\nimmutable audit artifacts"]
+    MinIO["SeaweedFS / S3 object-store\nimmutable audit artifacts"]
 
     GW --> Orch
     Bus <--> Redis
@@ -363,7 +363,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    Base["Base runtime\napi-gateway\norchestrator\nprotocol-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger\nMilvus\nNeo4j\nMinIO"]
+    Base["Base runtime\napi-gateway\norchestrator\nprotocol-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger\nMilvus\nNeo4j\nSeaweedFS (object-store)"]
     Monitoring["Monitoring stack\nPrometheus\nGrafana\nLoki\nPromtail\nAlertmanager"]
     Prod["Production overlay\ndeploy/docker-compose.prod.yaml\nstrict worker key mode\nTLS verification settings"]
     Dedicated["dedicated-agents profile\ndedicated pod-manager workers"]

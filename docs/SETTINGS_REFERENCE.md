@@ -138,12 +138,12 @@ The design follows three rules:
 | `neo4j_database` | `NEO4J_DATABASE` | `neo4j` | Target database name |
 | `neo4j_timeout_seconds` | `NEO4J_TIMEOUT_SECONDS` | `3.0` | Per-request timeout |
 
-### Object Storage (MinIO/S3)
+### Object Storage (SeaweedFS/S3)
 
 | Field | Env Var | Default | Description |
 |---|---|---|---|
 | `object_storage_enabled` | `OBJECT_STORAGE_ENABLED` | `true` | Enable S3-compatible object storage (on by default) |
-| `object_storage_endpoint` | `OBJECT_STORAGE_ENDPOINT` | `http://minio:9000` | S3-compatible endpoint |
+| `object_storage_endpoint` | `OBJECT_STORAGE_ENDPOINT` | `http://object-store:8333` (Compose) / `http://minio:9000` (code fallback) | S3-compatible endpoint (`object-store` SeaweedFS container in Compose) |
 | `object_storage_access_key` | `OBJECT_STORAGE_ACCESS_KEY` | `""` | Access key |
 | `object_storage_secret_key` | `OBJECT_STORAGE_SECRET_KEY` | `""` | Secret key |
 | `object_storage_bucket` | `OBJECT_STORAGE_BUCKET` | `mission-audit-artifacts` | Target bucket |
@@ -153,7 +153,7 @@ The design follows three rules:
 | `object_storage_retention_days` | `OBJECT_STORAGE_RETENTION_DAYS` | `90` | Object retention period (days) |
 | `object_storage_size_threshold_bytes` | `OBJECT_STORAGE_SIZE_THRESHOLD_BYTES` | `524288` | Artifacts above 512 KB are offloaded to S3; smaller ones stay in Postgres |
 | `object_storage_legal_hold_on_fail` | `OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL` | `true` | Apply S3 Object Lock legal hold to failed-mission artifacts |
-| `object_storage_force_path_style` | `OBJECT_STORAGE_FORCE_PATH_STYLE` | `true` | Use path-style URLs (required for MinIO) |
+| `object_storage_force_path_style` | `OBJECT_STORAGE_FORCE_PATH_STYLE` | `true` | Use path-style URLs (required for SeaweedFS / S3-compatible stores) |
 | `object_storage_require_tls` | `OBJECT_STORAGE_REQUIRE_TLS` | `false` | Reject non-TLS storage endpoints. Production Compose sets this to `true`; set `OBJECT_STORAGE_ENDPOINT` to an HTTPS S3-compatible endpoint in production. |
 
 ### Knowledge Embeddings
