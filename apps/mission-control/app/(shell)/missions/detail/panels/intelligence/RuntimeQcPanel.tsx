@@ -13,6 +13,10 @@ interface RuntimeQcReport {
   verdict?: string;
   execution_type?: string;
   stdout_preview?: string | null;
+  stderr_preview?: string | null;
+  exit_code?: number | null;
+  repair_attempted?: boolean;
+  repair_succeeded?: boolean;
   qc_assessment?: QcAssessment | null;
   skipped?: boolean;
   reason?: string | null;
@@ -31,16 +35,35 @@ interface TestDataManifest {
 interface RuntimeQcPanelProps {
   runtimeQcReport: RuntimeQcReport | null;
   testdataManifest: TestDataManifest | null;
+  /** EDCP-02a: Delta audit verdict consumed off the protocol bus (unknown shape guarded below). */
+  deltaAuditGate?: unknown;
 }
 
-export function RuntimeQcPanel({ runtimeQcReport, testdataManifest }: RuntimeQcPanelProps) {
-  if (!runtimeQcReport && !testdataManifest) return null;
+function readDeltaGate(value: unknown): { passed: boolean; auditResult: string; pod: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const gate = value as Record<string, unknown>;
+  return {
+    passed: gate.passed === true,
+    auditResult: typeof gate.audit_result === 'string' && gate.audit_result ? gate.audit_result : 'unknown',
+    pod: typeof gate.pod === 'string' ? gate.pod : '',
+  };
+}
+
+export function RuntimeQcPanel({ runtimeQcReport, testdataManifest, deltaAuditGate }: RuntimeQcPanelProps) {
+  const deltaGate = readDeltaGate(deltaAuditGate);
+  if (!runtimeQcReport && !testdataManifest && !deltaGate) return null;
 
   const skipped = Boolean(runtimeQcReport?.skipped);
   const deploymentSafe = runtimeQcReport?.qc_assessment?.deployment_safe ?? runtimeQcReport?.deployment_safe;
 
   return (
     <Panel title="Runtime QC">
+      {deltaGate && (
+        <p className={deltaGate.passed ? 'muted' : 'warning-box'} style={{ marginTop: 0 }}>
+          Delta audit gate: <strong>{deltaGate.passed ? 'PASSED' : 'BLOCKED'}</strong> ({deltaGate.auditResult}
+          {deltaGate.pod ? `, ${deltaGate.pod}` : ''})
+        </p>
+      )}
       {runtimeQcReport && (
         <>
           {skipped && (
@@ -65,9 +88,31 @@ export function RuntimeQcPanel({ runtimeQcReport, testdataManifest }: RuntimeQcP
               <dt>Deployment safe</dt>
               <dd>{deploymentSafe === null || deploymentSafe === undefined ? 'not assessed' : deploymentSafe ? 'yes' : 'no'}</dd>
             </div>
+            {typeof runtimeQcReport.exit_code === 'number' && (
+              <div>
+                <dt>Exit code</dt>
+                <dd>{runtimeQcReport.exit_code}</dd>
+              </div>
+            )}
+            {runtimeQcReport.repair_attempted && (
+              <div>
+                <dt>Self-repair</dt>
+                <dd>
+                  {runtimeQcReport.repair_succeeded
+                    ? 'specialist repaired the failure (1 attempt)'
+                    : 'attempted once — still failing'}
+                </dd>
+              </div>
+            )}
           </dl>
           {runtimeQcReport.stdout_preview && (
             <pre className="code-preview">{runtimeQcReport.stdout_preview}</pre>
+          )}
+          {runtimeQcReport.stderr_preview && (
+            <>
+              <p className="muted">stderr</p>
+              <pre className="code-preview">{runtimeQcReport.stderr_preview}</pre>
+            </>
           )}
           {(runtimeQcReport.qc_assessment?.findings ?? []).length > 0 && (
             <ul className="summary-list">

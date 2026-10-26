@@ -600,6 +600,20 @@ export async function updateAlertState(
   );
 }
 
+export type PruneAuditResult = {
+  generated_at: string;
+  retention_days: number;
+  total_rows_deleted: number;
+  tables: Array<{ table_name: string; rows_deleted: number }>;
+};
+
+export async function pruneAuditTables(retentionDays?: number): Promise<PruneAuditResult> {
+  const query = typeof retentionDays === "number" ? `?retention_days=${retentionDays}` : "";
+  return fetchJson<PruneAuditResult>(missionApiUrl(`/v1/maintenance/prune-audit${query}`), {
+    method: "POST",
+  });
+}
+
 export async function listMissionAuditReports(missionId: string, limit = 50): Promise<OperationsAuditReportRecord[]> {
   return fetchJson<OperationsAuditReportRecord[]>(missionApiUrl(`/v1/missions/${missionId}/audit-reports?limit=${limit}`));
 }

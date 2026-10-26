@@ -574,3 +574,57 @@ class TestRepr:
         r = repr(agent)
         assert "AGENT-22-RUST" in r
         assert "RustAgent" in r
+
+
+def test_typescript_resolves_to_javascript_agent() -> None:
+    agent = make_specialist_for_language("typescript")
+    assert agent is not None
+    assert isinstance(agent, JavaScriptAgent)
+
+
+def test_support_ring_distinct_action_kinds_and_fail_verdict() -> None:
+    support_ids = [
+        ("AGENT-03-BROKER", "api_routing_budget"),
+        ("AGENT-04-ACCOUNTANT", "cost_ledger_audit"),
+        ("AGENT-05-SECURITY", "security_threat_scan"),
+        ("AGENT-06-IS", "knowledge_lake_sync"),
+        ("AGENT-07-VC", "provenance_commit_plan"),
+        ("AGENT-08-COMPLIANCE", "license_spdx_audit"),
+        ("AGENT-09-HW", "target_profile_hint"),
+        ("AGENT-10-TESTER", "integration_test_suite"),
+        ("AGENT-11-DEPLOY", "source_bundle_packaging"),
+        ("AGENT-39-DEPABS", "dependency_sbom_absorption"),
+        ("AGENT-40-TESTDATA", "synthetic_fixture_seed"),
+        ("AGENT-41-RQCA", "sandbox_runtime_qc"),
+    ]
+    for agent_id, expected_kind in support_ids:
+        agent = make_agent(agent_id)
+        assert agent is not None
+        caps = agent.capabilities()
+        assert caps["action_kind"] == expected_kind
+        res = agent.execute("m1", {"verdict": "PASS"})
+        assert res.artifacts[0]["action_kind"] == expected_kind
+        fail_res = agent.execute("m1", {"verdict": "FAIL"})
+        val = agent.validate("m1", fail_res.artifacts)
+        assert val.passed is False
+
+
+def test_specialist_extracts_logicnodes_across_functional_and_scientific_syntax() -> None:
+    hs_agent = make_specialist_for_language("haskell")
+    assert hs_agent is not None
+    hs_res = hs_agent.execute(
+        "m-hs",
+        {
+            "source_code": (
+                "module Ledger where\n"
+                "data Entry = Entry Int\n"
+                "sumEntries :: [Int] -> Int\n"
+                "sumEntries xs = sum xs\n"
+            )
+        },
+    )
+    concepts = [n["concept"] for n in hs_res.artifacts[0]["logicnodes"]]
+    assert "Ledger" in concepts
+    assert "Entry" in concepts
+    assert "sumEntries" in concepts
+    assert hs_res.metadata["persona_label"] != ""

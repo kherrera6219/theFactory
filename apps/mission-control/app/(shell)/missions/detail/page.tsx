@@ -716,7 +716,7 @@ function MissionDetailPageContent() {
         <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
         <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport} /></ErrorBoundary>
         <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
-        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} /></ErrorBoundary>
+        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} deltaAuditGate={(mission?.metadata as Record<string, unknown> | undefined)?.delta_audit_gate ?? null} /></ErrorBoundary>
       </div>
 
       {/* Contracts tab — planning artifacts and specifications */}

@@ -4,9 +4,10 @@ Each ``LanguageExtractor`` scans source text using the concept catalog patterns
 and produces a list of ``ExtractedConcept`` entries compatible with the
 LogicNode schema.
 
-This is a **regex-first static analysis** pass. Python can switch to an
-AST-backed structural extractor when enabled, while the default shipped path
-still avoids LLM calls and keeps the other languages on the regex pipeline.
+This is a **regex-first static analysis** pass. Python, JS/TS, Java, Go,
+Haskell, OCaml, Julia, and typed systems/enterprise languages enrich structural
+extraction with declared parameter/return types, side-effect purity analysis,
+and body opcode streams.
 """
 
 from __future__ import annotations
@@ -537,7 +538,16 @@ class JavaScriptAstExtractor(JavaScriptExtractor):
             return result
 
         result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            FunctionInfo(
+                name=item.name,
+                line=item.line,
+                signature=item.signature,
+                arg_types=tuple(getattr(item, "arg_types", ()) or ()),
+                return_type=getattr(item, "return_type", None),
+                side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                purity=getattr(item, "purity", "UNKNOWN"),
+                ops=tuple(getattr(item, "ops", ()) or ()),
+            )
             for item in ast_result.functions
         ]
         result.classes = [
@@ -559,6 +569,145 @@ class JavaScriptAstExtractor(JavaScriptExtractor):
         return result
 
 
+def _parse_typed_signature(
+    language: str,
+    signature_line: str,
+) -> tuple[tuple[str, ...], str | None]:
+    """Recover explicit parameter and return types from a typed signature line."""
+    line = signature_line.strip().rstrip("{;").strip()
+    if "(" not in line or ")" not in line:
+        return (), None
+    open_p = line.find("(")
+    close_p = line.rfind(")")
+    params_raw = line[open_p + 1 : close_p].strip()
+    after = line[close_p + 1 :].strip()
+    before = line[:open_p].strip()
+
+    arg_types: list[str] = []
+    if params_raw and params_raw != "void":
+        for raw_param in params_raw.split(","):
+            p = raw_param.strip()
+            if not p or p in {"self", "&self", "&mut self", "this"}:
+                continue
+            if ":" in p:
+                tpart = p.split(":", 1)[1].split("=", 1)[0].strip()
+                if tpart:
+                    arg_types.append(tpart)
+            else:
+                tokens = p.split("=")[0].strip().split()
+                if len(tokens) >= 2:
+                    tpart = " ".join(tokens[:-1]).lstrip("$")
+                    if tpart:
+                        arg_types.append(tpart)
+
+    return_type: str | None = None
+    if language == "rust" and "->" in after:
+        return_type = after.split("->", 1)[1].split("where", 1)[0].strip() or None
+    elif language in {"scala", "kotlin", "php"} and ":" in after:
+        ret_cand = after.lstrip(":").split("=", 1)[0].strip()
+        return_type = ret_cand or None
+    elif language == "zig" and after:
+        return_type = after.split()[0].strip() or None
+    elif language in {"c", "cpp", "csharp"}:
+        tokens = [
+            t
+            for t in before.split()
+            if t
+            not in {
+                "public", "private", "protected", "internal", "static",
+                "virtual", "inline", "async", "const", "constexpr",
+            }
+        ]
+        if len(tokens) >= 2:
+            return_type = tokens[-2].strip() or None
+
+    return tuple(arg_types), return_type
+
+
+def _analyse_typed_body(
+    source: str,
+    line_no: int,
+) -> tuple[tuple[str, ...], str, tuple[tuple[str, str], ...]]:
+    """Inspect the brace-delimited body starting near *line_no* for effects, purity, and ops."""
+    lines = source.splitlines()
+    start_idx = max(0, line_no - 1)
+    snippet = "\n".join(lines[start_idx : min(len(lines), start_idx + 40)])
+    open_b = snippet.find("{")
+    if open_b >= 0:
+        depth = 0
+        body = ""
+        for idx in range(open_b, len(snippet)):
+            ch = snippet[idx]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    body = snippet[open_b + 1 : idx]
+                    break
+        if not body:
+            body = snippet[open_b + 1 :]
+    else:
+        body = snippet
+
+    effects: list[str] = []
+    ops: list[tuple[str, str]] = []
+    if re.search(
+        r"\b(printf|println!|eprintln!|std::cout|Console\.Write|std\.debug\.print|echo\b)",
+        body,
+    ):
+        effects.append("io.stdout")
+    if re.search(r"\b(std::fs::|fopen|ifstream|ofstream|File\.|Files\.)", body):
+        effects.append("io.filesystem")
+    if re.search(r"\b(reqwest|HttpClient|curl_easy|socket)\b", body):
+        effects.append("io.network")
+
+    for raw in body.splitlines():
+        s = raw.strip()
+        if not s or s.startswith("//"):
+            continue
+        if s.startswith(("if ", "if(", "match ", "switch ")):
+            ops.append(("BRANCH", s.split("(")[0].split()[0]))
+        elif s.startswith(("for ", "for(", "while ", "while(", "loop ")):
+            ops.append(("LOOP", s.split("(")[0].split()[0]))
+        elif s.startswith(("try ", "try{")):
+            ops.append(("TRY", "try"))
+        elif s.startswith("return") and (len(s) == 6 or not s[6].isalnum()):
+            ops.append(("RETURN", s[6:].rstrip(";").strip() or "void"))
+        elif re.search(r"\b(?:let|const|var|auto)\s+\w+\s*=", s):
+            ops.append(("ASSIGN", "var"))
+    if not ops:
+        ops.append(("RETURN", "expr"))
+
+    dedup_effects = tuple(dict.fromkeys(effects))
+    purity = "IMPURE" if dedup_effects else "PURE"
+    return dedup_effects, purity, tuple(ops[:32])
+
+
+class _TypedLanguageExtractor(LanguageExtractor):
+    """LanguageExtractor subclass that enriches detected functions with declared types and ops."""
+
+    def _detect_functions(self, source: str, lines: list[str]) -> list[FunctionInfo]:
+        base_fns = super()._detect_functions(source, lines)
+        enriched: list[FunctionInfo] = []
+        for fn in base_fns:
+            arg_types, return_type = _parse_typed_signature(self.language, fn.signature)
+            side_effects, purity, ops = _analyse_typed_body(source, fn.line)
+            enriched.append(
+                FunctionInfo(
+                    name=fn.name,
+                    line=fn.line,
+                    signature=fn.signature,
+                    arg_types=arg_types,
+                    return_type=return_type,
+                    side_effects=side_effects,
+                    purity=purity,
+                    ops=ops,
+                )
+            )
+        return enriched
+
+
 class RubyExtractor(LanguageExtractor):
     language = "ruby"
     _function_pattern = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
@@ -566,7 +715,7 @@ class RubyExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"^\s*require\s+['\"][\w/.-]+['\"]", re.MULTILINE)
 
 
-class PhpExtractor(LanguageExtractor):
+class PhpExtractor(_TypedLanguageExtractor):
     language = "php"
     _function_pattern = re.compile(r"\bfunction\s+(\w+)\s*\(", re.MULTILINE)
     _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
@@ -578,7 +727,7 @@ class PhpExtractor(LanguageExtractor):
 # ---------------------------------------------------------------------------
 
 
-class CExtractor(LanguageExtractor):
+class CExtractor(_TypedLanguageExtractor):
     language = "c"
     _function_pattern = re.compile(
         r"^\s*(?:static\s+)?(?:void|int|char|float|double|long|unsigned|signed|size_t)\s+(\w+)\s*\(",
@@ -588,7 +737,7 @@ class CExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"#\s*include\s+[<\"][\w./]+[>\"]", re.MULTILINE)
 
 
-class CppExtractor(LanguageExtractor):
+class CppExtractor(_TypedLanguageExtractor):
     language = "cpp"
     _function_pattern = re.compile(
         r"^\s*(?:virtual\s+)?(?:static\s+)?(?:void|int|auto|bool|std::\w+|const\s+\w+&?)\s+(\w+)\s*\(",
@@ -598,7 +747,7 @@ class CppExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"#\s*include\s+[<\"][\w./]+[>\"]", re.MULTILINE)
 
 
-class RustExtractor(LanguageExtractor):
+class RustExtractor(_TypedLanguageExtractor):
     language = "rust"
     _function_pattern = re.compile(r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)", re.MULTILINE)
     _class_pattern = re.compile(r"^\s*(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)", re.MULTILINE)
@@ -624,7 +773,7 @@ class GoExtractor(LanguageExtractor):
     )
 
 
-class ZigExtractor(LanguageExtractor):
+class ZigExtractor(_TypedLanguageExtractor):
     language = "zig"
     _function_pattern = re.compile(r"^\s*(?:pub\s+)?fn\s+(\w+)\s*\(", re.MULTILINE)
     # Matches `const Name = struct {` / `union {` / `enum {` patterns.
@@ -683,6 +832,9 @@ class JavaAstExtractor(JavaExtractor):
                 signature=item.signature,
                 arg_types=tuple(item.parameters or ()),
                 return_type=item.return_type or None,
+                side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                purity=getattr(item, "purity", "UNKNOWN"),
+                ops=tuple(getattr(item, "ops", ()) or ()),
             )
             for item in ast_result.methods
         ]
@@ -701,7 +853,7 @@ class JavaAstExtractor(JavaExtractor):
         return result
 
 
-class CSharpExtractor(LanguageExtractor):
+class CSharpExtractor(_TypedLanguageExtractor):
     language = "csharp"
     _function_pattern = re.compile(
         r"^\s*(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:void|int|string|bool|Task|[\w<>]+)\s+(\w+)\s*\(",
@@ -711,14 +863,14 @@ class CSharpExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"^\s*using\s+[\w.]+;", re.MULTILINE)
 
 
-class ScalaExtractor(LanguageExtractor):
+class ScalaExtractor(_TypedLanguageExtractor):
     language = "scala"
     _function_pattern = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
     _class_pattern = re.compile(r"\b(?:class|object|trait|case\s+class)\s+(\w+)", re.MULTILINE)
     _import_pattern = re.compile(r"^\s*import\s+[\w._{}]+", re.MULTILINE)
 
 
-class KotlinExtractor(LanguageExtractor):
+class KotlinExtractor(_TypedLanguageExtractor):
     language = "kotlin"
     _function_pattern = re.compile(r"^\s*(?:suspend\s+)?fun\s+(\w+)", re.MULTILINE)
     _class_pattern = re.compile(r"\b(?:data\s+)?class\s+(\w+)", re.MULTILINE)
@@ -805,7 +957,16 @@ class GoAstExtractor(GoExtractor):
             return result
 
         result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            FunctionInfo(
+                name=item.name,
+                line=item.line,
+                signature=item.signature,
+                arg_types=tuple(getattr(item, "arg_types", ()) or ()),
+                return_type=getattr(item, "return_type", None),
+                side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                purity=getattr(item, "purity", "UNKNOWN"),
+                ops=tuple(getattr(item, "ops", ()) or ()),
+            )
             for item in ast_result.functions
         ]
         result.classes = [
@@ -853,6 +1014,9 @@ class HaskellAstExtractor(HaskellExtractor):
                     signature=item.signature,
                     arg_types=arg_types,
                     return_type=return_type,
+                    side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                    purity=getattr(item, "purity", "UNKNOWN"),
+                    ops=tuple(getattr(item, "ops", ()) or ()),
                 )
             )
         result.functions = haskell_functions
@@ -885,7 +1049,16 @@ class OCamlAstExtractor(OCamlExtractor):
             return result
 
         result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            FunctionInfo(
+                name=item.name,
+                line=item.line,
+                signature=item.signature,
+                arg_types=tuple(getattr(item, "arg_types", ()) or ()),
+                return_type=getattr(item, "return_type", None),
+                side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                purity=getattr(item, "purity", "UNKNOWN"),
+                ops=tuple(getattr(item, "ops", ()) or ()),
+            )
             for item in ast_result.functions
         ]
         result.classes = [
@@ -917,7 +1090,16 @@ class JuliaAstExtractor(JuliaExtractor):
             return result
 
         result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            FunctionInfo(
+                name=item.name,
+                line=item.line,
+                signature=item.signature,
+                arg_types=tuple(getattr(item, "arg_types", ()) or ()),
+                return_type=getattr(item, "return_type", None),
+                side_effects=tuple(getattr(item, "side_effects", ()) or ()),
+                purity=getattr(item, "purity", "UNKNOWN"),
+                ops=tuple(getattr(item, "ops", ()) or ()),
+            )
             for item in ast_result.functions
         ]
         result.classes = [
@@ -956,7 +1138,6 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
 }
 
 
-
 def get_extractor(language: str) -> LanguageExtractor:
     """Return the appropriate extractor for *language*, or a generic one."""
     normalized = language.strip().lower()
@@ -967,4 +1148,3 @@ def get_extractor(language: str) -> LanguageExtractor:
 def supported_languages() -> list[str]:
     """Return sorted list of languages with dedicated extractors."""
     return sorted(_EXTRACTORS.keys())
-

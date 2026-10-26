@@ -556,6 +556,79 @@ async def _prepare_runtime_qc(
         language=target_language,
         settings=settings,
     )
+    if (
+        execution.get("verdict") == "FAIL"
+        and not metadata.get("runtime_qc_repair_attempted")
+        and isinstance(generated_output, dict)
+        and str(generated_output.get("generated_code") or "").strip()
+    ):
+        metadata["runtime_qc_repair_attempted"] = True
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(target_language),
+        )
+        repair_context = {
+            "exit_code": execution.get("exit_code"),
+            "stderr_preview": str(execution.get("stderr_preview") or "")[:2000],
+            "stdout_preview": str(execution.get("stdout_preview") or "")[:1000],
+            "command": execution.get("command"),
+            "previous_code": str(generated_output.get("generated_code") or "")[:8000],
+        }
+        try:
+            repaired_output = await _pkg().generate_code_from_contract(
+                mission_context={
+                    **_mission_context(mission, metadata),
+                    "runtime_qc_repair_context": repair_context,
+                },
+                specialist_agent_id=specialist_agent_id,
+                mission_contract=metadata.get("mission_contract")
+                if isinstance(metadata.get("mission_contract"), dict)
+                else {},
+                logicnodes=[],
+                target_language=target_language,
+            )
+        except Exception as exc:
+            LOGGER.warning("runtime QC self-repair failed for %s: %s", mission.mission_id, exc)
+            repaired_output = None
+
+        if (
+            isinstance(repaired_output, dict)
+            and str(repaired_output.get("generated_code") or "").strip()
+            and repaired_output.get("source") == "llm"
+        ):
+            generated_output = repaired_output
+            metadata["generated_output"] = repaired_output
+            execution = await run_runtime_qc(
+                mission_id=mission.mission_id,
+                generated_output=generated_output,
+                testdata_manifest=manifest,
+                integration_tests=metadata.get("integration_tests")
+                if isinstance(metadata.get("integration_tests"), dict)
+                else None,
+                language=target_language,
+                settings=settings,
+            )
+            execution = {
+                **execution,
+                "repair_attempted": True,
+                "repair_succeeded": execution.get("verdict") == "PASS",
+            }
+            append_chain_event(
+                metadata,
+                event_type="MISSION_RUNTIME_QC_REPAIRED",
+                agent_id=specialist_agent_id,
+                details={
+                    "repair_succeeded": execution.get("verdict") == "PASS",
+                    "execution_verdict": execution.get("verdict"),
+                },
+            )
+        else:
+            execution = {
+                **execution,
+                "repair_attempted": True,
+                "repair_succeeded": False,
+            }
+
     qc_assessment = await generate_rqca_assessment(
         mission_id=mission.mission_id,
         execution_result=execution,

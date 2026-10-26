@@ -51,6 +51,7 @@ from .storage_core import (
     db_connect,
     ensure_db_schema,
     get_connection,
+    get_database_diagnostics,
     init_connection_pool,
 )
 from .storage_logicnodes import (
@@ -102,6 +103,7 @@ __all__ = [
     "PodAssignmentConflictError",
     "db_connect",
     "get_connection",
+    "get_database_diagnostics",
     "init_connection_pool",
     "close_connection_pool",
     "ensure_db_schema",

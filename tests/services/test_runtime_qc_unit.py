@@ -1517,3 +1517,110 @@ def test_derived_program_arguments_never_reach_a_test_command(monkeypatch) -> No
     )
     assert seen["base_image"] == "thefactory/sandbox-test-python:1"
     assert "--mock" not in seen["command"]
+
+
+from typing import Any
+
+
+def test_prepare_runtime_qc_attempts_bounded_self_repair_on_fail(monkeypatch: Any) -> None:
+    from orchestrator import mission_flow_v2
+    from orchestrator.mission_flow_v2 import phases_runtime
+
+    calls: list[str] = []
+
+    async def fake_run_runtime_qc(**kwargs: Any) -> dict[str, Any]:
+        code = kwargs["generated_output"].get("generated_code", "")
+        calls.append(code)
+        if "SYNTAX_ERR" in code:
+            return {
+                "verdict": "FAIL",
+                "passed": False,
+                "exit_code": 1,
+                "stderr_preview": "SyntaxError: invalid syntax",
+                "stdout_preview": "",
+                "command": "pytest -q",
+                "execution_type": "single_container",
+                "verified_scope_detail": "tests",
+                "source": "sandbox",
+            }
+        return {
+            "verdict": "PASS",
+            "passed": True,
+            "exit_code": 0,
+            "stderr_preview": "",
+            "stdout_preview": "1 passed",
+            "command": "pytest -q",
+            "execution_type": "single_container",
+            "verified_scope_detail": "tests",
+            "source": "sandbox",
+        }
+
+    async def fake_generate_code_from_contract(**kwargs: Any) -> dict[str, Any]:
+        repair_ctx = kwargs["mission_context"].get("runtime_qc_repair_context")
+        assert isinstance(repair_ctx, dict)
+        assert "SyntaxError" in repair_ctx["stderr_preview"]
+        return {
+            "generated_code": "def add(a: int, b: int) -> int:\n    return a + b\n",
+            "filename": "app.py",
+            "language": "python",
+            "source": "llm",
+        }
+
+    async def fake_record_audit(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(phases_runtime, "run_runtime_qc", fake_run_runtime_qc)
+    monkeypatch.setattr(mission_flow_v2, "generate_code_from_contract", fake_generate_code_from_contract)
+    monkeypatch.setattr(mission_flow_v2, "record_audit_event", fake_record_audit)
+    monkeypatch.setattr(mission_flow_v2.storage, "insert_runtime_qc_report", lambda *a, **k: None)
+
+    monkeypatch.setattr(mission_flow_v2.storage, "update_mission_metadata", lambda _s, m_id, meta: metadata.update(meta) or _DummyMission())
+
+    class _DummyMission:
+        mission_id = "mission-self-repair"
+        project_id = "proj-1"
+        title = "Repair test"
+        objective = "Test self repair"
+        status = "GATING"
+        state = "GATING"
+        prompt = "add two numbers"
+        correlation_id = "corr-1"
+        requested_target_language = "python"
+        metadata = None
+
+    metadata: dict[str, Any] = {
+        "requested_target_language": "python",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        "generated_output": {
+            "generated_code": "def add(a, b): SYNTAX_ERR\n",
+            "filename": "app.py",
+            "language": "python",
+            "source": "llm",
+        },
+        "testdata_manifest": {"multi_container": False, "fixtures": []},
+        "integration_tests": {"test_code": "def test_add(): assert True\n", "source": "llm"},
+        "mission_contract": {"summary": "add numbers"},
+    }
+    _DummyMission.metadata = metadata
+    settings = SimpleNamespace(rqca_agent_enabled=True, rqca_enforcement_enabled=True, testdata_agent_enabled=False)
+    asyncio.run(phases_runtime._prepare_runtime_qc(app=object(), settings=settings, mission=_DummyMission()))
+
+    assert len(calls) == 2
+    assert metadata["runtime_qc_repair_attempted"] is True
+    report = metadata["runtime_qc_report"]
+    assert report["verdict"] == "PASS"
+    assert report["repair_attempted"] is True
+    assert report["repair_succeeded"] is True
+    events = [e["event_type"] for e in metadata.get("chain_trace", [])]
+    assert "MISSION_RUNTIME_QC_REPAIRED" in events
+    prompt_str = llm_delegation._build_codegen_prompt(
+        mission_context={"runtime_qc_repair_context": {"stderr_preview": "SyntaxError", "exit_code": 1, "command": "pytest -q"}},
+        specialist_agent_id="AGENT-14-PYTHON",
+        mission_contract={"summary": "add"},
+        logicnodes=[],
+        target_language="python",
+        recommended_provider="gemini",
+        recommended_model="gemini-3.8-flash",
+    )
+    assert "Runtime QC Self-Repair Context" in prompt_str
+    assert "SyntaxError" in prompt_str

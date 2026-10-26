@@ -13,6 +13,7 @@ import {
   parseLiveStateStreamMessage,
   toDisplayError,
   updateAlertState,
+  pruneAuditTables,
   verifyReviewApproval,
 } from "./api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -517,6 +518,27 @@ describe("api-client", () => {
           receipt_digest: "digest-001",
         }),
       }),
+    );
+  });
+
+  it("posts to prune-audit with optional retention_days", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          generated_at: "2026-10-26T00:00:00Z",
+          retention_days: 30,
+          total_rows_deleted: 15,
+          tables: [{ table_name: "mission_state_events", rows_deleted: 15 }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await pruneAuditTables(30);
+    expect(result.total_rows_deleted).toBe(15);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/gateway/v1/maintenance/prune-audit?retention_days=30",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 });

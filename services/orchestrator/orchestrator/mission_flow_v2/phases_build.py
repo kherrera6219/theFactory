@@ -952,7 +952,8 @@ async def _produce_pod_group_standard(
     pod_audits = dict(metadata.get("pod_audit_verdicts") or {})
     pod_audits[pod_name] = pod_audit
     metadata["pod_audit_verdicts"] = pod_audits
-    if not _chain_event_exists(metadata, "MISSION_POD_AUDIT_COMPLETE"):
+    should_emit_delta_verdict = not _chain_event_exists(metadata, "MISSION_POD_AUDIT_COMPLETE")
+    if should_emit_delta_verdict:
         append_chain_event(
             metadata,
             event_type="MISSION_POD_AUDIT_COMPLETE",
@@ -963,16 +964,6 @@ async def _produce_pod_group_standard(
                 "quality_score": pod_audit.get("quality_score"),
                 "source": pod_audit.get("source"),
             },
-        )
-        # PBLA-01: emit the verdict on the Delta lane (fire-and-forget telemetry).
-        # Inside the idempotency guard so it fires once per pod per mission rather
-        # than relying on the bus dedup window for resume/retry.
-        await _send_delta_audit_verdict(
-            settings=settings,
-            mission_id=mission.mission_id,
-            pod_name=pod_name,
-            pod_manager_agent_id=pod_manager_agent_id,
-            pod_audit=pod_audit,
         )
         # Every neighbouring stage records an audit event; the pod audit did
         # not, so the run's only quality verdict lived solely in mission
@@ -1000,7 +991,7 @@ async def _produce_pod_group_standard(
             content_hash_source=pod_audit,
         )
 
-    return (
+    persisted_mission = (
         await _persist_metadata(
             app=app,
             settings=settings,
@@ -1013,6 +1004,18 @@ async def _produce_pod_group_standard(
         )
         or mission
     )
+    if should_emit_delta_verdict:
+        # PBLA-01 / EDCP-02a: emit the verdict on the Delta lane after
+        # persisting metadata so the asynchronous Delta consumer's write of
+        # delta_audit_gate is not overwritten by a stale in-memory snapshot.
+        await _send_delta_audit_verdict(
+            settings=settings,
+            mission_id=mission.mission_id,
+            pod_name=pod_name,
+            pod_manager_agent_id=pod_manager_agent_id,
+            pod_audit=pod_audit,
+        )
+    return persisted_mission
 
 
 def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dict[str, Any]) -> None:

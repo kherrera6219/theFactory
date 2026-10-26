@@ -1,8 +1,7 @@
-"""haskell_ast_extractor.py — Regex structural extraction for Haskell.
+"""haskell_ast_extractor.py — Structural and signature extraction for Haskell.
 
-Not a language AST. Filename is historical. Recovers module headers, imports,
-data/type definitions, and ``::`` signatures with regular expressions. When
-those signatures parse, Refined-IR may still label the function ``ast_v1``.
+Recovers module headers, imports, data/type definitions, ``::`` signatures,
+purity/IO monad effects, and expression opcodes.
 """
 from __future__ import annotations
 
@@ -25,6 +24,9 @@ class HaskellFunctionInfo:
     line: int
     type_signature: str | None
     signature: str
+    side_effects: tuple[str, ...] = ()
+    purity: str = "UNKNOWN"
+    ops: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +47,33 @@ class HaskellAstExtractionResult:
     imports: list[str] = field(default_factory=list)
 
 
+def _analyse_haskell_binding(
+    type_sig: str | None,
+    rhs: str,
+) -> tuple[tuple[str, ...], str, tuple[tuple[str, str], ...]]:
+    effects: list[str] = []
+    ops: list[tuple[str, str]] = []
+    sig_str = (type_sig or "").strip()
+    if re.search(r"\bIO\b", sig_str):
+        effects.append("io.monad")
+    if re.search(r"\b(putStrLn|putStr|print)\b", rhs):
+        effects.append("io.stdout")
+    if re.search(r"\b(readFile|writeFile|appendFile)\b", rhs):
+        effects.append("io.filesystem")
+
+    if re.search(r"\b(if\b|case\b)", rhs):
+        ops.append(("BRANCH", "conditional"))
+    if re.search(r"\b(map|foldr|foldl|filter)\b", rhs):
+        ops.append(("CALL", "higher_order"))
+    if re.search(r"\bdo\b", rhs):
+        ops.append(("CALL", "do_block"))
+    ops.append(("RETURN", rhs.splitlines()[0].strip()[:40] or "expr"))
+
+    dedup_effects = tuple(dict.fromkeys(effects))
+    purity = "IMPURE" if dedup_effects else "PURE"
+    return dedup_effects, purity, tuple(ops)
+
+
 def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
     """Extract structural definitions from Haskell/Functional source code.
 
@@ -59,19 +88,16 @@ def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
     try:
         result = HaskellAstExtractionResult()
 
-        # Module declaration: module Main where or module Data.Parser (parse) where
         mod_match = re.search(r"^\s*module\s+([A-Za-z0-9_.]+)", source, re.MULTILINE)
         if mod_match:
             result.module_name = mod_match.group(1)
 
-        # Imports: import Data.List or import qualified Data.Map as Map
         import_matches = re.finditer(
             r"^\s*import\s+(?:qualified\s+)?([A-Za-z0-9_.]+)", source, re.MULTILINE
         )
         for match in import_matches:
             result.imports.append(match.group(1))
 
-        # Data, newtype, and type alias declarations
         type_matches = re.finditer(
             r"^\s*(data|newtype|type)\s+([A-Za-z0-9_]+)", source, re.MULTILINE
         )
@@ -87,8 +113,6 @@ def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
                 )
             )
 
-        # Function type signatures and bindings
-        # fnName :: Type -> ReturnType
         sig_map: dict[str, tuple[int, str]] = {}
         sig_matches = re.finditer(
             r"^\s*([a-z_][A-Za-z0-9_']*)\s*::\s*(.+)$", source, re.MULTILINE
@@ -99,9 +123,8 @@ def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
             line_no = source[: match.start()].count("\n") + 1
             sig_map[fn_name] = (line_no, type_sig)
 
-        # Function bindings
         binding_matches = re.finditer(
-            r"^\s*([a-z_][A-Za-z0-9_']*)\s+([^=\n]+)=", source, re.MULTILINE
+            r"^\s*([a-z_][A-Za-z0-9_']*)\s+([^=\n]*)=\s*([^\n]*)", source, re.MULTILINE
         )
         seen_fns: set[str] = set()
         for match in binding_matches:
@@ -113,6 +136,8 @@ def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
             sig_tuple = sig_map.get(fn_name)
             type_sig = sig_tuple[1] if sig_tuple else None
             full_sig = f"{fn_name} :: {type_sig}" if type_sig else fn_name
+            rhs = match.group(3).strip()
+            side_effects, purity, ops = _analyse_haskell_binding(type_sig, rhs)
 
             result.functions.append(
                 HaskellFunctionInfo(
@@ -120,6 +145,9 @@ def extract_haskell_ast(source: str) -> HaskellAstExtractionResult | None:
                     line=line_no,
                     type_signature=type_sig,
                     signature=full_sig,
+                    side_effects=side_effects,
+                    purity=purity,
+                    ops=ops,
                 )
             )
 

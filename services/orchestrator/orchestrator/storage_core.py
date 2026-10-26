@@ -177,3 +177,87 @@ def factory_json_dumps(payload: Any) -> str:
         separators=(",", ":"),
         sort_keys=True
     )
+
+
+
+_DIAGNOSTIC_TABLES: tuple[str, ...] = (
+    "missions",
+    "mission_logicnodes",
+    "mission_knowledge",
+    "mission_build_artifacts",
+    "mission_audit_reports",
+    "review_approvals",
+    "mission_runtime_qc",
+    "mission_state_events",
+    "agent_action_events",
+    "llm_usage_events",
+    "projects",
+    "project_work_items",
+)
+
+
+def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
+    """Return non-sensitive PostgreSQL schema, pool, and table row-count diagnostics."""
+    pool_info: dict[str, Any] = {
+        "initialized": _pool is not None,
+        "min_size": int(getattr(settings, "db_pool_min_size", 2)),
+        "max_size": int(getattr(settings, "db_pool_max_size", 10)),
+    }
+    if _pool is not None and hasattr(_pool, "get_stats") and callable(_pool.get_stats):
+        try:
+            stats = _pool.get_stats()
+            if isinstance(stats, dict):
+                pool_info["pool_size"] = int(stats.get("pool_size", 0))
+                pool_info["pool_available"] = int(stats.get("pool_available", 0))
+                pool_info["requests_waiting"] = int(stats.get("requests_waiting", 0))
+        except Exception:
+            pass
+
+    table_counts: dict[str, int] = {name: 0 for name in _DIAGNOSTIC_TABLES}
+    latest_migration_version = "011"
+    migration_count = 11
+    try:
+        scripts = migrations._load_migrations(migrations._migration_dir())
+        if scripts:
+            latest_migration_version = scripts[-1].version
+            migration_count = len(scripts)
+    except Exception:
+        pass
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT version, COUNT(*) OVER () AS total_count
+                    FROM schema_migrations
+                    ORDER BY version DESC
+                    LIMIT 1
+                    """
+                )
+                mig_row = cur.fetchone()
+                if mig_row:
+                    latest_migration_version = str(mig_row[0])
+                    migration_count = int(mig_row[1])
+
+                cur.execute(
+                    """
+                    SELECT relname, GREATEST(reltuples::bigint, 0)
+                    FROM pg_class
+                    WHERE relname = ANY(%s)
+                    """,
+                    (list(_DIAGNOSTIC_TABLES),),
+                )
+                for row in cur.fetchall() or []:
+                    if row and len(row) >= 2:
+                        table_counts[str(row[0])] = max(0, int(row[1]))
+    except Exception:
+        pass
+
+    return {
+        "pool": pool_info,
+        "latest_migration_version": latest_migration_version,
+        "migration_count": migration_count,
+        "table_counts": table_counts,
+        "retention_days_default": 90,
+    }

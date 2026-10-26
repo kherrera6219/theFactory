@@ -496,6 +496,23 @@ def _build_codegen_prompt(
     deliverable_count = len(deliverables) if isinstance(deliverables, list) else 0
     wants_tree = bool(imported_source.strip()) or deliverable_count > 1
     imported_excerpt = ""
+    repair_ctx = mission_context.get("runtime_qc_repair_context")
+    repair_block = ""
+    if isinstance(repair_ctx, dict) and repair_ctx:
+        repair_stderr = str(repair_ctx.get("stderr_preview") or "")[:2000]
+        repair_stdout = str(repair_ctx.get("stdout_preview") or "")[:1000]
+        repair_cmd = str(repair_ctx.get("command") or "")
+        repair_exit = repair_ctx.get("exit_code")
+        repair_prev = str(repair_ctx.get("previous_code") or "")[:8000]
+        repair_block = (
+            "\nRuntime QC Self-Repair Context (your previous generated code failed sandbox execution; "
+            "fix the compiler/test/runtime failure while preserving all working functionality):\n"
+            f"- Command: {repair_cmd}\n"
+            f"- Exit code: {repair_exit}\n"
+            f"- Stderr: {repair_stderr}\n"
+            f"- Stdout: {repair_stdout}\n"
+            f"- Previous code:\n{repair_prev}\n\n"
+        )
     if imported_source.strip():
         imported_excerpt = (
             "\nImported project source (rewrite these files; do not replace the tree "
@@ -523,6 +540,7 @@ def _build_codegen_prompt(
         f"{hw_context}"
         f"{port_source_context}"
         f"{imported_excerpt}"
+        f"{repair_block}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"

@@ -727,6 +727,24 @@ export type OperationsSummary = {
   // PBLA-05: null when protocol-bus-mcp is unreachable — never blocks the
   // rest of the summary.
   lane_activity: ProtocolBusLaneActivitySnapshot | null;
+  // Completion plan Phase 4: internal PostgreSQL diagnostics. Null when the
+  // database is not ready or the orchestrator predates the field.
+  database_diagnostics?: DatabaseDiagnostics | null;
+};
+
+export type DatabaseDiagnostics = {
+  pool: {
+    initialized: boolean;
+    min_size: number;
+    max_size: number;
+    pool_size?: number;
+    pool_available?: number;
+    requests_waiting?: number;
+  };
+  latest_migration_version: string;
+  migration_count: number;
+  table_counts: Record<string, number>;
+  retention_days_default: number;
 };
 
 export type OperationsLogicNodeRecord = {

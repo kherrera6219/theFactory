@@ -301,3 +301,55 @@ def test_catalog_record_shape_is_shared_with_the_rebuild_script(ast_module) -> N
         "projection_method",
         "ast_projected_fn_count",
     }
+
+
+def test_multi_language_type_samples_and_containers() -> None:
+    """Expanded _sample_value_for_type supports Rust, Go, C/C++, JVM/.NET, Julia, and TS."""
+    from pod_worker.refined_ir import _sample_value_for_type
+
+    assert _sample_value_for_type("i32", "nominal") == 2
+    assert _sample_value_for_type("usize", "nominal") == 2
+    assert _sample_value_for_type("&str", "nominal") == "sample"
+    assert _sample_value_for_type("Vec<i32>", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("[]string", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("int64", "nominal") == 2
+    assert _sample_value_for_type("float64", "nominal") == 1.5
+    assert _sample_value_for_type("size_t", "nominal") == 2
+    assert _sample_value_for_type("std::string", "nominal") == "sample"
+    assert _sample_value_for_type("std::vector<int>", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("Integer", "nominal") == 2
+    assert _sample_value_for_type("List<String>", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("IEnumerable<int>", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("number", "nominal") == 1.5
+    assert _sample_value_for_type("Vector{Float64}", "nominal") == [1, 2, 3]
+    assert _sample_value_for_type("Map<String, Integer>", "nominal") == {"k": 1}
+
+
+def test_go_and_rust_project_real_signatures_and_executable_vectors() -> None:
+    """Go and Rust extractors populate arg_types, return_type, purity, and ops for RIR."""
+    go_src = (
+        "package main\n\nfunc Compute(count int, ratio float64) float64 {\n"
+        "    if count <= 0 {\n        return 0.0\n    }\n"
+        "    return float64(count) * ratio\n}\n"
+    )
+    go_mod = _module_from(go_src, language="go")
+    assert go_mod.projection_method == "ast_v1"
+    go_fn = go_mod.fns[0]
+    assert [p.type for p in go_fn.inputs] == ["int", "float64"]
+    assert [p.type for p in go_fn.outputs] == ["float64"]
+    assert go_fn.purity == "PURE"
+    assert any(op.opcode == "BRANCH" for op in go_fn.ops)
+    assert go_fn.tests.equivalence_vectors[0].model_dump(by_alias=True)["out"]["executable"] is True
+
+    rust_src = (
+        "pub fn scale(x: i32, factor: f64) -> f64 {\n"
+        "    if x == 0 {\n        return 0.0;\n    }\n"
+        "    return (x as f64) * factor;\n}\n"
+    )
+    rust_mod = _module_from(rust_src, language="rust")
+    assert rust_mod.projection_method == "ast_v1"
+    rust_fn = rust_mod.fns[0]
+    assert [p.type for p in rust_fn.inputs] == ["i32", "f64"]
+    assert [p.type for p in rust_fn.outputs] == ["f64"]
+    assert rust_fn.purity == "PURE"
+    assert rust_fn.tests.equivalence_vectors[0].model_dump(by_alias=True)["out"]["executable"] is True

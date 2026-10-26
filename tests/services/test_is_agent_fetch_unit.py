@@ -861,3 +861,70 @@ class TestCodegenKnowledgeInjection:
             recommended_model="gpt-5.5",
         )
         assert "gather, sleep, create_task" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 Completion: 20-Language Knowledge Lake Parity
+# ---------------------------------------------------------------------------
+
+class TestTwentyLanguageKnowledgeParity:
+    EXPECTED_LANGUAGES = {
+        "python", "javascript", "typescript", "ruby", "php",
+        "c", "cpp", "rust", "go", "zig",
+        "java", "csharp", "scala", "kotlin",
+        "r", "matlab", "julia", "mathematica", "haskell", "ocaml",
+    }
+
+    def test_all_twenty_languages_present_in_bootstrap_docs(self):
+        from orchestrator.is_agent import _BOOTSTRAP_DOCS, SUPPORTED_LANGUAGES
+
+        assert self.EXPECTED_LANGUAGES.issubset(SUPPORTED_LANGUAGES)
+        for lang in self.EXPECTED_LANGUAGES:
+            assert len(_BOOTSTRAP_DOCS[lang]) >= 3, f"{lang} should have >=3 topics"
+
+    def test_detect_required_languages_across_pods(self):
+        from orchestrator.is_agent import detect_required_languages
+
+        samples = {
+            "rust": "use std::collections::HashMap;\nfn compute(x: i32) -> i32 { x }\n",
+            "go": "package main\nfunc Solve(n int) int { return n }\n",
+            "c": "#include <stdio.h>\nint main(void) { return 0; }\n",
+            "cpp": "#include <iostream>\nint main() { std::cout << 1; }\n",
+            "zig": 'const std = @import("std");\n',
+            "csharp": "using System;\nusing System.Linq;\n",
+            "scala": "case class Order(id: Int)\n",
+            "kotlin": "data class User(val id: String)\nfun greet() {}\n",
+            "php": "<?php\nfunction run(): int { return 1; }\n",
+            "ruby": "require_relative 'helper'\n",
+            "r": "library(dplyr)\ncompute <- function(x) { x + 1 }\n",
+            "matlab": "classdef Solver\nend\n",
+            "julia": "using Test\nfunction solve(x::Int)\n  return x\nend\n",
+            "mathematica": "solve[x_Integer] := x + 1\n",
+            "haskell": "module Main where\nsolve :: Int -> Int\n",
+            "ocaml": "let rec factorial n = if n <= 1 then 1 else n * factorial (n - 1)\n",
+        }
+        for lang, code in samples.items():
+            detected = detect_required_languages(
+                prompt="Analyze this module",
+                requested_target_language=None,
+                source_code=code,
+                mission_type="ANALYZE_ONLY",
+            )
+            assert lang in detected, f"Expected {lang} in {detected}"
+
+    def test_get_language_context_retrieves_20th_language_without_truncation(self):
+        from orchestrator.is_agent import _bootstrap_content_for_language
+        from orchestrator.knowledge_lake import get_language_context
+
+        settings = _mock_settings()
+        all_records = [
+            {
+                "knowledge_id": f"docs.{lang}.bootstrap",
+                "content": _bootstrap_content_for_language(lang),
+            }
+            for lang in sorted(self.EXPECTED_LANGUAGES)
+        ]
+        with patch("orchestrator.knowledge_lake.list_knowledge", return_value=all_records):
+            for lang in sorted(self.EXPECTED_LANGUAGES):
+                ctx = get_language_context(settings=settings, language=lang)
+                assert ctx is not None and f"# {lang} Language Reference" in ctx

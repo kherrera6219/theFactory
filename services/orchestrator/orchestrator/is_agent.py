@@ -15,7 +15,7 @@ from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
-# Static documentation seed for Phase 8.
+# Static documentation seed for all 20 specialist language keys (4 pods).
 # Each entry: language_key → list of (topic, content) tuples.
 _BOOTSTRAP_DOCS: dict[str, list[tuple[str, str]]] = {
     "python": [
@@ -90,6 +90,76 @@ _BOOTSTRAP_DOCS: dict[str, list[tuple[str, str]]] = {
         ("decorators", "@decorator syntax. Class, method, property, parameter decorators. "
                        "experimentalDecorators must be enabled in tsconfig."),
     ],
+    "ruby": [
+        ("Enumerable", "Enumerable mixins: map, select, reject, reduce, each_with_object, "
+                       "flat_map, group_by, tally, any?, all?, none?, find."),
+        ("ObjectModel", "Classes, modules, prepend/include/extend, attr_reader, attr_accessor, "
+                        "Data.define and Struct for value objects."),
+        ("Concurrency", "Ractor for actor-style isolation, Fiber.schedule for non-blocking I/O, "
+                        "Thread and Queue for concurrent work."),
+        ("Testing", "RSpec (describe, it, expect) and Minitest (Minitest::Test, assert_equal) "
+                    "conventions with frozen_string_literal: true."),
+        ("Security", "Avoid Kernel#eval and Marshal.load on untrusted input; use JSON.parse "
+                     "and parameterized ActiveRecord queries."),
+    ],
+    "php": [
+        ("TypeSystem", "PHP 8.2+ strict_types=1, union/intersection types, readonly classes, "
+                       "backed enums, constructor property promotion, and mixed/never returns."),
+        ("Arrays", "Array functions: array_map, array_filter, array_reduce, array_column, "
+                   "array_merge, in_array, array_key_exists, and spread operator."),
+        ("PDO", "PDO prepared statements with bound parameters (:id) to prevent SQL injection; "
+                "PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION."),
+        ("PSR", "PSR-1/PSR-4 autoloading, PSR-7 HTTP messages, PSR-12 coding style, "
+                "and PHPUnit TestCase assertions."),
+    ],
+    "c": [
+        ("MemorySafety", "MISRA C:2012 discipline: explicit bounds lengths on every buffer, "
+                         "snprintf over sprintf, calloc/free pairing, and NULL checks after allocation."),
+        ("FixedWidthInts", "stdint.h & stddef.h: int32_t, uint64_t, size_t, uintptr_t, bool "
+                           "(stdbool.h) to prevent architecture-dependent overflow."),
+        ("ErrorHandling", "Return explicit status codes or errno; use goto cleanup labels for "
+                          "deterministic resource release of file descriptors and heap buffers."),
+        ("Toolchain", "Compile cleanly under -Wall -Wextra -Werror -pedantic -std=c11; "
+                      "verify assertions with assert.h or Unity test runners."),
+    ],
+    "cpp": [
+        ("RAII", "C++20/23 Rule of Zero: std::unique_ptr, std::shared_ptr, std::lock_guard, "
+                 "and std::scoped_lock; never use raw owning new/delete."),
+        ("Containers", "STL containers & views: std::vector, std::unordered_map, std::optional, "
+                       "std::variant, std::string_view, and std::span for bounds-safe slices."),
+        ("Algorithms", "std::ranges algorithms (views::filter, views::transform), constexpr "
+                       "evaluation, and concepts/requires constraints."),
+        ("Testing", "GoogleTest (TEST, EXPECT_EQ, ASSERT_TRUE) and Catch2 (TEST_CASE, REQUIRE) "
+                    "with AddressSanitizer/UBSan-clean semantics."),
+    ],
+    "rust": [
+        ("Ownership", "Ownership, borrowing (&T, &mut T), lifetimes ('a), and zero-unsafe "
+                      "discipline; prefer slices (&[T], &str) in function parameters."),
+        ("ErrorHandling", "Result<T, E> and Option<T> with ? propagation, map_err, ok_or_else, "
+                          "and custom error enums implementing std::error::Error + Display."),
+        ("Collections", "Vec<T>, HashMap<K, V>, BTreeMap<K, V>, HashSet<T>, and Iterator "
+                        "adapters (map, filter, filter_map, fold, collect)."),
+        ("Concurrency", "Send/Sync traits, Arc<Mutex<T>>, std::sync::mpsc, and tokio async/await "
+                        "tasks with #[cfg(test)] mod tests and #[test] assertions."),
+    ],
+    "go": [
+        ("Concurrency", "Goroutines, typed channels, select statements, sync.WaitGroup, "
+                        "sync.Mutex, and context.Context cancellation propagation."),
+        ("ErrorHandling", "Explicit error return values, errors.Is, errors.As, errors.Join, "
+                          "and fmt.Errorf(\"...: %w\", err) wrapping."),
+        ("Interfaces", "Small consumer-defined interfaces, io.Reader/io.Writer composition, "
+                       "defer for deterministic resource cleanup, and slices/maps."),
+        ("Testing", "Table-driven tests in *_test.go using testing.T, t.Run subtests, "
+                    "t.Helper(), and go vet / race-detector safe patterns."),
+    ],
+    "zig": [
+        ("Allocators", "Explicit std.mem.Allocator passing, defer and errdefer for leak-free "
+                       "cleanup, and std.testing.allocator for leak detection in tests."),
+        ("ErrorUnions", "Error union types (!T), try and catch |err| switch handling, "
+                        "and optional types (?T) with orelse."),
+        ("Comptime", "comptime generics, @TypeOf, @import(\"std\"), ArrayList, AutoHashMap, "
+                     "and built-in test \"...\" { try std.testing.expectEqual(...); } blocks."),
+    ],
     "java": [
         ("java.util.List", "List interface: ArrayList, LinkedList. Methods: add, get, set, remove, "
                            "size, isEmpty, contains, indexOf, subList, toArray, iterator."),
@@ -114,6 +184,80 @@ _BOOTSTRAP_DOCS: dict[str, list[tuple[str, str]]] = {
                         "@FunctionalInterface. Spring: @Component, @Service, @Repository, @Bean."),
         ("exceptions", "Checked vs unchecked exceptions. Common: IOException, SQLException, "
                        "NullPointerException, IllegalArgumentException. try-catch-finally."),
+    ],
+    "csharp": [
+        ("ModernDotNet", "C# 12 / .NET 8+: nullable reference types (#nullable enable), "
+                         "records, pattern matching switch expressions, and primary constructors."),
+        ("AsyncAwait", "Task<T>, ValueTask<T>, async/await with CancellationToken propagation, "
+                       "and IAsyncEnumerable<T> streaming."),
+        ("LINQ", "System.Linq: Where, Select, SelectMany, GroupBy, OrderBy, ToList, "
+                 "ToDictionary, Any, All, and Span<T>/Memory<T> for zero-allocation slicing."),
+        ("Testing", "xUnit ([Fact], [Theory], [InlineData], Assert.Equal) and NUnit "
+                    "conventions with IDisposable / await using resource management."),
+    ],
+    "scala": [
+        ("FunctionalCore", "Scala 3 immutability: case classes, enum ADTs, Option[T], "
+                           "Either[E, A], Try[T], and exhaustive match expressions."),
+        ("Collections", "Immutable Seq, Vector, List, Map, Set with map, flatMap, filter, "
+                        "foldLeft, collect, and for-comprehensions."),
+        ("TypeSystem", "given/using contextual abstractions, extension methods, opaque types, "
+                       "and ScalaTest / MUnit test suites."),
+    ],
+    "kotlin": [
+        ("NullSafety", "Nullable types (T?), safe calls (?.), Elvis operator (?:), "
+                       "requireNotNull/checkNotNull, and smart casts."),
+        ("DataAndSealed", "data class, sealed interface / sealed class hierarchies with "
+                          "exhaustive when expressions, and value classes."),
+        ("Coroutines", "suspend functions, CoroutineScope, Dispatchers, Flow, StateFlow, "
+                       "and structured concurrency with kotlin.test / JUnit 5 assertions."),
+    ],
+    "r": [
+        ("Vectorization", "Vectorized arithmetic, lapply/sapply/vapply, data.frame and "
+                          "tibble manipulation, and explicit NA handling (na.rm = TRUE)."),
+        ("Functions", "Pure function closures, stopifnot() precondition checks, tryCatch() "
+                      "condition handling, and S3/S4/R6 dispatch."),
+        ("Testing", "testthat conventions: test_that(\"desc\", { expect_equal(...); "
+                    "expect_true(...); expect_error(...) })."),
+    ],
+    "matlab": [
+        ("MatrixOps", "Vectorized array and matrix operations (.*, ./, .^), logical indexing, "
+                      "and preallocation with zeros/ones/nan before loops."),
+        ("Functions", "arguments ... end validation blocks (mustBeNumeric, mustBePositive), "
+                      "function handles (@), and struct/table containers."),
+        ("Testing", "matlab.unittest.TestCase classdef with methods (Test) and "
+                    "verifyEqual / verifyTrue assertions."),
+    ],
+    "julia": [
+        ("MultipleDispatch", "Multiple dispatch with parametric types, abstract types, "
+                             "immutable struct / mutable struct, and type-stable return values."),
+        ("ArraysAndBroadcasting", "1-based indexing, dot-broadcasting (f.(x)), views (@view), "
+                                  "comprehension generators, and LinearAlgebra operations."),
+        ("Testing", "Standard library Test module: using Test; @testset \"...\" begin "
+                    "@test ...; @test_throws ... end."),
+    ],
+    "mathematica": [
+        ("SymbolicRules", "Wolfram Language pattern matching (x_Integer, x_List), delayed "
+                          "definitions (:=), Module[{vars}, body] lexical scoping, and pure functions (# &)."),
+        ("ListProcessing", "Map (/@), Apply (@@, @@@), Select, Cases, Fold, FoldList, "
+                           "Association (<|...|>) key-value lookups, and Total."),
+        ("Testing", "VerificationTest[input, expected] and TestReport[...] for deterministic "
+                    "symbolic and numerical verification."),
+    ],
+    "haskell": [
+        ("PurityAndTypes", "Explicit top-level type signatures (::), algebraic data types "
+                           "(data, newtype), Maybe and Either for total error handling without partial head/fromJust."),
+        ("Typeclasses", "Functor, Applicative, Monad, Foldable, Traversable, deriving "
+                        "(Eq, Show, Ord, Generic), and Data.Map.Strict / Data.Text."),
+        ("Testing", "HUnit (TestCase, assertEqual) and QuickCheck property tests "
+                    "(prop_*) with cabal/ghc standard modules."),
+    ],
+    "ocaml": [
+        ("ModulesAndTypes", "Algebraic variants, records, option and ('a, 'e) result types, "
+                            "exhaustive match ... with, and module / sig ... end signatures."),
+        ("Recursion", "Tail-recursive helper functions withlet rec, List.map, List.fold_left, "
+                      "Seq, Hashtbl, and Map.Make functors."),
+        ("Testing", "Alcotest / OUnit2 test suites and inline assert (...) checks compiled "
+                    "via dune or ocamlfind."),
     ],
 }
 
@@ -155,6 +299,38 @@ def detect_required_languages(
             # (e.g. a prompt like "port this billing module") never got
             # detected at all, silently skipping Java bootstrap docs.
             languages.add("java")
+        if re.search(r"^\s*#include\s+<stdio\.h>|^\s*#include\s+<stdlib\.h>", source_code, re.MULTILINE):
+            languages.add("c")
+        if re.search(r"^\s*#include\s+<iostream>|std::", source_code, re.MULTILINE):
+            languages.add("cpp")
+        if re.search(r"\bfn\s+\w+\s*\(|^\s*use\s+std::", source_code, re.MULTILINE):
+            languages.add("rust")
+        if re.search(r"^\s*package\s+main\b|^\s*func\s+\w+\s*\(", source_code, re.MULTILINE):
+            languages.add("go")
+        if re.search(r'@import\(\s*"std"\s*\)', source_code):
+            languages.add("zig")
+        if re.search(r"^\s*using\s+System(?:\.[\w.]+)?;", source_code, re.MULTILINE):
+            languages.add("csharp")
+        if re.search(r"^\s*case\s+class\s+\w+|^\s*object\s+\w+\s+extends", source_code, re.MULTILINE):
+            languages.add("scala")
+        if re.search(r"^\s*(?:suspend\s+)?fun\s+\w+\s*\(|^\s*data\s+class\s+\w+", source_code, re.MULTILINE):
+            languages.add("kotlin")
+        if re.search(r"<\?php\b", source_code):
+            languages.add("php")
+        if re.search(r"^\s*require_relative\b|^\s*class\s+\w+\s*<\s*\w+\n\s*def\s+", source_code, re.MULTILINE):
+            languages.add("ruby")
+        if re.search(r"\w+\s*<-\s*function\s*\(|^\s*library\s*\(", source_code, re.MULTILINE):
+            languages.add("r")
+        if re.search(r"^\s*classdef\s+\w+", source_code, re.MULTILINE):
+            languages.add("matlab")
+        if re.search(r"^\s*function\s+\w+\([^)]*::\w+\)|^\s*using\s+Test\b", source_code, re.MULTILINE):
+            languages.add("julia")
+        if re.search(r"\w+\[\w+_\w*\]\s*:=", source_code):
+            languages.add("mathematica")
+        if re.search(r"^\s*module\s+[A-Z][\w.]*\s+where\b", source_code, re.MULTILINE):
+            languages.add("haskell")
+        if re.search(r"^\s*let\s+rec\s+\w+", source_code, re.MULTILINE):
+            languages.add("ocaml")
 
     # Always index at least the target language
     if not languages and requested_target_language:

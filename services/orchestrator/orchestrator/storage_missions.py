@@ -42,7 +42,16 @@ FETCH_MISSION_SQL = """
 
 UPDATE_MISSION_METADATA_SQL = """
     UPDATE missions
-    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
+    SET metadata_json = (
+            SELECT CASE
+                WHEN (missions.metadata_json ? 'delta_audit_gate') AND NOT (incoming.doc ? 'delta_audit_gate')
+                THEN incoming.doc || jsonb_build_object('delta_audit_gate', missions.metadata_json -> 'delta_audit_gate')
+                ELSE incoming.doc
+            END
+            FROM (SELECT %s::jsonb AS doc) AS incoming
+        ),
+        project_id = %s,
+        updated_at = NOW()
     WHERE mission_id = %s
     RETURNING
         mission_id,
@@ -127,7 +136,16 @@ LOCKED_FETCH_MISSION_SQL = """
 
 LOCKED_UPDATE_MISSION_METADATA_SQL = """
     UPDATE missions
-    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
+    SET metadata_json = (
+            SELECT CASE
+                WHEN (missions.metadata_json ? 'delta_audit_gate') AND NOT (incoming.doc ? 'delta_audit_gate')
+                THEN incoming.doc || jsonb_build_object('delta_audit_gate', missions.metadata_json -> 'delta_audit_gate')
+                ELSE incoming.doc
+            END
+            FROM (SELECT %s::jsonb AS doc) AS incoming
+        ),
+        project_id = %s,
+        updated_at = NOW()
     WHERE mission_id = %s
     RETURNING
         mission_id,

@@ -4,17 +4,11 @@ Architecture notes
 ------------------
 Mirrors the design of ``ast_extractor.py`` for Python:
   - ``extract_java_ast(source)`` returns a ``JavaAstExtractionResult``
-  - ``JavaAstExtractor`` (in ``language_extractor.py``) should inherit from
-    ``JavaExtractor``, call ``super().extract()`` first (regex runs for
-    concept/LogicNode detection), then replace structural fields with
-    AST-derived equivalents.
-
-Known regex extractor limitations this would fix
--------------------------------------------------
-- Inner/anonymous classes are not detected by class-name regex.
-- Method overloads produce duplicate names (same name, different signature).
-- Interface method declarations look identical to class method declarations.
-- Annotations (``@Override``, ``@Bean``) are not captured.
+  - ``JavaAstExtractor`` (in ``language_extractor.py``) inherits from
+    ``JavaExtractor``, calls ``super().extract()`` first (regex runs for
+    concept/LogicNode detection), then replaces structural fields with
+    AST-derived equivalents including parameter/return types, purity,
+    side effects, and statement opcode streams.
 """
 from __future__ import annotations
 
@@ -23,6 +17,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 LOGGER = logging.getLogger(__name__)
+
+_PURE_JAVA_QUALIFIERS = frozenset({
+    "Math", "StrictMath", "String", "Integer", "Long", "Double", "Float",
+    "Boolean", "Objects", "Optional", "Collections", "Arrays", "List", "Map", "Set",
+})
+
+_PURE_JAVA_METHODS = frozenset({
+    "equals", "hashCode", "toString", "compareTo", "length", "size", "isEmpty",
+    "get", "contains", "containsKey", "stream", "filter", "map", "reduce",
+    "collect", "of", "valueOf", "parseInt", "parseDouble", "parseLong",
+    "abs", "max", "min", "sqrt", "pow", "round", "floor", "ceil",
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +40,9 @@ class JavaMethodInfo:
     modifiers: tuple[str, ...]
     annotations: tuple[str, ...]
     signature: str
+    side_effects: tuple[str, ...] = ()
+    purity: str = "UNKNOWN"
+    ops: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +142,9 @@ def _type_name(node: Any) -> str:
         return node
     name = getattr(node, "name", None)
     if name:
-        return str(name)
+        dims = getattr(node, "dimensions", None) or []
+        suffix = "[]" * len(dims) if isinstance(dims, list) else ""
+        return f"{name}{suffix}"
     pattern_type = getattr(node, "pattern_type", None)
     if pattern_type:
         return str(pattern_type)
@@ -148,6 +159,76 @@ def _annotation_names(node: Any) -> tuple[str, ...]:
     )
 
 
+def _analyse_java_method(
+    node: Any,
+) -> tuple[tuple[str, ...], str, tuple[tuple[str, str], ...]]:
+    """Inspect a javalang MethodDeclaration/ConstructorDeclaration for effects, purity, and ops."""
+    body = getattr(node, "body", None)
+    if body is None:
+        return (), "UNKNOWN", ()
+
+    effects: list[str] = []
+    ops: list[tuple[str, str]] = []
+    has_unknown_call = False
+
+    try:
+        iterator = iter(node)
+    except Exception:
+        return (), "UNKNOWN", ()
+
+    for _path, sub in iterator:
+        if sub is node:
+            continue
+        cls_name = sub.__class__.__name__
+        if cls_name == "ReturnStatement":
+            expr = getattr(sub, "expression", None)
+            detail = str(getattr(expr, "member", None) or getattr(expr, "value", None) or "value")
+            ops.append(("RETURN", detail))
+        elif cls_name in {"IfStatement", "SwitchStatement", "TernaryExpression"}:
+            ops.append(("BRANCH", cls_name))
+        elif cls_name in {"ForStatement", "WhileStatement", "DoStatement"}:
+            ops.append(("LOOP", cls_name))
+        elif cls_name in {"TryStatement", "ThrowStatement", "SynchronizedStatement"}:
+            ops.append(("TRY", cls_name))
+            if cls_name == "SynchronizedStatement":
+                effects.append("concurrency.lock")
+        elif cls_name == "LocalVariableDeclaration":
+            decls = getattr(sub, "declarators", None) or []
+            for decl in decls:
+                vname = str(getattr(decl, "name", "") or "var")
+                ops.append(("ASSIGN", vname))
+        elif cls_name == "Assignment":
+            lhs = getattr(sub, "expressionl", None)
+            lhs_name = str(getattr(lhs, "member", None) or "field")
+            ops.append(("ASSIGN", lhs_name))
+            if getattr(lhs, "qualifier", None) in {"this", "super"}:
+                effects.append("state.mutation")
+        elif cls_name == "MethodInvocation":
+            member = str(getattr(sub, "member", "") or "call")
+            qualifier = str(getattr(sub, "qualifier", "") or "")
+            full_call = f"{qualifier}.{member}" if qualifier else member
+            ops.append(("CALL", full_call))
+            if qualifier.startswith(("System.out", "System.err")):
+                effects.append("io.stdout")
+            elif qualifier.startswith(("Files", "File", "Paths", "FileInputStream", "FileOutputStream")):
+                effects.append("io.filesystem")
+            elif qualifier.startswith(("HttpClient", "URL", "Socket", "HttpURLConnection")):
+                effects.append("io.network")
+            elif qualifier in _PURE_JAVA_QUALIFIERS or member in _PURE_JAVA_METHODS:
+                pass
+            else:
+                has_unknown_call = True
+
+    dedup_effects = tuple(dict.fromkeys(effects))
+    if dedup_effects:
+        purity = "IMPURE"
+    elif has_unknown_call:
+        purity = "UNKNOWN"
+    else:
+        purity = "PURE"
+    return dedup_effects, purity, tuple(ops[:32])
+
+
 def _method_info(node: Any) -> JavaMethodInfo:
     name = str(getattr(node, "name", "") or "<anonymous>")
     parameters = tuple(
@@ -159,6 +240,7 @@ def _method_info(node: Any) -> JavaMethodInfo:
         return_type = "<constructor>"
     modifiers = tuple(sorted(str(item) for item in (getattr(node, "modifiers", None) or [])))
     signature = f"{return_type} {name}({', '.join(parameters)})"
+    side_effects, purity, ops = _analyse_java_method(node)
     return JavaMethodInfo(
         name=name,
         line=_line(node),
@@ -167,6 +249,9 @@ def _method_info(node: Any) -> JavaMethodInfo:
         modifiers=modifiers,
         annotations=_annotation_names(node),
         signature=signature,
+        side_effects=side_effects,
+        purity=purity,
+        ops=ops,
     )
 
 

@@ -452,6 +452,11 @@ async def get_operations_summary(
     # PBLA-05: read-only per-lane protocol-bus activity snapshot. None when
     # the bus is unreachable — never blocks or fails the wider summary.
     lane_activity = await asyncio.to_thread(fetch_lane_activity, settings=app.state.settings)
+    db_diagnostics = (
+        await asyncio.to_thread(storage.get_database_diagnostics, app.state.settings)
+        if db_ready and hasattr(storage, "get_database_diagnostics")
+        else None
+    )
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -472,6 +477,7 @@ async def get_operations_summary(
         "pod_assignment_counts": pod_counts,
         "active_lifecycle_tasks": len(getattr(app.state, "lifecycle_tasks", {})),
         "lane_activity": lane_activity,
+        "database_diagnostics": db_diagnostics,
     }
 
 

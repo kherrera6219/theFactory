@@ -194,20 +194,82 @@ class _NoSample:
 
 _NO_SAMPLE = _NoSample()
 
-# Concrete sample values per recognised type, per case. Deliberately small and
-# explicit: a type not listed here yields no sample, which drops the vector
-# rather than inventing a value whose semantics are guessed.
+_INT_SAMPLE = {"nominal": 2, "boundary_low": 0, "boundary_high": -1}
+_UINT_SAMPLE = {"nominal": 2, "boundary_low": 0, "boundary_high": 1}
+_FLOAT_SAMPLE = {"nominal": 1.5, "boundary_low": 0.0, "boundary_high": -1.0}
+_BOOL_SAMPLE = {"nominal": True, "boundary_low": False, "boundary_high": True}
+_STR_SAMPLE = {"nominal": "sample", "boundary_low": "", "boundary_high": "  x  "}
+_LIST_SAMPLE = {"nominal": [1, 2, 3], "boundary_low": [], "boundary_high": [0]}
+_DICT_SAMPLE = {"nominal": {"k": 1}, "boundary_low": {}, "boundary_high": {"k": None}}
+
+# Concrete sample values per recognised type across all 20 specialist languages.
+# Deliberately explicit: a type not listed here yields no sample, which drops the
+# vector rather than inventing a value whose semantics are guessed.
 _TYPE_SAMPLES: dict[str, dict[str, Any]] = {
-    "int": {"nominal": 2, "boundary_low": 0, "boundary_high": -1},
-    "float": {"nominal": 1.5, "boundary_low": 0.0, "boundary_high": -1.0},
-    "double": {"nominal": 1.5, "boundary_low": 0.0, "boundary_high": -1.0},
-    "bool": {"nominal": True, "boundary_low": False, "boundary_high": True},
-    "boolean": {"nominal": True, "boundary_low": False, "boundary_high": True},
-    "str": {"nominal": "sample", "boundary_low": "", "boundary_high": "  x  "},
-    "string": {"nominal": "sample", "boundary_low": "", "boundary_high": "  x  "},
-    "list": {"nominal": [1, 2, 3], "boundary_low": [], "boundary_high": [0]},
-    "dict": {"nominal": {"k": 1}, "boundary_low": {}, "boundary_high": {"k": None}},
+    "int": _INT_SAMPLE,
+    "integer": _INT_SAMPLE,
+    "i8": _INT_SAMPLE,
+    "i16": _INT_SAMPLE,
+    "i32": _INT_SAMPLE,
+    "i64": _INT_SAMPLE,
+    "i128": _INT_SAMPLE,
+    "isize": _INT_SAMPLE,
+    "int8": _INT_SAMPLE,
+    "int16": _INT_SAMPLE,
+    "int32": _INT_SAMPLE,
+    "int64": _INT_SAMPLE,
+    "int32_t": _INT_SAMPLE,
+    "int64_t": _INT_SAMPLE,
+    "ssize_t": _INT_SAMPLE,
+    "long": _INT_SAMPLE,
+    "short": _INT_SAMPLE,
+    "rune": _INT_SAMPLE,
+    "u8": _UINT_SAMPLE,
+    "u16": _UINT_SAMPLE,
+    "u32": _UINT_SAMPLE,
+    "u64": _UINT_SAMPLE,
+    "u128": _UINT_SAMPLE,
+    "usize": _UINT_SAMPLE,
+    "uint": _UINT_SAMPLE,
+    "uint8": _UINT_SAMPLE,
+    "uint16": _UINT_SAMPLE,
+    "uint32": _UINT_SAMPLE,
+    "uint64": _UINT_SAMPLE,
+    "uint32_t": _UINT_SAMPLE,
+    "uint64_t": _UINT_SAMPLE,
+    "size_t": _UINT_SAMPLE,
+    "uintptr": _UINT_SAMPLE,
+    "byte": _UINT_SAMPLE,
+    "float": _FLOAT_SAMPLE,
+    "double": _FLOAT_SAMPLE,
+    "f32": _FLOAT_SAMPLE,
+    "f64": _FLOAT_SAMPLE,
+    "float32": _FLOAT_SAMPLE,
+    "float64": _FLOAT_SAMPLE,
+    "single": _FLOAT_SAMPLE,
+    "decimal": _FLOAT_SAMPLE,
+    "number": _FLOAT_SAMPLE,
+    "bool": _BOOL_SAMPLE,
+    "boolean": _BOOL_SAMPLE,
+    "str": _STR_SAMPLE,
+    "string": _STR_SAMPLE,
+    "&str": _STR_SAMPLE,
+    "std::string": _STR_SAMPLE,
+    "char*": _STR_SAMPLE,
+    "const char*": _STR_SAMPLE,
+    "list": _LIST_SAMPLE,
+    "vec": _LIST_SAMPLE,
+    "vector": _LIST_SAMPLE,
+    "array": _LIST_SAMPLE,
+    "arraylist": _LIST_SAMPLE,
+    "ienumerable": _LIST_SAMPLE,
+    "dict": _DICT_SAMPLE,
+    "map": _DICT_SAMPLE,
+    "hashmap": _DICT_SAMPLE,
+    "dictionary": _DICT_SAMPLE,
     "set": {"nominal": [1, 2], "boundary_low": [], "boundary_high": [0]},
+    "hashset": {"nominal": [1, 2], "boundary_low": [], "boundary_high": [0]},
+    "iset": {"nominal": [1, 2], "boundary_low": [], "boundary_high": [0]},
     "tuple": {"nominal": [1, 2], "boundary_low": [], "boundary_high": [0]},
     "bytes": {"nominal": "c2FtcGxl", "boundary_low": "", "boundary_high": "AA=="},
 }
@@ -216,31 +278,53 @@ _TYPE_SAMPLES: dict[str, dict[str, Any]] = {
 def _sample_value_for_type(type_name: str, case: str) -> Any:
     """Return a concrete sample value for *type_name*, or ``_NO_SAMPLE``.
 
-    Normalisation is intentionally shallow: ``List[int]`` and ``[Int]`` both
-    reduce to ``list``, but a bare user-defined class yields no sample. Guessing
-    a value for an unknown type would produce a vector that fails for reasons
-    unrelated to the code under test.
+    Normalisation is intentionally shallow: ``List[int]``, ``[Int]``, ``Vec<i32>``,
+    ``[]string``, and ``Vector{Float64}`` reduce to ``list``, while a bare
+    user-defined class yields no sample. Guessing a value for an unknown type
+    would produce a vector that fails for reasons unrelated to the code under test.
     """
     normalized = str(type_name or "").strip().lower()
     if not normalized:
         return _NO_SAMPLE
 
+    # Strip Rust/C++ references (`&mut Vec<i32>`, `&[u8]`) except `&str`.
+    if normalized != "&str" and normalized.startswith("&"):
+        normalized = normalized.lstrip("&").removeprefix("mut ").strip()
+
     # Bracket notations must be recognised BEFORE generic parameters are
     # stripped: splitting "[int]" on "[" yields an empty string, which silently
-    # dropped every Haskell list type — and Haskell is one of only three
-    # languages whose signatures are recovered at all.
-    if (normalized.startswith("[") and normalized.endswith("]")) or normalized.endswith("[]"):
+    # dropped every Haskell list type (`[Int]`) and Go slice (`[]string`).
+    if (
+        (normalized.startswith("[") and normalized.endswith("]"))
+        or normalized.endswith("[]")
+        or normalized.startswith("[]")
+    ):
         normalized = "list"
     else:
-        # Strip Optional[...]/Maybe wrappers, then collapse generic containers.
-        for prefix in ("optional[", "maybe "):
+        # Strip Optional/Maybe/Option/Promise/Task wrappers, then collapse generic containers.
+        for prefix in ("optional[", "optional<", "option<", "promise<", "task<", "future<", "maybe ", "io "):
             if normalized.startswith(prefix):
-                normalized = normalized[len(prefix) :].rstrip("]").strip()
+                normalized = normalized[len(prefix) :].rstrip("]>").strip()
                 break
-        if normalized.startswith(("list[", "sequence[", "iterable[")):
+        if normalized.startswith(
+            (
+                "list[", "sequence[", "iterable[",
+                "list<", "arraylist<", "ienumerable<", "vec<", "std::vector<", "array<",
+                "vector{", "array{",
+            )
+        ):
             normalized = "list"
+        elif normalized.startswith(
+            ("dict[", "mapping[", "map<", "hashmap<", "dictionary<", "std::map<", "dict{")
+        ):
+            normalized = "dict"
+        elif normalized.startswith(("set[", "set<", "hashset<", "iset<", "set{")):
+            normalized = "set"
         else:
-            normalized = normalized.split("[", 1)[0].strip()
+            for sep in ("[", "<", "{"):
+                if sep in normalized:
+                    normalized = normalized.split(sep, 1)[0].strip()
+                    break
 
     samples = _TYPE_SAMPLES.get(normalized)
     if samples is None:

@@ -42,7 +42,8 @@ import logging
 import re
 from typing import Any
 
-from .agent_registry import AGENT_REGISTRY, AgentDefinition
+from .agent_personas import LANGUAGE_PERSONAS
+from .agent_registry import AGENT_REGISTRY, AgentDefinition, normalize_language
 
 LOGGER = logging.getLogger(__name__)
 
@@ -396,6 +397,70 @@ class ExecutiveAgent(BaseAgent):
         )
 
 
+_SUPPORT_ROLE_SPECS: dict[str, dict[str, str]] = {
+    "BROKER": {
+        "action_kind": "api_routing_budget",
+        "domain": "api_governance",
+        "protocol": "rho",
+    },
+    "ACCOUNTANT": {
+        "action_kind": "cost_ledger_audit",
+        "domain": "finops",
+        "protocol": "rho",
+    },
+    "SECURITY": {
+        "action_kind": "security_threat_scan",
+        "domain": "security",
+        "protocol": "delta",
+    },
+    "IS": {
+        "action_kind": "knowledge_lake_sync",
+        "domain": "knowledge",
+        "protocol": "sigma",
+    },
+    "VC": {
+        "action_kind": "provenance_commit_plan",
+        "domain": "version_control",
+        "protocol": "beta",
+    },
+    "COMPLIANCE": {
+        "action_kind": "license_spdx_audit",
+        "domain": "compliance",
+        "protocol": "delta",
+    },
+    "HW": {
+        "action_kind": "target_profile_hint",
+        "domain": "runtime_profile",
+        "protocol": "alpha",
+    },
+    "TESTER": {
+        "action_kind": "integration_test_suite",
+        "domain": "quality_assurance",
+        "protocol": "delta",
+    },
+    "DEPLOY": {
+        "action_kind": "source_bundle_packaging",
+        "domain": "delivery",
+        "protocol": "beta",
+    },
+    "DEPABS": {
+        "action_kind": "dependency_sbom_absorption",
+        "domain": "dependencies",
+        "protocol": "sigma",
+    },
+    "TESTDATA": {
+        "action_kind": "synthetic_fixture_seed",
+        "domain": "test_data",
+        "protocol": "beta",
+    },
+    "RQCA": {
+        "action_kind": "sandbox_runtime_qc",
+        "domain": "runtime_qc",
+        "protocol": "delta",
+    },
+}
+
+
 class SupportAgent(BaseAgent):
     """Support ring agents.
 
@@ -403,30 +468,79 @@ class SupportAgent(BaseAgent):
     DEPABS, TESTDATA, RQCA.
     """
 
+    def capabilities(self) -> dict[str, Any]:
+        caps = super().capabilities()
+        spec = _SUPPORT_ROLE_SPECS.get(self._definition.short_code, {})
+        caps["action_kind"] = spec.get("action_kind", "support_action")
+        caps["domain"] = spec.get("domain", "support")
+        caps["protocol"] = spec.get("protocol", "delta")
+        return caps
+
     def execute(self, mission_id: str, payload: dict[str, Any]) -> AgentResult:
         self._logger.info("SupportAgent[%s].execute mission=%s", self.agent_id, mission_id)
-        action = {"type": "support_action", "agent_id": self.agent_id, "mission_id": mission_id}
+        code = self._definition.short_code
+        spec = _SUPPORT_ROLE_SPECS.get(code, {})
+        action_kind = spec.get("action_kind", "support_action")
+        domain = spec.get("domain", "support")
+        protocol = spec.get("protocol", "delta")
+        verdict = str(payload.get("verdict") or "PASS").upper()
+        status = "failed" if verdict == "FAIL" else "ok"
+        action = {
+            "type": "support_action",
+            "action_kind": action_kind,
+            "domain": domain,
+            "protocol": protocol,
+            "short_code": code,
+            "agent_id": self.agent_id,
+            "mission_id": mission_id,
+            "verdict": verdict,
+        }
         return self._make_result(
             mission_id,
+            status=status,
             artifacts=[action],
-            metadata={"role": self._definition.role},
+            metadata={
+                "role": self._definition.role,
+                "short_code": code,
+                "action_kind": action_kind,
+                "domain": domain,
+                "protocol": protocol,
+            },
         )
 
     def validate(self, mission_id: str, artifacts: list[dict[str, Any]]) -> ValidationResult:
         findings = []
+        blocking = False
         for artifact in artifacts:
             if not artifact.get("agent_id"):
                 findings.append("support artifact missing agent_id")
-        return self._make_validation(mission_id, passed=not findings, findings=findings)
+            if not artifact.get("mission_id"):
+                findings.append("support artifact missing mission_id")
+            if str(artifact.get("verdict") or "").upper() == "FAIL":
+                findings.append(
+                    f"{artifact.get('short_code') or self._definition.short_code} reported FAIL verdict"
+                )
+                blocking = True
+        return self._make_validation(
+            mission_id,
+            passed=not findings,
+            findings=findings,
+            blocking=blocking,
+        )
 
     def report(
         self, mission_id: str, result: AgentResult, validation: ValidationResult
     ) -> AgentReport:
         verdict = "PASS" if validation.passed else "FAIL"
         code = self._definition.short_code
+        spec = _SUPPORT_ROLE_SPECS.get(code, {})
+        action_kind = spec.get("action_kind", "support_action")
         return self._make_report(
             mission_id,
-            summary=f"{code} completed support action. Status: {result.status}.",
+            summary=(
+                f"{code} completed support action ({action_kind}). "
+                f"Status: {result.status}."
+            ),
             evidence=[result.to_dict(), validation.to_dict()],
             verdict=verdict,
         )
@@ -540,6 +654,17 @@ class SpecialistAgent(BaseAgent):
     #: Override to add language-specific extraction notes to reports.
     extraction_guidance: str = "Language-specific intent extraction."
 
+    def capabilities(self) -> dict[str, Any]:
+        caps = super().capabilities()
+        persona = LANGUAGE_PERSONAS.get(self.language_key)
+        caps["language_key"] = self.language_key
+        caps["extraction_guidance"] = self.extraction_guidance
+        if persona is not None:
+            caps["persona_label"] = persona.label
+            caps["persona_guidance"] = persona.guidance
+            caps["tooling"] = persona.tooling
+        return caps
+
     def execute(self, mission_id: str, payload: dict[str, Any]) -> AgentResult:
         self._logger.info(
             "SpecialistAgent[%s/%s].execute mission=%s",
@@ -547,9 +672,10 @@ class SpecialistAgent(BaseAgent):
             self.language_key,
             mission_id,
         )
-        source_payload = payload.get("source_payload", "")
+        source_payload = payload.get("source_payload") or payload.get("source_code") or ""
         language = payload.get("requested_target_language", self.language_key)
         prebuilt_logicnodes = payload.get("logicnodes")
+        persona = LANGUAGE_PERSONAS.get(self.language_key)
 
         if isinstance(prebuilt_logicnodes, list):
             logicnodes = [node for node in prebuilt_logicnodes if isinstance(node, dict)]
@@ -574,6 +700,8 @@ class SpecialistAgent(BaseAgent):
                 "language": language,
                 "language_key": self.language_key,
                 "pod": self.pod,
+                "persona_label": persona.label if persona else self.language_key,
+                "tooling": persona.tooling if persona else "",
             },
         )
 
@@ -629,7 +757,7 @@ class SpecialistAgent(BaseAgent):
         self, mission_id: str, source_payload: Any, language: str
     ) -> list[dict[str, Any]]:
         """
-        Produce source-reflective LogicNodes from payload.
+        Produce source-reflective LogicNodes from payload across all 20 specialist languages.
 
         Subclasses may override for language-specific extraction.
         The pod-worker's language_extractor handles the full pipeline;
@@ -639,18 +767,37 @@ class SpecialistAgent(BaseAgent):
         if not source.strip():
             return []
         patterns = (
-            ("function", re.compile(r"\b(?:def|function|fn|func)\s+([A-Za-z_][\w]*)")),
-            ("class", re.compile(r"\b(?:class|struct|enum|interface)\s+([A-Za-z_][\w]*)")),
+            (
+                "function",
+                re.compile(
+                    r"\b(?:def|function|fn|func|fun)\s+([A-Za-z_][\w']*)"
+                    r"|([A-Za-z_][\w.]*)\s*<-\s*function\b"
+                    r"|([A-Za-z_][\w]*)\s*\[[^\]]*\]\s*:="
+                    r"|\blet\s+(?:rec\s+)?([a-z_][\w']*)\s+[a-z_(]"
+                    r"|^([a-z_][\w']*)\s*::",
+                    re.MULTILINE,
+                ),
+            ),
+            (
+                "class",
+                re.compile(
+                    r"\b(?:class|struct|enum|interface|trait|classdef|module|data|newtype|type)\s+([A-Za-z_][\w']*)"
+                ),
+            ),
             (
                 "module_dependency",
-                re.compile(r"\b(?:import|from|using|require)\s+([A-Za-z_][\w.]*)"),
+                re.compile(
+                    r"\b(?:import|from|using|require|use|open|include|library)\s+([A-Za-z_][\w.:/]*)"
+                ),
             ),
         )
         logicnodes: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
         for domain, pattern in patterns:
             for match in pattern.finditer(source):
-                concept = str(match.group(1)).strip()
+                concept = next((g for g in match.groups() if g), "").strip()
+                if concept in {"in", "and", "rec", "type"}:
+                    continue
                 key = (domain, concept.lower())
                 if not concept or key in seen:
                     continue
@@ -685,7 +832,7 @@ class SpecialistAgent(BaseAgent):
 
 
 # ---------------------------------------------------------------------------
-# Per-language specialist concrete classes (19 languages, 4 pods)
+# Per-language specialist concrete classes (20 language keys across 4 pods)
 # ---------------------------------------------------------------------------
 
 # Pod A — Dynamic languages
@@ -802,6 +949,7 @@ class MathematicaAgent(SpecialistAgent):
 _SPECIALIST_BY_LANGUAGE: dict[str, type[SpecialistAgent]] = {
     "python": PythonAgent,
     "javascript": JavaScriptAgent,
+    "typescript": JavaScriptAgent,
     "ruby": RubyAgent,
     "php": PhpAgent,
     "c": CAgent,
@@ -862,11 +1010,17 @@ def make_specialist_for_language(language: str) -> SpecialistAgent | None:
     """
     Factory: return the correct SpecialistAgent subclass for a language key.
 
+    Normalizes language aliases (e.g. ``typescript`` -> ``javascript``) so all
+    20 specialist language keys and common aliases resolve to a concrete agent.
     Returns None if no specialist is registered for the given language.
     """
-    # Find a matching AgentDefinition in the registry
+    normalized = normalize_language(language) or str(language or "").strip().lower()
     for definition in AGENT_REGISTRY:
-        if definition.category == "specialist" and language in definition.specialties:
-            cls = _SPECIALIST_BY_LANGUAGE.get(language, SpecialistAgent)
+        if definition.category == "specialist" and (
+            normalized in definition.specialties or language in definition.specialties
+        ):
+            cls = _SPECIALIST_BY_LANGUAGE.get(
+                language, _SPECIALIST_BY_LANGUAGE.get(normalized, SpecialistAgent)
+            )
             return cls(definition)
     return None

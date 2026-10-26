@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { StatusBadge, SystemMessage } from "../../components/status";
-import { getGatewayHealth, getOperationsSummary } from "../../lib/api-client";
+import { getGatewayHealth, getOperationsSummary, pruneAuditTables } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import type { GatewayHealth, OperationsSummary } from "../../lib/types";
@@ -138,6 +138,9 @@ export default function DatabasesPage() {
   const [error, setError] = useState<string | null>(null);
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [pruning, setPruning] = useState(false);
+  const [pruneResult, setPruneResult] = useState<string | null>(null);
   const lastRefreshed = useLastRefreshed(lastFetchAt);
 
   useEffect(() => {
@@ -187,9 +190,30 @@ export default function DatabasesPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [reloadKey]);
 
   const cards = buildCards(summary, health);
+  const diagnostics = summary?.database_diagnostics ?? null;
+  const retryConnection = () => {
+    setLoading(true);
+    setReloadKey((key) => key + 1);
+  };
+
+  const handlePrune = async () => {
+    setPruning(true);
+    setPruneResult(null);
+    try {
+      const res = await pruneAuditTables();
+      setPruneResult(
+        `Pruned ${res.total_rows_deleted} audit row(s) older than ${res.retention_days} days across ${res.tables.length} tables.`
+      );
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setPruneResult(`Prune failed: ${err instanceof Error ? err.message : "unexpected error"}`);
+    } finally {
+      setPruning(false);
+    }
+  };
 
   return (
     <div className="page shell-page">
@@ -267,7 +291,7 @@ export default function DatabasesPage() {
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => void (async () => { setLoading(true); await new Promise((r) => setTimeout(r, 400)); setLoading(false); })()}
+                    onClick={retryConnection}
                   >
                     Retry Connection
                   </button>
@@ -291,6 +315,73 @@ export default function DatabasesPage() {
             </li>
           ))}
         </ul>
+      </Panel>
+
+      <Panel title="Internal PostgreSQL Storage & Schema">
+        {!diagnostics ? (
+          <p className="muted">
+            Schema diagnostics are unavailable until the runtime database is ready.
+          </p>
+        ) : (
+          <>
+            <ul className="summary-list">
+              <li>
+                <strong>Schema migration</strong>
+                <span>
+                  V{diagnostics.latest_migration_version} ({diagnostics.migration_count} applied)
+                </span>
+              </li>
+              <li>
+                <strong>Connection pool</strong>
+                <StatusBadge tone={diagnostics.pool.initialized ? "healthy" : "warning"}>
+                  {diagnostics.pool.initialized ? "Initialized" : "Not initialized"}
+                </StatusBadge>
+              </li>
+              <li>
+                <strong>Pool size</strong>
+                <span>
+                  {diagnostics.pool.pool_size ?? "n/a"} open / {diagnostics.pool.pool_available ?? "n/a"} idle
+                  {" "}(min {diagnostics.pool.min_size}, max {diagnostics.pool.max_size})
+                </span>
+              </li>
+              <li>
+                <strong>Requests waiting</strong>
+                <span>{diagnostics.pool.requests_waiting ?? 0}</span>
+              </li>
+              <li>
+                <strong>Audit retention window</strong>
+                <span>{diagnostics.retention_days_default} days</span>
+              </li>
+            </ul>
+            <table className="data-table" aria-label="PostgreSQL table row estimates">
+              <thead>
+                <tr>
+                  <th>Table</th>
+                  <th>Estimated rows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(diagnostics.table_counts).map(([table, count]) => (
+                  <tr key={table}>
+                    <td><code>{table}</code></td>
+                    <td>{count.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "1rem" }}>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={pruning}
+                onClick={() => void handlePrune()}
+              >
+                {pruning ? "Pruning Audit Logs..." : "Prune Expired Audit Logs"}
+              </button>
+              {pruneResult && <span className="muted">{pruneResult}</span>}
+            </div>
+          </>
+        )}
       </Panel>
     </div>
   );

@@ -62,7 +62,7 @@ def is_stocked(
     """
     scope_id = _KNOWLEDGE_LAKE_ID if language else (mission_id or _KNOWLEDGE_LAKE_ID)
     try:
-        records = list_knowledge(settings, scope_id, limit=50)
+        records = list_knowledge(settings, scope_id, limit=100)
     except Exception as exc:
         LOGGER.warning(
             "knowledge_lake.is_stocked error for mission=%s language=%s: %s",
@@ -188,7 +188,7 @@ def get_language_context(*, settings: Any, language: str) -> str | None:
     knowledge_id = f"docs.{language_key}.bootstrap"
 
     try:
-        records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=10)
+        records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=100)
     except Exception as exc:
         LOGGER.warning("knowledge_lake.get_language_context list error: %s", exc)
         return None
