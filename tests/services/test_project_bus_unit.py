@@ -117,3 +117,187 @@ def test_finalize_blocked_does_not_mark_done():
 
     mark.assert_not_called()
     assert up_hand.called
+
+
+def _mock_conn_with_cursor(fetchone_val=None, fetchall_val=None, rowcount=0):
+    from contextlib import contextmanager
+    from unittest.mock import MagicMock
+
+    cur = MagicMock()
+    cur.fetchone.return_value = fetchone_val
+    cur.fetchall.return_value = fetchall_val if fetchall_val is not None else []
+    cur.rowcount = rowcount
+
+    conn = MagicMock()
+
+    @contextmanager
+    def _cursor_cm():
+        yield cur
+
+    conn.cursor.side_effect = _cursor_cm
+
+    @contextmanager
+    def _conn_cm():
+        yield conn
+
+    return _conn_cm, cur
+
+
+def test_storage_projects_crud_and_bus():
+    from datetime import UTC, datetime
+
+    from orchestrator import storage_projects
+
+    settings = SimpleNamespace()
+    now = datetime.now(UTC)
+
+    proj_row = (
+        "project-alpha",
+        "Alpha",
+        "user",
+        "active",
+        {"owner": "pm"},
+        {"env": "dev"},
+        now,
+        now,
+    )
+    conn_cm, _ = _mock_conn_with_cursor(fetchone_val=proj_row)
+    with patch("orchestrator.storage_projects.get_connection", side_effect=conn_cm):
+        res = storage_projects.upsert_project(
+            settings,
+            project_id="Alpha",
+            project_name="Alpha",
+            source="user",
+            status="active",
+            plan_authority={"owner": "pm"},
+            metadata={"env": "dev"},
+        )
+        assert res["project_id"] == "project-alpha"
+        assert res["project_name"] == "Alpha"
+        assert res["plan_authority"] == {"owner": "pm"}
+
+        fetched = storage_projects.fetch_project(settings, "Alpha")
+        assert fetched is not None
+        assert fetched["project_id"] == "project-alpha"
+
+    conn_none, _ = _mock_conn_with_cursor(fetchone_val=None)
+    with patch("orchestrator.storage_projects.get_connection", side_effect=conn_none):
+        assert storage_projects.fetch_project(settings, "missing") is None
+        assert storage_projects.fetch_project_handoff(settings, "missing") is None
+
+    handoff_row = (
+        "project-alpha",
+        "smelt",
+        "compile",
+        ["b1"],
+        "mission-1",
+        2,
+        "summary",
+        {"lead": "ceo"},
+        ["ref-1"],
+        now,
+    )
+    conn_hand, _ = _mock_conn_with_cursor(fetchone_val=handoff_row)
+    with patch("orchestrator.storage_projects.get_connection", side_effect=conn_hand):
+        h = storage_projects.upsert_project_handoff(
+            settings,
+            project_id="Alpha",
+            current_phase="smelt",
+            next_action="compile",
+            blockers=["b1"],
+            last_mission_id="mission-1",
+            plan_revision=2,
+            plan_summary="summary",
+            authority={"lead": "ceo"},
+            evidence_refs=["ref-1"],
+        )
+        assert h["current_phase"] == "smelt"
+        assert h["plan_revision"] == 2
+        h2 = storage_projects.fetch_project_handoff(settings, "Alpha")
+        assert h2 is not None
+        assert h2["last_mission_id"] == "mission-1"
+
+    wi_row = (
+        "wi-123",
+        "project-alpha",
+        "Build API",
+        "open",
+        "mission",
+        "mission-1",
+        1,
+        "ev-1",
+        {"k": "v"},
+        now,
+        now,
+    )
+    conn_wi, _ = _mock_conn_with_cursor(
+        fetchone_val=wi_row, fetchall_val=[wi_row], rowcount=3
+    )
+    with patch("orchestrator.storage_projects.get_connection", side_effect=conn_wi):
+        wi = storage_projects.upsert_work_item(
+            settings,
+            project_id="Alpha",
+            title="Build API",
+            work_item_id="wi-123",
+            status="open",
+            source="mission",
+            mission_id="mission-1",
+            sort_order=1,
+            evidence_ref="ev-1",
+            metadata={"k": "v"},
+        )
+        assert wi["work_item_id"] == "wi-123"
+
+        items_filtered = storage_projects.list_work_items(
+            settings, "Alpha", status="open", limit=10
+        )
+        assert len(items_filtered) == 1
+
+        items_all = storage_projects.list_work_items(
+            settings, "Alpha", status=None, limit=10
+        )
+        assert len(items_all) == 1
+
+        count = storage_projects.mark_work_items_done_for_mission(
+            settings,
+            project_id="Alpha",
+            mission_id="mission-1",
+            evidence_ref="ev-done",
+        )
+        assert count == 3
+
+        assert (
+            storage_projects.mark_work_items_done_for_mission(
+                settings,
+                project_id="Alpha",
+                mission_id="mission-1",
+                only_statuses=("invalid-status",),
+            )
+            == 0
+        )
+
+    with (
+        patch(
+            "orchestrator.storage_projects.fetch_project",
+            return_value={"project_id": "project-alpha"},
+        ),
+        patch(
+            "orchestrator.storage_projects.fetch_project_handoff",
+            return_value={"current_phase": "smelt"},
+        ),
+        patch(
+            "orchestrator.storage_projects.list_work_items",
+            return_value=[
+                {"work_item_id": "wi-1", "status": "open"},
+                {"work_item_id": "wi-2", "status": "done"},
+            ],
+        ),
+    ):
+        bus = storage_projects.load_project_bus(settings, "Alpha")
+        assert bus["project_id"] == "project-alpha"
+        assert len(bus["open_work_items"]) == 1
+
+    assert (
+        storage_projects.resolve_project_id_for_mission({"project_id": "Alpha"}, "m-1")
+        == "project-alpha"
+    )
