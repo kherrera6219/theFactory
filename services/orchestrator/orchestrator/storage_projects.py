@@ -66,6 +66,7 @@ def upsert_project(
 
 
 def fetch_project(settings: Settings, project_id: str) -> dict[str, Any] | None:
+    """Fetch a single project row by project_id, or None if not found."""
     pid = normalize_project_id(project_id)
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -148,6 +149,7 @@ def upsert_project_handoff(
 
 
 def fetch_project_handoff(settings: Settings, project_id: str) -> dict[str, Any] | None:
+    """Fetch the current handoff state for a project, or None if not initialized."""
     pid = normalize_project_id(project_id)
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -233,6 +235,7 @@ def list_work_items(
     status: str | None = None,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
+    """List work items for a project ordered by sort_order and creation time."""
     pid = normalize_project_id(project_id)
     limit = max(1, min(int(limit), 500))
     with get_connection() as conn:
@@ -315,6 +318,7 @@ def load_project_bus(settings: Settings, project_id: str) -> dict[str, Any]:
 
 
 def resolve_project_id_for_mission(metadata: dict[str, Any] | None, mission_id: str) -> str:
+    """Resolve the normalized project_id for a mission from metadata or mission_id."""
     return resolve_project_id(metadata, mission_id=mission_id)
 
 

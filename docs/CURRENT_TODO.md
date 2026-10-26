@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.09.27
-Last updated: 2026-09-27
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,12 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-10-26: full-repository audit & remediation pass.**
+Verified and fixed 10 cross-cutting findings across 22 files:
+- **Compose lifecycle & language parity:** `deploy/docker-compose.prod.yaml` and `deploy/docker-compose.staging.yaml` now explicitly set `MISSION_FLOW_V2_ENABLED: "true"` and `LANGGRAPH_ENABLED: "false"` (`UPG-71`); `pod-b-dedicated-mgr-worker` includes `go`; `pod-d-dedicated-mgr-worker` includes `haskell,ocaml`; `deploy/docker-compose.full-dedicated-agents.yaml` includes `PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}`; `.env.example` includes `mathematica` in `SUPPORTED_LANGUAGES`.
+- **Electron & release hardening:** `build-electron.mjs` supports `--electron-only` and `electron:dev` uses it so sandboxed preloads stay `esbuild`-bundled in dev mode; `.github/workflows/release.yml` gates `release` on `publish-images` (`needs: [staging-validation, publish-images]`).
+- **CI, documentation & coverage gates:** Fixed all 22 `scripts/validate_documentation.py` errors (7 doc headers + 4 public docstrings in `storage_projects.py`), wired `validate_documentation.py` into `.github/workflows/ci.yml`, added `shared_runtime` to `ruff check`, added 80% module coverage floors for `contract_oracle.py`, `equivalence_execution.py`, and `storage_projects.py`, and regenerated `docs/evidence/agent_model_inventory_latest.json` (`gemini-3.8-flash`).
 
 **NEW — 2026-09-27: enterprise-hardening pass — merged to `main` via [PR #538](https://github.com/kherrera6219/theFactory/pull/538).**
 Operator decisions this session: fix every finding from the 2026-09-27 status

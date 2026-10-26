@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-20T08:12:08.251128+00:00",
+  "generated_at": "2026-10-26T16:41:38.696850+00:00",
   "source": "services/orchestrator/orchestrator/agent_integrations.py",
   "summary": {
     "total_agents": 41,
@@ -12,7 +12,7 @@
   "models": [
     {
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
@@ -64,7 +64,7 @@
     {
       "agent_id": "AGENT-01-PM",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -75,7 +75,7 @@
     {
       "agent_id": "AGENT-02-CEO",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -86,7 +86,7 @@
     {
       "agent_id": "AGENT-03-BROKER",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -97,7 +97,7 @@
     {
       "agent_id": "AGENT-04-ACCOUNTANT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -108,7 +108,7 @@
     {
       "agent_id": "AGENT-05-SECURITY",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -119,7 +119,7 @@
     {
       "agent_id": "AGENT-06-IS",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -130,7 +130,7 @@
     {
       "agent_id": "AGENT-07-VC",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -141,7 +141,7 @@
     {
       "agent_id": "AGENT-08-COMPLIANCE",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -152,7 +152,7 @@
     {
       "agent_id": "AGENT-09-HW",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -163,7 +163,7 @@
     {
       "agent_id": "AGENT-10-TESTER",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -174,7 +174,7 @@
     {
       "agent_id": "AGENT-11-DEPLOY",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -185,7 +185,7 @@
     {
       "agent_id": "AGENT-12-PODA-MGR",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -196,7 +196,7 @@
     {
       "agent_id": "AGENT-13-PODA-AUDIT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -207,7 +207,7 @@
     {
       "agent_id": "AGENT-14-PYTHON",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -218,7 +218,7 @@
     {
       "agent_id": "AGENT-15-JAVASCRIPT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -229,7 +229,7 @@
     {
       "agent_id": "AGENT-16-RUBY",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -240,7 +240,7 @@
     {
       "agent_id": "AGENT-17-PHP",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -251,7 +251,7 @@
     {
       "agent_id": "AGENT-18-PODB-MGR",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -262,7 +262,7 @@
     {
       "agent_id": "AGENT-19-PODB-AUDIT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -273,7 +273,7 @@
     {
       "agent_id": "AGENT-20-C",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -284,7 +284,7 @@
     {
       "agent_id": "AGENT-21-CPP",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -295,7 +295,7 @@
     {
       "agent_id": "AGENT-22-RUST",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -306,7 +306,7 @@
     {
       "agent_id": "AGENT-23-ZIG",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -317,7 +317,7 @@
     {
       "agent_id": "AGENT-24-PODC-MGR",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -328,7 +328,7 @@
     {
       "agent_id": "AGENT-25-PODC-AUDIT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -339,7 +339,7 @@
     {
       "agent_id": "AGENT-26-JAVA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -350,7 +350,7 @@
     {
       "agent_id": "AGENT-27-CSHARP",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -361,7 +361,7 @@
     {
       "agent_id": "AGENT-28-SCALA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -372,7 +372,7 @@
     {
       "agent_id": "AGENT-29-KOTLIN",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -383,7 +383,7 @@
     {
       "agent_id": "AGENT-30-PODD-MGR",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -394,7 +394,7 @@
     {
       "agent_id": "AGENT-31-PODD-AUDIT",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -405,7 +405,7 @@
     {
       "agent_id": "AGENT-32-MATLAB",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -416,7 +416,7 @@
     {
       "agent_id": "AGENT-33-R",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -427,7 +427,7 @@
     {
       "agent_id": "AGENT-34-JULIA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -438,7 +438,7 @@
     {
       "agent_id": "AGENT-35-MATHEMATICA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -449,7 +449,7 @@
     {
       "agent_id": "AGENT-36-GO",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -460,7 +460,7 @@
     {
       "agent_id": "AGENT-37-HASKELL",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -471,7 +471,7 @@
     {
       "agent_id": "AGENT-38-OCAML",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -482,7 +482,7 @@
     {
       "agent_id": "AGENT-39-DEPABS",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -493,7 +493,7 @@
     {
       "agent_id": "AGENT-40-TESTDATA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -504,7 +504,7 @@
     {
       "agent_id": "AGENT-41-RQCA",
       "provider": "gemini",
-      "model": "gemini-3.7-flash",
+      "model": "gemini-3.8-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",

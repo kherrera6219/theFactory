@@ -13,6 +13,7 @@ import path from 'path';
 // hiding needed -- the standalone server supports all of them.
 const nextDir = path.join(process.cwd(), '.next');
 const standaloneDir = path.join(nextDir, 'standalone');
+const electronOnly = process.argv.includes('--electron-only');
 
 function run(cmd, args, env = {}) {
     console.log(`Running: ${cmd} ${args.join(' ')}`);
@@ -30,34 +31,36 @@ try {
     // 1. Sync tokens
     run('npm', ['run', 'tokens:sync']);
 
-    // 2. Clean previous build artifacts
-    if (fs.existsSync(nextDir)) {
-        console.log('Cleaning .next directory...');
-        fs.rmSync(nextDir, { recursive: true, force: true });
+    if (!electronOnly) {
+        // 2. Clean previous build artifacts
+        if (fs.existsSync(nextDir)) {
+            console.log('Cleaning .next directory...');
+            fs.rmSync(nextDir, { recursive: true, force: true });
+        }
+
+        // 3. Next build (standalone output via NEXT_BUILD_TARGET=electron)
+        run('npx', ['next', 'build'], { NEXT_BUILD_TARGET: 'electron' });
+
+        if (!fs.existsSync(standaloneDir)) {
+            console.error(
+                `CRITICAL: expected standalone output at ${standaloneDir} -- ` +
+                'check next.config.mjs sets output:"standalone" for NEXT_BUILD_TARGET=electron.',
+            );
+            process.exit(1);
+        }
+
+        // 4. Next's standalone output intentionally excludes static assets and
+        // public/ -- copy them in so the embedded server can serve them (this is
+        // Next.js's own documented standalone-deployment step, not specific to
+        // Electron).
+        console.log('Assembling standalone server bundle...');
+        fs.cpSync(path.join(process.cwd(), 'public'), path.join(standaloneDir, 'public'), {
+            recursive: true,
+        });
+        fs.cpSync(path.join(nextDir, 'static'), path.join(standaloneDir, '.next', 'static'), {
+            recursive: true,
+        });
     }
-
-    // 3. Next build (standalone output via NEXT_BUILD_TARGET=electron)
-    run('npx', ['next', 'build'], { NEXT_BUILD_TARGET: 'electron' });
-
-    if (!fs.existsSync(standaloneDir)) {
-        console.error(
-            `CRITICAL: expected standalone output at ${standaloneDir} -- ` +
-            'check next.config.mjs sets output:"standalone" for NEXT_BUILD_TARGET=electron.',
-        );
-        process.exit(1);
-    }
-
-    // 4. Next's standalone output intentionally excludes static assets and
-    // public/ -- copy them in so the embedded server can serve them (this is
-    // Next.js's own documented standalone-deployment step, not specific to
-    // Electron).
-    console.log('Assembling standalone server bundle...');
-    fs.cpSync(path.join(process.cwd(), 'public'), path.join(standaloneDir, 'public'), {
-        recursive: true,
-    });
-    fs.cpSync(path.join(nextDir, 'static'), path.join(standaloneDir, '.next', 'static'), {
-        recursive: true,
-    });
 
     // 5. Compile Electron TS
     run('npx', ['tsc', '--project', 'electron/tsconfig.json']);

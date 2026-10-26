@@ -77,7 +77,7 @@ monitor-down-wipe:
 	docker compose -f deploy/docker-compose.monitoring.yaml down -v
 
 validate:
-	ruff check services tests scripts
+	ruff check services shared_runtime tests scripts
 	python scripts/validate_documentation.py
 	python scripts/export_openapi.py --check
 	python scripts/validate_schemas.py
@@ -86,7 +86,7 @@ validate:
 	cd apps/mission-control && npm run lint && npm run test
 
 lint:
-	ruff check services tests scripts
+	ruff check services shared_runtime tests scripts
 
 test:
 	pytest --cov=services --cov=shared_runtime --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -110,7 +110,10 @@ test:
 		--module-threshold services/orchestrator/orchestrator/sow_estimator.py=80 \
 		--module-threshold services/orchestrator/orchestrator/file_tree.py=80 \
 		--module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
-		--module-threshold services/orchestrator/orchestrator/rqca_agent.py=80
+		--module-threshold services/orchestrator/orchestrator/rqca_agent.py=80 \
+		--module-threshold services/orchestrator/orchestrator/contract_oracle.py=80 \
+		--module-threshold services/orchestrator/orchestrator/equivalence_execution.py=80 \
+		--module-threshold services/orchestrator/orchestrator/storage_projects.py=80
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test

@@ -1,13 +1,22 @@
 # Current Handoff
 
-Document version: 2026.09.27
-Last updated: 2026-09-27
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
-## Latest session (2026-09-27) — read first
+## Latest session (2026-10-26) — read first
+
+**NEW — 2026-10-26: full-repository audit & remediation pass + desktop app rebuild/reinstall.**
+- Fixed prod/staging compose overlays (`MISSION_FLOW_V2_ENABLED: "true"`, `LANGGRAPH_ENABLED: "false"`), dedicated pod manager language lists (`go`, `haskell`, `ocaml`), full-dedicated `PYTHON_AST_EXTRACTOR_ENABLED`, and `.env.example` `mathematica` coverage.
+- Fixed `electron:dev` preload bundling (`build-electron.mjs --electron-only`) and `.github/workflows/release.yml` job ordering (`needs: [staging-validation, publish-images]`).
+- Fixed all 22 `scripts/validate_documentation.py` errors, wired `validate_documentation.py` and `shared_runtime` linting into CI, added 80% per-module coverage floors for `contract_oracle.py`, `equivalence_execution.py`, and `storage_projects.py`, and regenerated `docs/evidence/agent_model_inventory_latest.json` on `gemini-3.8-flash`.
+
+---
+
+## Previous session (2026-09-27)
 
 **NEW — 2026-09-27: enterprise-hardening pass — merged to `main` via [PR #538](https://github.com/kherrera6219/theFactory/pull/538).**
 Operator decisions this session: fix every finding from the 2026-09-27 status

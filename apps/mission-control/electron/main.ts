@@ -51,7 +51,7 @@ const startHidden = process.argv.includes("--hidden");
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
 const GATEWAY_READYZ_URL =
   process.env.MISSION_CONTROL_GATEWAY_READYZ_URL?.trim() || "http://localhost:8100/readyz";
-// A first start downloads ~14 images; give services this long to turn healthy
+// A first start downloads ~15 images; give services this long to turn healthy
 // once they are running before offering the manual retry/quit dialog.
 const BACKEND_STARTUP_TIMEOUT_MS = 20 * 60 * 1000;
 const HEALTH_POLL_MS = 15_000;

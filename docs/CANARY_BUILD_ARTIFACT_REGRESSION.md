@@ -1,6 +1,10 @@
 # Canary regression: `MISSION_BUILD_ARTIFACT_FAILED`
 
-**Status:** root cause identified; **option 1 (scoped down) implemented**.
+Document version: 2026.08.26
+Last updated: 2026-08-26
+Status: Root cause identified; option 1 (scoped down) implemented
+Audience: Maintainers, operators, and AI coding agents
+
 **Found:** 2026-08-26, from Weekly Qualification run `32707536901` (2026-08-24).
 
 ## Symptom

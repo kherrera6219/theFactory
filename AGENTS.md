@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-09-27. Enterprise-hardening pass: MinIO -> SeaweedFS (`object-store`), WQ7 contract-oracle equivalence, vendored offline test runners for every language incl. C#, sandbox infrastructure errors never FAIL an artifact. See `docs/CURRENT_TODO.md` (2026-09-27).
+> Last validated: 2026-10-26. Enterprise-hardening + full-repo audit remediation pass: MinIO -> SeaweedFS (`object-store`), WQ7 contract-oracle equivalence, vendored offline test runners for every language incl. C#, prod/staging compose lifecycle alignment (`LANGGRAPH_ENABLED=false`), dedicated-pod language/AST parity, `electron:dev` preload bundling (`--electron-only`), `release.yml` image-before-installer dependency, and CI/doc/coverage gates restored to green. See `docs/CURRENT_TODO.md` (2026-10-26).
 
 ---
 

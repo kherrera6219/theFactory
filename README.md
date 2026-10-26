@@ -41,7 +41,7 @@ Smelt-cycle phase stepper showing every state it passed through.*
 >
 > Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
 >
-> **Not production-ready.** PORT-through-SOW, fail-QC-blocks-COMPLETE, failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are recorded ([`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json), [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json)). Sandbox `docker.sock` lives on `sandbox-runner`. Still open: behavioural-equivalence measurement across ≥20 missions before it may gate (WQ13), the Electron installer, and the release package. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
+> **Not production-ready.** PORT-through-SOW, fail-QC-blocks-COMPLETE, failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are recorded ([`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json), [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json)). Sandbox `docker.sock` lives on `sandbox-runner`. Still open: behavioural-equivalence measurement across ≥20 missions before it may gate (WQ13) and the first public `v*` release with public GHCR images. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 
 
 ---

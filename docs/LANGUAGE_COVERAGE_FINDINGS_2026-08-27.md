@@ -1,5 +1,10 @@
 # Language coverage run, 2026-08-27: findings
 
+Document version: 2026.08.27
+Last updated: 2026-08-27
+Status: Historical audit record (remediated by WQ7/WQ12 in 2026-09-27 pass)
+Audience: Maintainers, operators, and AI coding agents
+
 20 `BUILD_NEW` / `SPRINT` / `PLAN_ONLY` missions, one per supported target
 language, submitted against the local full-dedicated stack.
 Batch tag: `test_batch=lang-coverage-2026-08-27`.

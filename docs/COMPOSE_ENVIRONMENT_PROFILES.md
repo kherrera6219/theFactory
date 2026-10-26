@@ -57,9 +57,9 @@ Define the supported compose overlay set for local development, staging qualific
   - Neo4j, Milvus, and object storage all on (base compose defaults)
 - Staging:
   - `AUTH_MODE=hybrid`
-  - LangGraph enabled with in-memory checkpointing
+  - Mission Flow v2 enabled (`LANGGRAPH_ENABLED=false`)
   - Neo4j, Milvus, and object storage all on
 - Prod:
   - `AUTH_MODE=oidc`
-  - LangGraph enabled with Postgres checkpointing
+  - Mission Flow v2 enabled (`LANGGRAPH_ENABLED=false`)
   - Neo4j, Milvus, and object storage all on

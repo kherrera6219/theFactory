@@ -80,8 +80,11 @@ jobs:
       - name: Production Audit (Checklist Baseline)
         run: python scripts/production_review_audit.py
 
+      - name: Validate documentation and public docstrings
+        run: python scripts/validate_documentation.py
+
       - name: Lint
-        run: ruff check services tests scripts
+        run: ruff check services shared_runtime tests scripts
 
       - name: Mission Control Lint
         run: npm run lint
@@ -139,7 +142,10 @@ jobs:
             --module-threshold services/orchestrator/orchestrator/sow_estimator.py=80 \
             --module-threshold services/orchestrator/orchestrator/file_tree.py=80 \
             --module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
-            --module-threshold services/orchestrator/orchestrator/rqca_agent.py=80
+            --module-threshold services/orchestrator/orchestrator/rqca_agent.py=80 \
+            --module-threshold services/orchestrator/orchestrator/contract_oracle.py=80 \
+            --module-threshold services/orchestrator/orchestrator/equivalence_execution.py=80 \
+            --module-threshold services/orchestrator/orchestrator/storage_projects.py=80
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

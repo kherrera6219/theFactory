@@ -1041,7 +1041,7 @@ services:
       POD_WORKER_GROUP: dedicated-workers-podB
       POD_WORKER_NAME: dedicated-pod-b-mgr-01
       POD_NAME: podB
-      SUPPORTED_LANGUAGES: c,cpp,rust,zig
+      SUPPORTED_LANGUAGES: c,cpp,rust,zig,go
       JS_AST_EXTRACTOR_ENABLED: ${JS_AST_EXTRACTOR_ENABLED:-true}
       JAVA_AST_EXTRACTOR_ENABLED: ${JAVA_AST_EXTRACTOR_ENABLED:-true}
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}
@@ -1145,7 +1145,7 @@ services:
       POD_WORKER_GROUP: dedicated-workers-podD
       POD_WORKER_NAME: dedicated-pod-d-mgr-01
       POD_NAME: podD
-      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica
+      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica,haskell,ocaml
       JS_AST_EXTRACTOR_ENABLED: ${JS_AST_EXTRACTOR_ENABLED:-true}
       JAVA_AST_EXTRACTOR_ENABLED: ${JAVA_AST_EXTRACTOR_ENABLED:-true}
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}

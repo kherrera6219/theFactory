@@ -1,5 +1,10 @@
 # Stuck missions: what is actually wrong and what to do
 
+Document version: 2026.08.27
+Last updated: 2026-08-27
+Status: Diagnostic plan (Group B silence fixed in 1b40edc; Group A action pending)
+Audience: Maintainers and operators
+
 Plan only. Nothing in here has been executed against the running stack.
 
 As of 2026-08-27 the local stack shows the `missions-completion-blocked` alert

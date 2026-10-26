@@ -6,7 +6,8 @@ services:
       OIDC_ENFORCE_OPERATOR_ROUTES: "true"
   orchestrator:
     environment:
-      LANGGRAPH_ENABLED: "true"
+      MISSION_FLOW_V2_ENABLED: "true"
+      LANGGRAPH_ENABLED: "false"
       LANGGRAPH_CHECKPOINTER: memory
       LANGGRAPH_FAIL_OPEN: "true"
       OBJECT_STORAGE_ENABLED: "true"

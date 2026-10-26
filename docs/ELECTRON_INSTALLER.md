@@ -1,6 +1,7 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.09.27
+Document version: 2026.09.28
+Last updated: 2026-09-28
 Status: Implemented and validated end to end on Windows (WQ #9); first public release pending
 Audience: Maintainers, release managers, operators
 
@@ -39,7 +40,7 @@ A status window shows five steps with a progress bar and a live log:
 |---|---|
 | Check Docker Desktop | If missing or stopped: a dialog explains, offers Docker's download page, *Retry*, or *Quit*. |
 | Prepare configuration | First run only: the AI-provider key wizard, then a private `backend.env` with freshly generated secrets. Every run: TLS certificates, the image tag, and the sandbox workspace path are refreshed. |
-| Download factory images | Each image is pulled if absent -- *Downloading image 4 of 14* -- then the sandbox runners are tagged with the names runtime QC uses. |
+| Download factory images | Each image is pulled if absent -- *Downloading image 4 of 15* -- then the sandbox runners are tagged with the names runtime QC uses. |
 | Start services | `docker compose up -d --no-build` under the project name **`thefactory-app`**. |
 | Wait for healthy | Polls the gateway's `/readyz`. |
 
@@ -95,7 +96,7 @@ Three properties are guarded by tests:
 ## Releasing
 
 1. Tag `vX.Y.Z` on `main`. `release.yml` (behind the `staging` and
-   `production` environments) publishes 14 images as
+   `production` environments) publishes 16 images (15 pulled by the desktop app plus `agent-runtime`) as
    `ghcr.io/kherrera6219/thefactory-*:vX.Y.Z` and `:latest`, stamps the app
    version to `X.Y.Z`, builds the installer and attaches it to the GitHub
    release.

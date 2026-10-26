@@ -82,10 +82,11 @@ services:
       # shared-identity fallback. The orchestrator logs a SECURITY warning at boot
       # if this is left as "shared" while ENVIRONMENT=production.
       AGENT_SERVICE_KEY_MODE: strict
-      # --- LangGraph production settings ---
-      LANGGRAPH_ENABLED: "true"
+      # --- Lifecycle engine settings (Mission Flow v2 is canonical; LangGraph is superseded) ---
+      MISSION_FLOW_V2_ENABLED: "true"
+      LANGGRAPH_ENABLED: "false"
       LANGGRAPH_CHECKPOINTER: postgres
-      LANGGRAPH_CHECKPOINTER_SETUP: "true"
+      LANGGRAPH_CHECKPOINTER_SETUP: "false"
       LANGGRAPH_FAIL_OPEN: "false"
       # --- storage ---
       OBJECT_STORAGE_ENABLED: "true"

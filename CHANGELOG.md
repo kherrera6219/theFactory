@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Full-repository audit and remediation pass (2026-10-26)
+
+#### Fixed
+- `deploy/docker-compose.prod.yaml` and `deploy/docker-compose.staging.yaml` set `MISSION_FLOW_V2_ENABLED: "true"` and `LANGGRAPH_ENABLED: "false"` (plus `LANGGRAPH_CHECKPOINTER_SETUP: "false"` in prod) so production and staging overlays match the canonical `MissionFlowV2Engine` decision (`UPG-71`).
+- `deploy/docker-compose.yaml` dedicated manager workers now match the shared pod workers' language lists (`go` added to `pod-b-dedicated-mgr-worker`; `haskell,ocaml` added to `pod-d-dedicated-mgr-worker`), and `deploy/docker-compose.full-dedicated-agents.yaml` now sets `PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}` in `x-dedicated-pod-worker-env`.
+- `apps/mission-control/scripts/build-electron.mjs` supports `--electron-only` and `apps/mission-control/package.json` wires `electron:dev` through it so sandboxed preload scripts stay `esbuild`-bundled during local Electron development.
+- `.github/workflows/release.yml` orders `release` after `publish-images` (`needs: [staging-validation, publish-images]`) so the Windows installer and GitHub Release never publish before all 16 GHCR images exist.
+- Restored `scripts/validate_documentation.py` to 0 errors (added required header metadata to 7 docs and public docstrings to 4 functions in `services/orchestrator/orchestrator/storage_projects.py`) and wired `validate_documentation.py`, `ruff check ... shared_runtime`, and 80% per-module coverage floors for `contract_oracle.py`, `equivalence_execution.py`, and `storage_projects.py` into `.github/workflows/ci.yml` and `Makefile`.
+- Added `mathematica` to `SUPPORTED_LANGUAGES` in `.env.example`, removed duplicate header comments, regenerated `docs/evidence/agent_model_inventory_latest.json` on `gemini-3.8-flash`, and updated image counts (`15` pulled by desktop app, `16` published by `release.yml`) across `README.md`, `docs/ELECTRON_INSTALLER.md`, and `apps/mission-control/electron/main.ts`.
+
 ### A working game, blocked — and the model nobody was running (2026-08-20)
 
 Review of mission-128c77fd ("Mega Bonk Clone"), which produced a genuinely

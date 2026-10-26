@@ -1,6 +1,7 @@
 # Object store: MinIO → SeaweedFS
 
 Document version: 2026.09.27
+Last updated: 2026-09-27
 Status: Implemented (compose default); local data migration is an operator step
 Audience: Maintainers and operators
 

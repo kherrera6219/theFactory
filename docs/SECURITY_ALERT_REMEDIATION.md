@@ -1,5 +1,10 @@
 # Security alert remediation (2026-08-21)
 
+Document version: 2026.08.21
+Last updated: 2026-08-21
+Status: Implemented
+Audience: Maintainers and security reviewers
+
 Project continuity bus is on `main` (`ce9e042`). This follow-up hardens the
 open GitHub code-scanning findings that were still live after that merge.
 

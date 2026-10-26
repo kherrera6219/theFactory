@@ -1,6 +1,7 @@
 # Project Continuity Bus
 
 Document version: 2026.08.21
+Last updated: 2026-08-21
 Status: Implemented (foundation)
 Audience: Maintainers and AI coding agents
 
