@@ -3,16 +3,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from thefactory_common.taxonomy import LANGUAGE_TO_POD_MAP, ParadigmPod
+
 PM_AGENT_ID = "AGENT-01-PM"
 CEO_AGENT_ID = "AGENT-02-CEO"
 DEFAULT_POD_MANAGER_AGENT_ID = "AGENT-12-PODA-MGR"
 DEFAULT_SPECIALIST_AGENT_ID = "AGENT-14-PYTHON"
 ROUTING_VERSION = "v1.1"
 
-_POD_A_LANGUAGES = {"python", "javascript", "typescript", "ruby", "php"}
-_POD_B_LANGUAGES = {"go", "rust", "c", "cpp", "zig"}
-_POD_C_LANGUAGES = {"java", "csharp", "kotlin", "scala"}
-_POD_D_LANGUAGES = {"matlab", "r", "julia", "mathematica", "haskell", "ocaml"}
+_POD_A_LANGUAGES = {lang.value for lang, pod in LANGUAGE_TO_POD_MAP.items() if pod == ParadigmPod.POD_A}
+_POD_B_LANGUAGES = {lang.value for lang, pod in LANGUAGE_TO_POD_MAP.items() if pod == ParadigmPod.POD_B}
+_POD_C_LANGUAGES = {lang.value for lang, pod in LANGUAGE_TO_POD_MAP.items() if pod == ParadigmPod.POD_C}
+_POD_D_LANGUAGES = {lang.value for lang, pod in LANGUAGE_TO_POD_MAP.items() if pod == ParadigmPod.POD_D}
 
 POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
     **{language: "AGENT-12-PODA-MGR" for language in _POD_A_LANGUAGES},
