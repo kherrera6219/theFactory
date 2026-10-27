@@ -42,7 +42,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-10-26) | Maintainers, AI coding agents |
 | [reviews/theFactory_Deep_Code_Review_2026-08-18.md](reviews/theFactory_Deep_Code_Review_2026-08-18.md) | Pass-2 deep review at `c1b044f`. N1–N4 actioned in `af88a79`. Electron deferred. | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
-| [PM_SOW_FACTORY_PLAN_2026-08-17.md](PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |
+| [PM_SOW_FACTORY_PLAN_2026-08-17.md](archive/plans/PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |
 | [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
 | [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
 | [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |

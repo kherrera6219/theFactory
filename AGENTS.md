@@ -198,35 +198,6 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 - `deploy/`: Docker Compose stacks and monitoring config.
 - `docs/`: canonical plans, audits, runbooks, and roadmap status.
 
-## Runtime Model
-
-### Topology modes
-
-| Mode | Description | Compose profile |
-|---|---|---|
-| `condensed` | Shared pod-worker containers + synthesized heartbeats for non-pod agents (default) | _(default)_ |
-| `dedicated` | One container per pod manager | `dedicated-agents` |
-| `full-dedicated` | One container per language specialist | `full-dedicated-agents` |
-
-Set via `TOPOLOGY_MODE` env var (default: `condensed`). The `runtime_class` field on each `AgentDefinition` reflects this: `shared_worker` for specialist/pod_manager/pod_audit categories, `synthesized_heartbeat` for interface/executive/support.
-
-### Lifecycle engines
-
-| Engine | Flag | Notes |
-|---|---|---|
-| `MissionFlowV2Engine` | `MISSION_FLOW_V2_ENABLED=true` (default) | 11-phase granular state machine |
-| `LangGraphEngine` | `LANGGRAPH_ENABLED=true` + v2 disabled | EXPERIMENTAL — falls back to legacy if dep missing |
-| `LegacyV1Engine` | both disabled | COMPATIBILITY SHIM — coarse 3-transition v1.1 |
-
-Factory: `get_lifecycle_engine(settings)` in `orchestrator/lifecycle_interface.py`.
-
-### Extraction engine
-
-The pod-worker extracts concepts from source code using regex by default. Three languages also have full AST-backed extractors (all production-ready, feature-flagged):
-- **Python** — `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module; zero false positives for structural fields; regex still runs for concept detection; falls back on syntax errors. **Default: true in docker-compose** (`${PYTHON_AST_EXTRACTOR_ENABLED:-true}`) across all pod workers; pod-worker Python code fallback is `false` if env var is absent outside compose.
-- **JavaScript/TypeScript** — `JS_AST_EXTRACTOR_ENABLED=true`; uses `esprima`; strips TS syntax before parsing; preserves regex fallback. *(implemented 2026-05-17)*
-- **Java** — `JAVA_AST_EXTRACTOR_ENABLED=true`; uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex fallback. *(implemented 2026-05-17)*
-
 ## Build, Test, and Development Commands
 - `make up` / `make down`: start/stop the full local Docker stack.
 - `make tls-certs`: generate local PostgreSQL and Redis TLS certs before first stack startup.
@@ -271,14 +242,4 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 - Use Mission Control vault endpoints for local key handling (`/api/vault`, `/api/vault/test`).
 - Avoid committing generated artifacts unless intentionally required (e.g. `coverage.xml`, `tsconfig.tsbuildinfo`).
 
-## High-sensitivity files
-
-| File | Risk | Notes |
-|---|---|---|
-| `services/orchestrator/orchestrator/storage_*.py` | High | Storage split done (2026-05-17) — `storage.py` is now a 135-line re-export façade; 6 domain modules hold the logic. High blast radius: changes to any module affect all services. |
-| `services/orchestrator/orchestrator/mission_flow_v2/` | High | A package (`base`, `lifecycle`, `transitions`, `phases_*`), not one file — primary runtime path. |
-| `services/orchestrator/orchestrator/main.py` | High | ~926 lines. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge_lake_refresh_loop added (Sprint 2 item complete). |
-| `services/orchestrator/orchestrator/runtime.py` | Medium | Delegates engine selection to `lifecycle_interface.py` via `get_lifecycle_engine()` factory. |
-| `services/orchestrator/orchestrator/agent_registry.py` | Medium | Source of truth for all 41 agent definitions |
-
-See `docs/codex/DEFINITION_OF_DONE.md` and `docs/codex/REVIEW_CHECKLIST.md` for change gates.
+See `docs/codex/DEFINITION_OF_DONE.md` and `docs/codex/REVIEW_CHECKLIST.md` for change gates (file sensitivity matrix in §8 above).

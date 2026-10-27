@@ -55,6 +55,8 @@ from .config import (
     GEMINI_BASE_URL,
     GEMINI_TIMEOUT_SECONDS,
     LLM_SAFETY_BLOCK_ENABLED,
+    OLLAMA_BASE_URL,
+    OLLAMA_TIMEOUT_SECONDS,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_TIMEOUT_SECONDS,
@@ -136,6 +138,7 @@ from .prompts import (
 from .providers import (
     _call_anthropic,
     _call_gemini,
+    _call_ollama,
     _call_openai,
     _call_provider,
     _call_with_agent_system,

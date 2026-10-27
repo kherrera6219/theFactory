@@ -1065,9 +1065,14 @@ def test_call_provider_routes_to_expected_backend(monkeypatch) -> None:
         calls.append(("gemini", model))
         return {"ok": True}
 
+    async def _ollama(model: str, prompt: str, *, call_context: str):
+        calls.append(("ollama", model))
+        return {"ok": True}
+
     monkeypatch.setattr(llm_delegation, "_call_openai", _openai)
     monkeypatch.setattr(llm_delegation, "_call_anthropic", _anthropic)
     monkeypatch.setattr(llm_delegation, "_call_gemini", _gemini)
+    monkeypatch.setattr(llm_delegation, "_call_ollama", _ollama)
 
     assert asyncio.run(
         llm_delegation._call_provider(
@@ -1084,7 +1089,34 @@ def test_call_provider_routes_to_expected_backend(monkeypatch) -> None:
             provider="openai", model="gpt", prompt="prompt", call_context="ctx"
         )
     ) == {"ok": True}
-    assert calls == [("anthropic", "claude"), ("gemini", "gemini-pro"), ("openai", "gpt")]
+    assert asyncio.run(
+        llm_delegation._call_provider(
+            provider="ollama", model="deepseek-coder", prompt="prompt", call_context="ctx"
+        )
+    ) == {"ok": True}
+    assert asyncio.run(
+        llm_delegation._call_provider(
+            provider="vllm", model="qwen2.5-coder", prompt="prompt", call_context="ctx"
+        )
+    ) == {"ok": True}
+    assert calls == [
+        ("anthropic", "claude"),
+        ("gemini", "gemini-pro"),
+        ("openai", "gpt"),
+        ("ollama", "deepseek-coder"),
+        ("ollama", "qwen2.5-coder"),
+    ]
+
+
+def test_call_provider_rejects_unknown_provider() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="Unsupported LLM provider: bogus-provider"):
+        asyncio.run(
+            llm_delegation._call_provider(
+                provider="bogus-provider", model="none", prompt="prompt", call_context="ctx"
+            )
+        )
 
 
 def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:

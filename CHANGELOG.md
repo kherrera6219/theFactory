@@ -6,6 +6,25 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Hardening and Architecture Modernization (2026-10-27)
+
+#### Security & Sandbox Isolation
+- Hardened `services/orchestrator/orchestrator/sandbox_exec.py` with non-root UID enforcement (`--user=65534:65534`), process limit (`--pids-limit=256`), and strict file/process ulimits (`--ulimit nofile=1024:2048`, `--ulimit nproc=512:512`).
+- Integrated `tecnativa/docker-socket-proxy:edge` in `deploy/docker-compose.yaml` to mediate sandbox runner access without mounting `/var/run/docker.sock` directly or granting root group membership.
+- Gated `sandbox-runner` against missing or placeholder `INTERNAL_SERVICE_API_KEY` configurations.
+- Upgraded Trivy container scanning in `.github/workflows/ci.yml` to blocking `exit-code: 1` with managed `.trivyignore`.
+
+#### Architecture, Taxonomy & Monolith Decomposition
+- Centralized language and paradigm pod domain models into `shared_runtime/thefactory_common/taxonomy.py` with strict static typing.
+- Decomposed monolithic `api-gateway/main.py` into modular, typed routers (`system.py`, `operations.py`, `missions.py`).
+- Extracted `pod_worker/routes.py` from `pod_worker/main.py`.
+- Decomposed Mission Control `chat/page.tsx` into modular domain subcomponents (`ChatConversationList`, `ChatInputArea`, `ChatClarificationPanel`, `ChatSowSection`, `ChatSidebar`) and dedicated helper modules.
+
+#### Local LLM & Egress Protection
+- Added first-class local LLM provider support (`OllamaProvider` and vLLM `/v1/chat/completions`) in `services/orchestrator/orchestrator/llm_delegation/providers.py`.
+- Replaced silent fallback to external providers with explicit fail-closed `ValueError` rejection on unrecognized LLM providers.
+- Added pytest root-pollution session guard in `conftest.py` preventing test artifacts from leaking to repository root.
+
 ### Full-repository audit and remediation pass (2026-10-26)
 
 #### Fixed

@@ -22,6 +22,8 @@ from .config import (
     GEMINI_BASE_URL,
     GEMINI_TIMEOUT_SECONDS,
     LLM_SAFETY_BLOCK_ENABLED,
+    OLLAMA_BASE_URL,
+    OLLAMA_TIMEOUT_SECONDS,
     OPENAI_BASE_URL,
     OPENAI_TIMEOUT_SECONDS,
     PROMPT_GUARD_BLOCK_ENABLED,
@@ -296,6 +298,84 @@ async def _call_openai(
     return parsed
 
 
+async def _call_ollama(
+    model: str,
+    prompt: str,
+    *,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> dict[str, Any] | None:
+    """Call a local Ollama or OpenAI-compatible local model instance."""
+    messages: list[dict[str, Any]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": False,
+    }
+    pkg = _pkg()
+    # Try Ollama native /api/chat first
+    response = await pkg._post_with_retry(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        json_payload=payload,
+        headers={"Content-Type": "application/json"},
+        timeout=OLLAMA_TIMEOUT_SECONDS,
+        call_context=f"{call_context} ollama",
+    )
+    raw_text = ""
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    if response is not None and response.status_code == 200:
+        try:
+            body = response.json()
+            raw_text = body.get("message", {}).get("content", "")
+            prompt_tokens = int(body.get("prompt_eval_count", 0) or 0)
+            completion_tokens = int(body.get("eval_count", 0) or 0)
+        except ValueError:
+            return None
+    else:
+        # Fallback to OpenAI-compatible /v1/chat/completions (e.g. vLLM or Ollama v1 route)
+        response_v1 = await pkg._post_with_retry(
+            f"{OLLAMA_BASE_URL}/v1/chat/completions",
+            json_payload=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=OLLAMA_TIMEOUT_SECONDS,
+            call_context=f"{call_context} ollama-v1",
+        )
+        if response_v1 is None or response_v1.status_code >= 400:
+            LOGGER.warning(
+                "%s ollama failed status=%s",
+                call_context,
+                response_v1.status_code if response_v1 else "timeout",
+            )
+            return None
+        try:
+            body = response_v1.json()
+            choices = body.get("choices") or []
+            if choices and isinstance(choices, list):
+                raw_text = choices[0].get("message", {}).get("content", "")
+            usage = body.get("usage") or {}
+            prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
+            completion_tokens = int(usage.get("completion_tokens", 0) or 0)
+        except ValueError:
+            return None
+
+    parsed = _extract_decision_payload(raw_text)
+    if isinstance(parsed, dict):
+        parsed["__input_tokens__"] = prompt_tokens
+        parsed["__output_tokens__"] = completion_tokens
+        return parsed
+    return {
+        "raw_response": raw_text,
+        "__input_tokens__": prompt_tokens,
+        "__output_tokens__": completion_tokens,
+    }
+
+
 async def _call_anthropic(
     model: str,
     prompt: str,
@@ -523,8 +603,12 @@ async def _call_provider(
             result = await _call_backend(pkg._call_anthropic)
         elif normalized == "gemini":
             result = await _call_backend(pkg._call_gemini)
-        else:
+        elif normalized in {"openai", "chatgpt"}:
             result = await _call_backend(pkg._call_openai)
+        elif normalized in {"ollama", "vllm", "local"}:
+            result = await _call_backend(pkg._call_ollama)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
         return result
     finally:
         elapsed_seconds = time.perf_counter() - started

@@ -6,6 +6,7 @@ import importlib
 import inspect
 import os
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 from types import SimpleNamespace
@@ -461,10 +462,11 @@ def _make_app_state() -> MagicMock:
     return app
 
 
-def _make_settings() -> MagicMock:
+def _make_settings(tmp_path: Path | None = None) -> MagicMock:
     settings = MagicMock()
     settings.mission_flow_v2_enabled = True
     settings.transition_step_seconds = 0.0
+    settings.delivery_dir = str(tmp_path) if tmp_path else tempfile.gettempdir()
     return settings
 
 

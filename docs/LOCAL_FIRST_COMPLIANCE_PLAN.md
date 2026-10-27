@@ -213,3 +213,31 @@ external datastores. Re-platform would replace these with embedded/local encrypt
 | Atomic writes | `shared_runtime/atomic_io.py` (`atomic_write_bytes`/`_text`/`_json`) | ✅ done (A4) |
 | DB transactions | `conn.transaction()` in `transition_mission_state`, `_locked_mission_metadata_update`, `upsert_agent_heartbeat` | ✅ done (A7) |
 | Electron crash handling | `installCrashHandlers()` in `electron/diagnostics.ts`, wired in `main.ts` | ✅ done (A8) |
+| Air-gapped / Local LLM execution | `OllamaProvider` + vLLM adapter, fails closed on unknown providers | ✅ done (Phase 5) |
+
+---
+
+## Fully Local & Air-Gapped Model Execution (Ollama / vLLM)
+
+As of version 2026.10, theFactory supports air-gapped, zero-cloud-egress local LLM execution via Ollama and vLLM without external API keys or cloud dependencies:
+
+### 1. Environment Configuration
+Set the following environment variables in your deployment `.env` or system environment:
+```bash
+# Set primary provider to ollama or vllm
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TIMEOUT_SECONDS=60
+
+# Optional fallback provider
+LLM_FALLBACK_PROVIDER=ollama
+```
+
+### 2. Supported Local Models
+- **DeepSeek Coder**: `deepseek-coder:6.7b` or `deepseek-coder-v2` (high-accuracy specialist code generation)
+- **Qwen 2.5 Coder**: `qwen2.5-coder:7b` / `qwen2.5-coder:32b` (comprehensive multi-language syntax and Refined-IR synthesis)
+- **Llama 3.3**: `llama3.3:70b` (for CEO/PM intake reasoning and SOW structuring)
+
+### 3. Fail-Closed Egress Protection
+Unlike legacy versions that silently defaulted to OpenAI when an unknown provider was given, the transport layer now explicitly raises `ValueError("Unsupported LLM provider: <provider>")`. When running in air-gapped mode with `LLM_PROVIDER=ollama`, unconfigured external requests fail immediately rather than leaking prompts to external clouds.
+

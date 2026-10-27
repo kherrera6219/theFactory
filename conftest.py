@@ -40,3 +40,37 @@ for _helper_root in _TEST_HELPER_ROOTS:
     if _helper_root.is_dir() and str(_helper_root) not in sys.path:
         sys.path.insert(0, str(_helper_root))
 
+_INITIAL_ROOT_ENTRIES: set[str] = set()
+
+
+def pytest_sessionstart(session) -> None:
+    """Record root entries before test session begins to guard against test leakage."""
+    global _INITIAL_ROOT_ENTRIES
+    try:
+        _INITIAL_ROOT_ENTRIES = {p.name for p in _REPO_ROOT.iterdir()}
+    except Exception:
+        _INITIAL_ROOT_ENTRIES = set()
+
+
+def pytest_sessionfinish(session, exitstatus: int) -> None:
+    """Assert that no test leaked untracked artifacts directly into repository root."""
+    try:
+        current_entries = {p.name for p in _REPO_ROOT.iterdir()}
+    except Exception:
+        return
+    new_entries = current_entries - _INITIAL_ROOT_ENTRIES
+    ignored = {
+        ".pytest_cache",
+        ".coverage",
+        "coverage.xml",
+        "htmlcov",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".ruff-cache",
+    }
+    leaked = new_entries - ignored
+    if leaked:
+        raise RuntimeError(
+            f"Test root pollution detected: tests created files/directories directly in repository root: {sorted(leaked)}"
+        )
+
