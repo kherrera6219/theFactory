@@ -13,6 +13,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from thefactory_common.taxonomy import ALL_SUPPORTED_LANGUAGES
+
 LOGGER = logging.getLogger(__name__)
 
 # Static documentation seed for all 20 specialist language keys (4 pods).
@@ -262,7 +264,7 @@ _BOOTSTRAP_DOCS: dict[str, list[tuple[str, str]]] = {
 }
 
 # Languages with bootstrap docs available
-SUPPORTED_LANGUAGES: frozenset[str] = frozenset(_BOOTSTRAP_DOCS)
+SUPPORTED_LANGUAGES: frozenset[str] = ALL_SUPPORTED_LANGUAGES
 
 # Sentinel mission_id used for global knowledge lake entries (not per-mission)
 _KNOWLEDGE_LAKE_ID = "__knowledge_lake__"
