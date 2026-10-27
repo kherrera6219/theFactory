@@ -13,6 +13,16 @@ as current work.
 
 ## Current Status
 
+**NEW � 2026-10-27: Master 10/10 Enterprise Upgrade Plan Authored.**
+Following an in-depth IT Enterprise Architecture & Security Audit (composite score 6.8/10), the canonical master roadmap to achieve a **10/10 Enterprise Production Masterpiece** was created at [docs/TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md](TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md).
+It provides 5 sequential copy-paste prompt phases with rigorous verification gates:
+- **Phase 1:** Security & Sandbox Hardening (Docker socket proxy, UID 65534 non-root, PID limits, CI CVE blocking).
+- **Phase 2:** Monolith Decomposition (Modularize 3,000-line API Gateway & 2,200-line Pod Worker into APIRouters).
+- **Phase 3:** Taxonomy Centralization & Strict Typing (`thefactory-common` enum for 20 languages, `mypy` enforcement, zero `Any`).
+- **Phase 4:** Frontend State Architecture (Decompose 1,750-line Chat page into components, integrate TanStack Query).
+- **Phase 5:** Local LLM Support, Hygiene & Documentation (Ollama/vLLM adapter, root cleanup, README consolidation).
+
+
 **NEW — 2026-10-26: Open-source transition to full MIT License.**
 Repository transitioned to 100% permissive open source under the MIT License across root `LICENSE`, `pyproject.toml`, `apps/mission-control/package.json`, `docs/LICENSE_STRATEGY.md`, `CLA.md`, `CONTRIBUTING.md`, documentation, and `README.md`.
 
