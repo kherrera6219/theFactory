@@ -3,10 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { OperatorAuthErrorAction } from "../../components/operator-auth-error-action";
 import { PageHeader } from "../../components/page-header";
-import { Panel } from "../../components/panel";
-import { EmptyState, SystemMessage } from "../../components/status";
 import {
   createApprovedSow,
   createBuilderPreview,
@@ -19,7 +16,6 @@ import {
   importRepoZip,
   indexRepoImport,
   listMissionBuildArtifacts,
-  type MissionOutputFolderStatus,
 } from "../../lib/api-client";
 import {
   REPO_HANDOFF_STORAGE_KEY,
@@ -30,7 +26,6 @@ import {
   type OfficialFactoryMissionType,
 } from "../../lib/chat-repo-import";
 import { pruneExpiredSessions } from "../../lib/chat-session-retention";
-import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
 import { fitConversationContext } from "../../lib/mission-metadata-budget";
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
@@ -39,7 +34,6 @@ import type { RepoReviewResponse } from "../../lib/types";
 
 import {
   type ChatMessage,
-  type ChatRole,
   type ChatSession,
   type ClarificationPrompt,
   type ContinuationContext,
@@ -47,10 +41,7 @@ import {
   type PmConversationContext,
   CHAT_STORAGE_KEY,
   HISTORY_STORAGE_KEY,
-  MAX_CONTEXT_MESSAGES,
   MAX_HISTORY_SESSIONS,
-  RASTER_IMAGE_EXTENSIONS,
-  RASTER_IMAGE_MIME_TYPES,
 } from "./chat-types";
 import {
   artifactFilename,
@@ -62,56 +53,24 @@ import {
   clarificationEditTemplate,
   compactLaunchConversationContext,
   continuationPromptText,
-  contractSourceLabel,
-  derivePreview,
   deriveTitle,
   detectLanguages,
   detectUserIntent,
   emptySowFields,
   errorMessage,
   extractDecisionMemory,
-  fileLabel,
   formatFactoryTime,
   initialWelcomeMessage,
   isBinaryFile,
-  isDegradedContract,
-  isRasterImageFile,
   makeId,
-  recommendedDefaultFromQuestion,
   safeFileName,
   summarizeScope,
 } from "./chat-helpers";
-
-function FileChipPreview({ file }: { file: File }) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isRasterImageFile(file)) return;
-
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [file]);
-
-  const sizeKb = Math.max(1, Math.round(file.size / 1024));
-  const label = safeFileName(file);
-
-  return (
-    <li className="chip-item" style={{ display: "inline-flex", flexDirection: "column", gap: "6px", padding: "12px", border: "1px solid var(--border-strong)", borderRadius: "8px", background: "var(--bg-elevated)", color: "var(--ink)" }}>
-      <span style={{ fontSize: "12px", fontWeight: "bold" }}>{label} ({sizeKb}KB)</span>
-      {previewUrl && (
-        <img
-          src={previewUrl}
-          alt={label}
-          style={{ maxWidth: "200px", maxHeight: "150px", objectFit: "contain", borderRadius: "4px", marginTop: "4px" }}
-        />
-      )}
-    </li>
-  );
-}
+import { ChatSidebar } from "./components/ChatSidebar";
+import { ChatConversationList } from "./components/ChatConversationList";
+import { ChatInputArea } from "./components/ChatInputArea";
+import { ChatClarificationPanel } from "./components/ChatClarificationPanel";
+import { ChatSowSection } from "./components/ChatSowSection";
 
 export default function ChatPage() {
   const router = useRouter();
@@ -128,10 +87,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
   const [contract, setContract] = useState<DisplayFeatureContract | null>(null);
   const [clarificationPrompt, setClarificationPrompt] = useState<ClarificationPrompt | null>(null);
-  const [editingContract, setEditingContract] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editLanguages, setEditLanguages] = useState("");
-  const [editScope, setEditScope] = useState("");
   const [thinking, setThinking] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -393,7 +348,6 @@ export default function ChatPage() {
     repoImportRef.current = null;
     setRepoImport(null);
     setPreferredOfficialType(null);
-    setEditingContract(false);
     setInput("");
     setError(null);
     setFiles([]);
@@ -412,7 +366,6 @@ export default function ChatPage() {
     repoImportRef.current = null;
     setRepoImport(null);
     setPreferredOfficialType(null);
-    setEditingContract(false);
     setInput("");
     setError(null);
     setActiveSessionId(null);
@@ -877,408 +830,51 @@ export default function ChatPage() {
       />
 
       <div className="chat-layout">
-        {/* Phase 2H — persistent conversation history sidebar */}
-        <aside className="chat-history-sidebar">
-          <p className="chat-history-title">Conversations</p>
-          <button
-            type="button"
-            className="secondary-button"
-            style={{ width: "100%", marginBottom: "8px" }}
-            onClick={resetConversation}
-          >
-            + New Chat
-          </button>
-          {groupedSessions.length === 0 && (
-            <p className="muted" style={{ fontSize: "0.8rem" }}>
-              No past sessions. Start a conversation to begin a mission.
-            </p>
-          )}
-          {groupedSessions.map(([group, groupSessions]) => (
-            <div key={group}>
-              <span className="chat-history-group-label">{group}</span>
-              <ul className="chat-history-list">
-                {groupSessions.map((s) => (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      className={`chat-history-item${activeSessionId === s.id ? " active" : ""}`}
-                      onClick={() => loadSession(s)}
-                      title={s.title}
-                    >
-                      <span className="chat-history-item-title">{s.title}</span>
-                      {s.lastPreview ? (
-                        <span className="chat-history-item-preview">{s.lastPreview}</span>
-                      ) : null}
-                      <span className="chat-history-item-meta">
-                        {formatDateTime(s.savedAt)} · {s.messageCount} messages
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </aside>
+        <ChatSidebar
+          groupedSessions={groupedSessions}
+          activeSessionId={activeSessionId}
+          resetConversation={resetConversation}
+          loadSession={loadSession}
+        />
 
         <div className="chat-main">
-        <Panel title="Conversation" className="chat-panel">
-        <div className="chat-list" role="log" aria-live="polite" aria-label="PM chat history">
-          {messages.map((message) => (
-            <article key={message.id} className={`chat-item ${message.role === "user" ? "user" : "pm"}`}>
-              <div className="chat-meta">
-                <strong>{message.role === "user" ? "You" : "PM Agent"}</strong>
-                <span>{message.ts ? formatDateTime(message.ts) : "Session start"}</span>
-              </div>
-              <p>{message.text}</p>
-            </article>
-          ))}
-          {thinking && (
-            <article className="chat-item pm" aria-label="PM Agent is preparing a response">
-              <div className="chat-meta">
-                <strong>PM Agent</strong>
-                <span>Thinking...</span>
-              </div>
-              <p>...</p>
-            </article>
-          )}
-        </div>
-      </Panel>
+          <ChatConversationList messages={messages} thinking={thinking} />
 
-      <Panel title="Message & Files">
-
-        <div
-          className="drop-zone"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            addFiles(event.dataTransfer.files);
-          }}
-        >
-          Drag and drop files here, or attach a project ZIP to import existing software.
-        </div>
-        <label className="file-input-label">
-          <span>Choose files</span>
-          <input
-            type="file"
-            multiple
-            accept=".zip,application/zip,text/plain,text/*,.py,.js,.ts,.go,.rs,.java"
-            className="sr-only"
-            aria-label="Choose files or a project ZIP to attach"
-            onChange={(event) => {
-              if (event.target.files) {
-                addFiles(event.target.files);
-              }
-            }}
+          <ChatInputArea
+            input={input}
+            setInput={setInput}
+            files={files}
+            addFiles={addFiles}
+            repoImporting={repoImporting}
+            repoImport={repoImport}
+            preferredOfficialType={preferredOfficialType}
+            importAttachedZip={importAttachedZip}
+            sendMessage={sendMessage}
+            thinking={thinking}
+            launching={launching}
+            error={error}
           />
-        </label>
-        <label className="file-input-label" style={{ marginLeft: "8px" }}>
-          <span>{repoImporting ? "Importing ZIP..." : "Attach project (ZIP)"}</span>
-          <input
-            type="file"
-            accept=".zip,application/zip"
-            className="sr-only"
-            aria-label="Attach a project ZIP for rework, port, or update"
-            disabled={repoImporting || launching}
-            onChange={(event) => {
-              const zip = event.target.files?.[0];
-              if (zip) {
-                void importAttachedZip(zip);
-              }
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
-        {repoImport && (
-          <p className="muted" style={{ marginTop: "8px" }}>
-            Imported project: {repoImport.repository.display_name} · {repoImport.source_stats.bundled_files} files
-            {preferredOfficialType ? ` · ${preferredOfficialType}` : ""}
-          </p>
-        )}
-        {files.length > 0 && (
-          <ul className="chip-list" aria-label="Attached files" style={{ display: "flex", flexWrap: "wrap", gap: "10px", listStyle: "none", padding: 0, marginTop: "12px", marginBottom: "12px" }}>
-            {files.map((file, idx) => (
-              <FileChipPreview key={`${file.name}-${idx}`} file={file} />
-            ))}
-          </ul>
-        )}
-        <label htmlFor="chat-input">Message</label>
-        <textarea
-          id="chat-input"
-          value={input}
-          rows={4}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void sendMessage();
-            }
-          }}
-          placeholder="Analyze this repository and identify reliability risks before delivery."
-          autoFocus
-        />
-        <div className="chat-send-row">
-          <button type="button" onClick={() => void sendMessage()} disabled={thinking || launching}>
-            {thinking ? "Sending..." : "Send"}
-          </button>
-        </div>
-        {error && (
-          <SystemMessage tone="warning" title="Message needs attention">
-            <p>{error}</p>
-            <OperatorAuthErrorAction error={error} />
-          </SystemMessage>
-        )}
-      </Panel>
 
-      {clarificationPrompt && (
-        <Panel title="PM Clarification">
-          <div className="clarification-panel">
-            <div className="clarification-header">
-              <div>
-                <span className="connection-chip retrying">Waiting for answers</span>
-                <h2>{clarificationPrompt.contract.title}</h2>
-              </div>
-              <span className="clarification-count">
-                {clarificationPrompt.questions.length} decision{clarificationPrompt.questions.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <ul className="clarification-list">
-              {clarificationPrompt.questions.map((question, index) => (
-                <li key={`${question}-${index}`} className="clarification-card">
-                  <p>{question}</p>
-                  <dl>
-                    <div>
-                      <dt>Default</dt>
-                      <dd>{clarificationPrompt.defaults[index]}</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-            <div className="inline-actions">
-              <button
-                type="button"
-                onClick={() => void handleProceedWithClarificationDefaults()}
-                disabled={thinking || launching}
-              >
-                Proceed with Defaults
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={handleEditClarificationAnswers}
-                disabled={thinking || launching}
-              >
-                Edit Answers
-              </button>
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      {!contract && !clarificationPrompt && (
-        <Panel title="Feature Contract">
-          <EmptyState title="Contract appears after the PM Agent can process the request" compact>
-            When backend services are live, this panel will show scope, language detection, estimated duration, and launch confirmation before creating a mission.
-          </EmptyState>
-        </Panel>
-      )}
-
-      {contract && (
-        <Panel title={continuationContext?.changeOrder ? "Change order" : "Statement of Work"}>
-          {!editingContract && (
-            <>
-              {isDegradedContract(contract) && (
-                <SystemMessage tone="warning" title="Fallback planning output">
-                  <p>
-                    This SOW was generated without a confirmed live PM model response
-                    ({contractSourceLabel(contract)}). Treat it as degraded planning output
-                    until provider/key configuration is verified.
-                  </p>
-                  {contract.degradedReason && <p>Reason: {contract.degradedReason}</p>}
-                </SystemMessage>
-              )}
-              <dl>
-                <div>
-                  <dt>Engagement</dt>
-                  <dd>
-                    {continuationContext?.changeOrder
-                      ? `Change order on ${continuationContext.missionId}`
-                      : contract.engagementType}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Mission Title</dt>
-                  <dd>{contract.title}</dd>
-                </div>
-                <div>
-                  <dt>Languages</dt>
-                  <dd>{contract.languages}</dd>
-                </div>
-                <div>
-                  <dt>In scope</dt>
-                  <dd>{contract.scope}</dd>
-                </div>
-                <div>
-                  <dt>Out of scope</dt>
-                  <dd>{contract.outOfScope.length ? contract.outOfScope.join("; ") : "PM must name at least one exclusion"}</dd>
-                </div>
-                <div>
-                  <dt>Deliverables</dt>
-                  <dd>{contract.deliverables.length ? contract.deliverables.join("; ") : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Acceptance</dt>
-                  <dd>{contract.acceptance.length ? contract.acceptance.join("; ") : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Factory estimate</dt>
-                  <dd>
-                    {contract.pricingKnown && contract.likelyUsd != null
-                      ? `Likely $${contract.likelyUsd.toFixed(2)} · High $${(contract.highUsd ?? 0).toFixed(2)} · Cap $${(contract.capUsd ?? 0).toFixed(2)}`
-                      : "Unpriced — accept only if you acknowledge no quote"}
-                    {contract.minutesLow && contract.minutesHigh
-                      ? ` · ${contract.minutesLow}–${contract.minutesHigh} min factory time`
-                      : ""}
-                    <div className="muted">This is model spend for this run, not a human project quote.</div>
-                  </dd>
-                </div>
-              </dl>
-              <div className="inline-actions">
-                <button
-                  type="button"
-                  onClick={() => void confirmAndLaunch()}
-                  disabled={launching || (contract.outOfScope.length === 0 && !contract.degraded)}
-                >
-                  {launching ? "Launching..." : "Accept SOW and start"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    if (contract) {
-                      setEditTitle(contract.title);
-                      setEditLanguages(contract.languages || "Auto-detect");
-                      setEditScope(contract.scope);
-                      setEditingContract(true);
-                    }
-                  }}
-                >
-                  Edit
-                </button>
-              </div>
-            </>
+          {clarificationPrompt && (
+            <ChatClarificationPanel
+              clarificationPrompt={clarificationPrompt}
+              handleProceedWithClarificationDefaults={handleProceedWithClarificationDefaults}
+              handleEditClarificationAnswers={handleEditClarificationAnswers}
+              thinking={thinking}
+              launching={launching}
+            />
           )}
 
-        </Panel>
-      )}
-        </div>{/* end chat-main */}
-
+          <ChatSowSection
+            contract={contract}
+            hasClarificationPrompt={Boolean(clarificationPrompt)}
+            continuationContext={continuationContext}
+            launching={launching}
+            confirmAndLaunch={confirmAndLaunch}
+            setContract={setContract}
+          />
+        </div>
       </div>
-
-
-      {/* ── Feature Contract Edit Modal ──────────────────────────────── */}
-      {editingContract && contract && (
-        <div
-          className="contract-edit-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="contract-edit-title"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditingContract(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setEditingContract(false);
-          }}
-          tabIndex={-1}
-        >
-          <div className="contract-edit-modal">
-            <div className="contract-edit-modal-header">
-              <h2 id="contract-edit-title" style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700 }}>
-                ✏️ Edit Feature Contract
-              </h2>
-              <button
-                type="button"
-                className="contract-edit-close-btn"
-                aria-label="Close editor"
-                onClick={() => setEditingContract(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <form
-              className="contract-edit-modal-body"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const newTitle = sanitizeUserText(editTitle);
-                const newLangs = sanitizeUserText(editLanguages) || "Auto-detect";
-                const newScope = editScope.trim();
-                setContract((c) =>
-                  c
-                    ? {
-                        ...c,
-                        title: newTitle || c.title,
-                        languages: newLangs,
-                        scope: newScope || c.scope,
-                      }
-                    : c,
-                );
-                setEditingContract(false);
-              }}
-            >
-              <div className="contract-edit-field">
-                <label htmlFor="modal-contract-title" className="contract-edit-label">
-                  Mission Title
-                </label>
-                <input
-                  id="modal-contract-title"
-                  type="text"
-                  className="contract-edit-input"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="Enter a descriptive mission title…"
-                  autoFocus
-                />
-              </div>
-              <div className="contract-edit-field">
-                <label htmlFor="modal-contract-lang" className="contract-edit-label">
-                  Languages
-                </label>
-                <input
-                  id="modal-contract-lang"
-                  type="text"
-                  className="contract-edit-input"
-                  value={editLanguages}
-                  onChange={(e) => setEditLanguages(e.target.value)}
-                  placeholder="e.g. Python, TypeScript…"
-                />
-              </div>
-              <div className="contract-edit-field contract-edit-field--grow">
-                <label htmlFor="modal-contract-scope" className="contract-edit-label">
-                  Scope
-                  <span className="contract-edit-label-hint">Describe the full requirements for this mission</span>
-                </label>
-                <textarea
-                  id="modal-contract-scope"
-                  className="contract-edit-textarea"
-                  value={editScope}
-                  onChange={(e) => setEditScope(e.target.value)}
-                  placeholder="Describe the full requirements, constraints, and goals for this mission…"
-                />
-              </div>
-              <div className="contract-edit-modal-footer">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setEditingContract(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit">Save Contract</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
