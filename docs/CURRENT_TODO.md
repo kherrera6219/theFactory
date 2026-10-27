@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.10.27
+Last updated: 2026-10-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,11 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-10-27: Phase 1 & Phase 2/3 Enterprise Upgrades Completed & Merged.**
+- **Phase 1 (Security & Sandbox Hardening — commit `21e9d07`):** Hardened untrusted execution in `sandbox_exec.py` with `--user=65534:65534`, `--pids-limit=256`, and ulimits. Placed `tecnativa/docker-socket-proxy` in front of `sandbox-runner` and dropped host `/var/run/docker.sock` direct mounts. Enforced `exit-code: 1` on CI Trivy container scans with baseline `.trivyignore`.
+- **Phase 3 Foundations (Centralized Taxonomy & Mypy — commit `126f085`):** Established `shared_runtime/thefactory_common` as single source of truth for 20 languages and 4 pods; connected `mission_flow.py` and added alignment tests; enabled `mypy` in `pyproject.toml`.
+- **Phase 2 (API Gateway Monolith Decomposition — commit `abea187`):** Decomposed 3,000-line `services/api-gateway/api_gateway/main.py` into clean sub-routers under `api_gateway/routers/` (`system.py`, `operations.py`, `missions.py`) with zero test regressions across all 65 gateway test suites.
 
 **NEW � 2026-10-27: Master 10/10 Enterprise Upgrade Plan Authored.**
 Following an in-depth IT Enterprise Architecture & Security Audit (composite score 6.8/10), the canonical master roadmap to achieve a **10/10 Enterprise Production Masterpiece** was created at [docs/TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md](TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md).
