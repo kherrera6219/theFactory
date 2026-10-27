@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.10.27
+Last updated: 2026-10-27
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -37,8 +37,11 @@ It is active development, not a production-ready release.
 
 The application currently includes:
 
-- Mission Control Next.js operator UI with Electron desktop packaging
-- API gateway with dual-mode auth (API Key + OIDC) and rate limiting
+- Mission Control Next.js operator UI with Electron desktop packaging and decomposed, modular Chat intake components
+- API gateway decomposed into modular APIRouters (`system.py`, `operations.py`, `missions.py`) with dual-mode auth (API Key + OIDC) and rate limiting
+- Hardened sandbox execution runner with non-root UID 65534, PID limits, ulimits, and `tecnativa/docker-socket-proxy` daemon mediation
+- Full-spectrum LLM provider integration: Gemini 3.8 Flash default, Anthropic Claude, OpenAI, and native air-gapped local models via `OllamaProvider` and vLLM with fail-closed unknown provider rejection
+- Centralized language and paradigm pod taxonomy under `thefactory_common.taxonomy` with strict static typing
 - Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
 - Pod workers with real AST extractors for Python, JavaScript/TypeScript, and Java. Go, Haskell, OCaml, and Julia extractors are named AST but implemented as regex. Pre-flight toolchain checkers exist for all four pods.
