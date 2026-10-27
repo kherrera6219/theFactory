@@ -168,7 +168,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md) | Data classification tiers and handling requirements for all data types in theFactory | Security, Compliance |
 | [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md) | Maps compliance controls (SOC2, ISO 27001) to evidence artifacts in the system | Compliance, Security |
 | [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md) | Sensitive code handling policy — detection rules, escalation thresholds, and operator override procedures | Security, Developers |
-| [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source license strategy and dependency license compliance | Legal, Developers |
+| [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source MIT license strategy and dependency license compliance | Legal, Developers |
 | [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
 | [SECURITY_ALERT_REMEDIATION.md](SECURITY_ALERT_REMEDIATION.md) | CodeQL, Trivy, `pip-audit`, and `npm audit` remediation record (through 2026-10-26) | Security, Maintainers |
 

@@ -9,6 +9,9 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-10-26) — read first
 
+**NEW — 2026-10-26: Open-source transition to full MIT License.**
+- Repository transitioned to 100% permissive open source under the MIT License across root `LICENSE`, `pyproject.toml`, `apps/mission-control/package.json`, `docs/LICENSE_STRATEGY.md`, `CLA.md`, `CONTRIBUTING.md`, documentation, and `README.md`.
+
 **NEW — 2026-10-26: 100% completion execution plan (Phases 1–6) complete.**
 - Implemented and verified all 6 phases of `docs/COMPLETION_PLAN_2026-10-26.md`:
   - Phase 1: 20-language Knowledge Lake parity (`is_agent.py`, `knowledge_lake.py`).
@@ -1118,7 +1121,7 @@ plans/incident reports** to `docs/archive/2026-07-03/`, and split
 `HANDOFF_CURRENT.md`/`CURRENT_TODO.md`'s ever-growing "Latest/Recently
 Completed" sections into their own history files there too. **Found two
 critical inaccuracies**: `LICENSE_STRATEGY.md` claimed MIT with quoted MIT
-text — the repo is actually Dual AGPL-3.0/Commercial with a mandatory CLA
+text — the repo was historically Dual AGPL-3.0/Commercial with a mandatory CLA until the 2026-10-26 MIT open-source transition
 (the README license badge was also wrong, now fixed); `DATA_CLASSIFICATION_
 POLICY.md` described a fictional 4-tier taxonomy that didn't match the real
 `DataClassification` enum. **7 more docs were substantially rewritten**
@@ -1916,11 +1919,11 @@ over the ~40 docs not deeply checked in the first pass.
   OLDER_HISTORY.md`.
 - **Critical: `LICENSE_STRATEGY.md` claimed the repo was MIT-licensed**,
   quoting MIT text and describing a forward-looking "open-core" plan built
-  on that premise. The real root `LICENSE` is a **Dual AGPL-3.0/Commercial**
+  on that premise. The real root `LICENSE` was at the time a **Dual AGPL-3.0/Commercial** (subsequently transitioned to full open-source MIT on 2026-10-26)
   license with a patent notice covering the core architecture, and a CLA
   that is **already mandatory today** (not "may be added later" as the doc
   claimed). Rewrote the doc from the real `LICENSE` file, and fixed the
-  README license badge, which was also wrong (said MIT, linked to the real
+  README license badge, which was also wrong (said MIT, linked to the earlier
   dual-license file).
 - **Critical: `DATA_CLASSIFICATION_POLICY.md` described a fictional 4-tier
   `PUBLIC`/`INTERNAL`/`CONFIDENTIAL`/`RESTRICTED` taxonomy** with an

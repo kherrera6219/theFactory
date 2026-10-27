@@ -2,7 +2,7 @@
 
 **theFactory — Contributor License Agreement**
 
-Version 1.0 | Effective Date: 2026-06-07
+Version 1.1 | Effective Date: 2026-10-26
 Copyright Holder: Kevin Eloy Herrera ("Author")
 
 ---
@@ -12,9 +12,9 @@ Copyright Holder: Kevin Eloy Herrera ("Author")
 This Contributor License Agreement ("Agreement") clarifies the intellectual
 property rights granted by contributors to the Author in connection with any
 contribution made to theFactory (the "Project"). This Agreement protects both
-you (the contributor) and the Author, and ensures that the Author retains the
-ability to license the Project — including under commercial licenses — without
-restriction.
+you (the contributor) and the Author, and ensures that the Project and all
+contributions remain fully available under permissive open-source terms (MIT
+License) without restriction.
 
 By submitting a pull request, patch, issue with attached code, or any other
 material contribution to the Project, **you agree to the terms of this
@@ -40,8 +40,8 @@ no-charge, royalty-free, irrevocable copyright license** to:
 
   (a) reproduce, prepare derivative works of, publicly display, publicly
       perform, sublicense, and distribute your Contributions and derivative
-      works thereof under any license terms the Author chooses, including
-      proprietary and commercial licenses; and
+      works thereof under the terms of the MIT License and permissive
+      open-source licenses; and
 
   (b) sublicense the foregoing rights to third parties through multiple
       tiers of sublicensees.
@@ -83,13 +83,13 @@ Contribution with the Project.
 
 ---
 
-## 5. Dual Licensing Acknowledgment
+## 5. Open Source Licensing Acknowledgment
 
-You understand and agree that the Author may license theFactory — including
-your Contribution — under **both open-source and commercial license terms**.
-Your Contribution will be subject to the dual license model described in
-`LICENSE`, and the Author retains the sole right to grant commercial licenses
-to third parties that include your Contribution.
+You understand and agree that the Author licenses theFactory — including
+your Contribution — under the **MIT License** described in `LICENSE`.
+Your Contribution will be licensed and distributed under the MIT open-source
+license, and may be used, modified, and sublicensed freely in accordance
+with that license.
 
 ---
 

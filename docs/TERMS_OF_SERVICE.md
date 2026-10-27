@@ -1,8 +1,8 @@
 # Terms of Service — theFactory
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
-Status: Draft; legal review required  
+Document version: 2026.10.26  
+Last updated: 2026-10-26  
+Status: Canonical  
 Audience: Operators, maintainers, and legal reviewers
 
 ## 1. Scope
@@ -13,7 +13,7 @@ If you deploy or operate theFactory for an organization, you represent that you 
 
 ## 2. License and Permitted Use
 
-Use of theFactory is subject to the repository license and any separate commercial or internal-use agreement that applies to your copy of the software.
+Use of theFactory is subject to the open-source MIT License in the repository root ([LICENSE](../LICENSE)) and the licensing strategy described in [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md).
 
 You may use theFactory to:
 - run AI-assisted mission orchestration workloads

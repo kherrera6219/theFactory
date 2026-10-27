@@ -13,6 +13,9 @@ as current work.
 
 ## Current Status
 
+**NEW — 2026-10-26: Open-source transition to full MIT License.**
+Repository transitioned to 100% permissive open source under the MIT License across root `LICENSE`, `pyproject.toml`, `apps/mission-control/package.json`, `docs/LICENSE_STRATEGY.md`, `CLA.md`, `CONTRIBUTING.md`, documentation, and `README.md`.
+
 **NEW — 2026-10-26: 100% completion execution plan (Phases 1–6) complete.**
 Executed `docs/COMPLETION_PLAN_2026-10-26.md` end to end across Backend, Frontend, AI Agents, and Internal Database:
 - **Phase 1 (Knowledge Lake):** Expanded bootstrap language seed to all 20 specialist keys across Pods A–D in `is_agent.py`; increased `is_stocked` and `get_language_context` query limits to 100 to prevent row truncation.
@@ -625,8 +628,8 @@ modules are now documented in `SUPPORTING_MODULES.md`), archived 8
 completed point-in-time plans/incidents to `docs/archive/2026-07-03/`, and
 split `HANDOFF_CURRENT.md`/this file's ever-growing history sections into
 their own archive files. Found two critical inaccuracies:
-`LICENSE_STRATEGY.md` claimed MIT (repo is actually Dual AGPL-3.0/
-Commercial with a mandatory CLA — README badge also fixed); `DATA_
+`LICENSE_STRATEGY.md` claimed MIT (historically Dual AGPL-3.0/
+Commercial with a mandatory CLA until the 2026-10-26 MIT open-source transition — README badge also fixed); `DATA_
 CLASSIFICATION_POLICY.md` described a fictional 4-tier taxonomy not matching
 the real `DataClassification` enum. 7 more docs were rewritten after a
 verification pass found they described nonexistent class-based APIs
@@ -1438,7 +1441,7 @@ verification pass over docs not deeply checked in the first pass).
   to current status plus the most recent review sweep; older entries moved
   to `docs/archive/2026-07-03/{HANDOFF_CURRENT,CURRENT_TODO}_OLDER_HISTORY.md`.
 - Fixed two critical inaccuracies: `LICENSE_STRATEGY.md` claimed MIT with
-  quoted MIT text (repo is Dual AGPL-3.0/Commercial with a mandatory CLA;
+  quoted MIT text (repo was then Dual AGPL-3.0/Commercial with a mandatory CLA, now unified under MIT;
   fixed the README license badge too); `DATA_CLASSIFICATION_POLICY.md`
   described a fictional 4-tier taxonomy not matching the real
   `DataClassification` enum.

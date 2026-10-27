@@ -89,7 +89,7 @@ This one maps *design intent* to *implementation*.
 | Doc | Title | Status | Implementing module(s) | Evidence / note |
 |---|---|---|---|---|
 | 23 | Testing Framework & QA | **Implemented** | `tests/` (~130 pytest files), Vitest, Playwright | Exceeds design; adds golden-fixture extraction locks and `tests/eval/` prompt-safety evals |
-| 24 | CI/CD Pipeline Configuration | **Implemented** | `.github/workflows/` | Exceeds design: SBOM (SPDX + CycloneDX), Bandit, pip-audit, GPL/AGPL license blocking, fail-closed promotion gate |
+| 24 | CI/CD Pipeline Configuration | **Implemented** | `.github/workflows/` | Exceeds design: SBOM (SPDX + CycloneDX), Bandit, pip-audit, GPL/AGPL license blocking (protecting permissive MIT codebase), fail-closed promotion gate |
 | 25 | Monitoring & Observability | **Implemented** | `deploy/monitoring/`, [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Prometheus/Grafana/Loki/Jaeger |
 | 26 | Security Implementation & Hardening | **Implemented** | `shared_runtime/prompt_guard.py`, `pii_guard.py`, `crypto_signing.py`, `agent_auth.py` | Exceeds every dimension of the design (ADR row 15) |
 | 27 | Agent Deployment & Operations | **Implemented** | `deploy/docker-compose.full-dedicated-agents.yaml`, `services/agent-runtime/` | Three topologies: condensed, dedicated, full-dedicated |

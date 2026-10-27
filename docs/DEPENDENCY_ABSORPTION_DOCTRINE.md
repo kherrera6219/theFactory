@@ -1,7 +1,7 @@
 # Dependency Absorption Doctrine
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.10.26
+Last updated: 2026-10-26
 Status: Canonical (Doctrine)
 Audience: Operators, security reviewers, agent developers, mission designers
 
@@ -226,7 +226,7 @@ Absorption is not legal license laundering. The license of an absorbed dependenc
 **Conditional or blocked (depends on target distribution):**
 
 - LGPL — only with proper attribution and dynamic linking treatment
-- GPL, AGPL — incompatible with closed-source distribution; absorption is blocked unless target is also GPL/AGPL
+- GPL, AGPL — copyleft licenses incompatible with permissive (MIT) or proprietary distribution; absorption is blocked unless the target is also licensed under GPL/AGPL
 - Proprietary or unknown — absorption blocked
 
 The absorption agent records the source license in the absorption report and refuses absorption when the license is incompatible with the target's intended distribution.

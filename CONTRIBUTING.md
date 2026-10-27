@@ -1,7 +1,7 @@
 # Contributing to theFactory
 
 Document version: 2026.04.17  
-Last updated: 2026-04-17  
+Last updated: 2026-10-26  
 Status: Canonical
 
 Thank you for contributing to theFactory (HolyGrail Multi-Agent Software Refinery).
@@ -18,6 +18,7 @@ Thank you for contributing to theFactory (HolyGrail Multi-Agent Software Refiner
 - [Code Quality Gates](#code-quality-gates)
 - [Testing](#testing)
 - [Security](#security)
+- [License & Contributions](#license--contributions)
 
 ---
 
@@ -198,3 +199,9 @@ All tests must pass before merging. Do not write tests that assert buggy behavio
 ## Code of Conduct
 
 This project follows the [Contributor Covenant](https://www.contributor-covenant.org/) Code of Conduct. Be respectful, constructive, and professional in all interactions.
+
+---
+
+## License & Contributions
+
+By contributing to theFactory, you agree that your contributions will be licensed under the project's [MIT License](LICENSE). For attribution, representation, and copyright licensing details, please review [CLA.md](CLA.md).

@@ -119,7 +119,7 @@ Doc 15 specified a dashboard, agent status grid, mission timeline, LogicNode exp
 
 ### 3.7 Testing and CI/CD comfortably meet Docs 23 and 41–50
 
-~130 pytest files under `tests/` spanning unit, integration, security (`test_state_mutation_auth.py`, `test_pod_assignment_conflict.py`), golden-fixture extraction locks, prompt-safety evals (`tests/eval/`), a Locust load profile, and script-level tests. Mission Control adds Vitest units and Playwright E2E. CI adds SBOM (SPDX + CycloneDX), Bandit, pip-audit, GPL/AGPL license blocking, and a fail-closed promotion gate — all beyond Doc 24.
+~130 pytest files under `tests/` spanning unit, integration, security (`test_state_mutation_auth.py`, `test_pod_assignment_conflict.py`), golden-fixture extraction locks, prompt-safety evals (`tests/eval/`), a Locust load profile, and script-level tests. Mission Control adds Vitest units and Playwright E2E. CI adds SBOM (SPDX + CycloneDX), Bandit, pip-audit, GPL/AGPL copyleft blocking (protecting permissive MIT codebase), and a fail-closed promotion gate — all beyond Doc 24.
 
 ---
 

@@ -1126,5 +1126,12 @@ release (tag + public GHCR images) is the next release step.
 
 ---
 
+## License
+
+theFactory is free and open-source software licensed under the [MIT License](LICENSE).
+
+For details on open-source governance and third-party dependency absorption, see [docs/LICENSE_STRATEGY.md](docs/LICENSE_STRATEGY.md) and [docs/DEPENDENCY_ABSORPTION_DOCTRINE.md](docs/DEPENDENCY_ABSORPTION_DOCTRINE.md).
+
+---
 
 > **Local-first design:** theFactory is engineered to run fully offline with no external platform dependencies. All secrets stay in `.env` and local vault endpoints. Do not commit credentials or provider keys.
