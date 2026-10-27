@@ -18,9 +18,10 @@ import httpx
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import Counter, Histogram
 from redis.exceptions import ResponseError
 
+from pod_worker.routes import build_pod_worker_router
 from shared_runtime.agent_keys import (
     configured_agent_service_key_map,
     enforce_production_service_auth_config,
@@ -2238,48 +2239,16 @@ app = FastAPI(title=f"HolyGrail Pod Worker ({POD_NAME})", version="0.1.0", lifes
 configure_tracing(app, service_name="pod-worker")
 
 
-@app.get("/health")
+router = build_pod_worker_router()
+app.include_router(router)
+
 async def health() -> dict[str, Any]:
-    ready = False
-    redis_client = getattr(app.state, "redis", None)
-    if redis_client is not None:
-        try:
-            ready = bool(await redis_client.ping())
-        except Exception:
-            ready = False
-    return {
-        "ok": ready,
-        "service": "pod-worker",
-        "pod_name": POD_NAME,
-        "supported_languages": sorted(SUPPORTED_LANGUAGES),
-        "state_stream": STATE_STREAM,
-        "group": CONSUMER_GROUP,
-        "consumer": CONSUMER_NAME,
-        "worker_agent_id": _effective_worker_agent_id(),
-        "agent_binding": list(AGENT_BINDINGS),
-        "agent_service_key_mode": AGENT_SERVICE_KEY_MODE,
-        "configured_agent_service_keys": len(_configured_agent_service_key_map()),
-        "processed": app.state.processed,
-        "errors": app.state.errors,
-        "internal_auth_failures": INTERNAL_AUTH_FAILURES,
-        "last_internal_auth_status": LAST_INTERNAL_AUTH_STATUS,
-    }
+    return await (router.routes[0].endpoint)()
 
-
-@app.get("/readyz")
 async def readyz() -> dict[str, Any]:
-    redis_client = getattr(app.state, "redis", None)
-    if redis_client is None:
-        raise HTTPException(status_code=503, detail="redis unavailable")
-    try:
-        ready = bool(await redis_client.ping())
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
-    if not ready:
-        raise HTTPException(status_code=503, detail="redis unavailable")
-    return {"ready": True, "service": "pod-worker", "pod_name": POD_NAME}
+    return await (router.routes[1].endpoint)()
 
-
-@app.get("/metrics")
 async def metrics() -> Response:
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    return await (router.routes[2].endpoint)()
+
+__all__ = ["app", "health", "readyz", "metrics", "HTTPException"]
