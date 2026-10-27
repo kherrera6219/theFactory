@@ -81,3 +81,7 @@ pytest_full_run.txt
 # tracked, which is exactly why the keys need an explicit rule.
 *.key
 *.pem
+
+# Presentations and slide decks
+*.pptx
+
