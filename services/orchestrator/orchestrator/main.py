@@ -419,7 +419,7 @@ async def agent_heartbeat_loop(app: FastAPI) -> None:
 
 async def knowledge_lake_refresh_loop(app: FastAPI) -> None:
     """Periodically refresh bootstrap docs for all supported languages in the knowledge lake."""
-    from .is_agent import SUPPORTED_LANGUAGES, run_fetch_phase  # noqa: PLC0415
+    from .is_agent import _KNOWLEDGE_LAKE_ID, SUPPORTED_LANGUAGES, run_fetch_phase  # noqa: PLC0415
     while True:
         try:
             settings = app.state.settings
@@ -432,7 +432,7 @@ async def knowledge_lake_refresh_loop(app: FastAPI) -> None:
 
             LOGGER.info("Starting background auto-refresh for knowledge lake bootstrap documents.")
             await run_fetch_phase(
-                mission_id="system-knowledge-lake",
+                mission_id=_KNOWLEDGE_LAKE_ID,
                 required_languages=list(SUPPORTED_LANGUAGES),
                 settings=settings,
             )

@@ -122,14 +122,18 @@ def ensure_db_schema(settings: Settings) -> None:
         from .models import MissionRecord, MissionState
         from .storage_missions import upsert_mission
 
-        system_mission = MissionRecord(
-            mission_id="__knowledge_lake__",
-            prompt="System knowledge lake bootstrap mission.",
-            state=MissionState.complete,
-            created_at=datetime(2026, 1, 1, tzinfo=UTC).isoformat(),
-            metadata={"source": "system", "name": "Global Knowledge Lake"}
-        )
-        upsert_mission(settings, system_mission, source_stream_id=None)
+        for m_id, m_name in (
+            ('__knowledge_lake__', 'Global Knowledge Lake'),
+            ('system-knowledge-lake', 'System Knowledge Lake'),
+        ):
+            system_mission = MissionRecord(
+                mission_id=m_id,
+                prompt='System knowledge lake bootstrap mission.',
+                state=MissionState.complete,
+                created_at=datetime(2026, 1, 1, tzinfo=UTC).isoformat(),
+                metadata={'source': 'system', 'name': m_name},
+            )
+            upsert_mission(settings, system_mission, source_stream_id=None)
     except Exception as e:
         logger.warning("Knowledge lake bootstrap skipped (may already exist): %s", e)
 

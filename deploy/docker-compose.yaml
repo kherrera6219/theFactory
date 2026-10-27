@@ -375,7 +375,7 @@ services:
     environment:
       SANDBOX_RUNNER_MODE: "true"
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
-      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR}/../.sandbox-workspace}
+      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
     volumes:
@@ -478,7 +478,7 @@ services:
       # daemon mounts an empty directory it silently creates and every
       # compiled-language run fails with "no such file".
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
-      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR}/../.sandbox-workspace}
+      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
       # Privilege boundary: docker.sock lives on sandbox-runner, not here.
       SANDBOX_EXECUTOR_URL: ${SANDBOX_EXECUTOR_URL:-http://sandbox-runner:8020}
       # Equivalence verification. Correctness (contract-conformance) checks always

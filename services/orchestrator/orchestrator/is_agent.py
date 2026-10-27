@@ -458,14 +458,15 @@ async def run_fetch_phase(
                 refreshed_languages.append(language_key)
             else:
                 unchanged_languages.append(language_key)
-            await asyncio.to_thread(
-                _upsert_knowledge_safe,
-                settings=settings,
-                mission_id=mission_id,
-                knowledge_id=knowledge_id,
-                content=content,
-                created_at=created_at,
-            )
+            if mission_id != _KNOWLEDGE_LAKE_ID:
+                await asyncio.to_thread(
+                    _upsert_knowledge_safe,
+                    settings=settings,
+                    mission_id=mission_id,
+                    knowledge_id=knowledge_id,
+                    content=content,
+                    created_at=created_at,
+                )
 
             indexed_languages.append(language_key)
             knowledge_ids.append(knowledge_id)
