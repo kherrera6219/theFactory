@@ -291,7 +291,7 @@ jobs:
           # exit-code 0: upload findings to Security tab but don't block the build.
           # Real CVEs will appear in GitHub Security → Code scanning alerts.
           # Change to "1" once a baseline suppression file (.trivyignore) is in place.
-          exit-code: "0"
+          exit-code: "1"
 
       # Code scanning (SARIF upload) requires GitHub Advanced Security, which is
       # unavailable on user-owned private repositories. Skip the upload there to

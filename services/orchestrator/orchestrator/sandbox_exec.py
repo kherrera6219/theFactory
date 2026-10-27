@@ -130,6 +130,10 @@ _PROCESS_GRACE_SECONDS = 5.0
 # The single source of truth for sandbox hardening. Both RQCA and equivalence
 # execution build their command line from this list.
 SANDBOX_SECURITY_FLAGS: tuple[str, ...] = (
+    "--user=65534:65534",
+    "--pids-limit=256",
+    "--ulimit=nofile=1024:2048",
+    "--ulimit=nproc=512:512",
     "--network=none",
     "--memory-swap=0",
     "--cpus=1",

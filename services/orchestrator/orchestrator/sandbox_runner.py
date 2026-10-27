@@ -42,7 +42,10 @@ class SandboxExecuteRequest(BaseModel):
 
 
 def _expected_key() -> str:
-    return os.getenv("INTERNAL_SERVICE_API_KEY", "").strip()
+    key = os.getenv("INTERNAL_SERVICE_API_KEY", "").strip()
+    if not key or key.lower().startswith("change_me"):
+        return ""
+    return key
 
 
 def _authorize(authorization: str | None) -> None:

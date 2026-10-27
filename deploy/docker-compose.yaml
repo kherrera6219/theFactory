@@ -358,6 +358,28 @@ services:
       context: ./sandbox-images/node
     entrypoint: ["true"]
 
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.1.1
+    environment:
+      CONTAINERS: "1"
+      POST: "1"
+      INFO: "1"
+      VERSION: "1"
+      IMAGES: "1"
+      VOLUMES: "0"
+      NETWORKS: "0"
+      EXEC: "0"
+      AUTH: "0"
+      SECRETS: "0"
+      SWARM: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - internal-net
+    security_opt:
+      - no-new-privileges:true
+
   sandbox-runner:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
@@ -377,16 +399,15 @@ services:
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
+      DOCKER_HOST: tcp://docker-proxy:2375
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:?INTERNAL_SERVICE_API_KEY must be set to a non-empty secret}
+    depends_on:
+      - docker-proxy
     volumes:
-      # Host Docker daemon. This is the privilege grant formerly on the
-      # orchestrator: socket access is equivalent to root on the host.
+      # Communicates with Docker via docker-proxy to prevent host breakout.
       # Scoped to this service only. Every container it launches carries
       # SANDBOX_SECURITY_FLAGS. Do not extend this pattern to other services.
-      - /var/run/docker.sock:/var/run/docker.sock
       - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
-    group_add:
-      - "0"
     healthcheck:
       test:
         [

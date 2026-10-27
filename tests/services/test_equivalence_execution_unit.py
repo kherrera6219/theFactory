@@ -48,6 +48,10 @@ def test_every_security_flag_is_present_in_the_invocation() -> None:
         memory_mb=128,
     )
     for flag in (
+        "--user=65534:65534",
+        "--pids-limit=256",
+        "--ulimit=nofile=1024:2048",
+        "--ulimit=nproc=512:512",
         "--network=none",
         "--memory-swap=0",
         "--cpus=1",
