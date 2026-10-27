@@ -1,6 +1,7 @@
 {
   "name": "mission-control",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "main": "dist/electron/electron/main.js",
   "scripts": {
