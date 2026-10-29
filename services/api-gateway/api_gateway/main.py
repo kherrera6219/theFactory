@@ -41,6 +41,16 @@ from shared_runtime.protocol import (
     validate_envelope,
 )
 
+from .middleware import (
+    INTERNAL_MTLS_CA_CERT,
+    INTERNAL_MTLS_CLIENT_CERT,
+    INTERNAL_MTLS_CLIENT_KEY,
+    INTERNAL_MTLS_ENABLED,
+    OIDC_REQUIRED_TENANT,
+    OIDC_STRICT_CLAIMS,
+    build_mtls_ssl_context,
+    validate_strict_oidc_claims,
+)
 from .tracing import configure_tracing, current_trace_id
 
 try:
@@ -1168,6 +1178,13 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
 
     if not isinstance(decoded, dict):
         raise HTTPException(status_code=401, detail="invalid bearer token")
+    if OIDC_STRICT_CLAIMS:
+        validate_strict_oidc_claims(
+            decoded,
+            expected_issuer=OIDC_ISSUER_URL,
+            expected_audience=OIDC_AUDIENCE,
+            required_tenant=OIDC_REQUIRED_TENANT,
+        )
     return decoded
 
 
@@ -2417,10 +2434,23 @@ async def create_mission(
 
 
 
+def _create_internal_client(timeout: float = 4.0) -> httpx.AsyncClient:
+    verify: Any = True
+    if INTERNAL_MTLS_ENABLED:
+        ctx = build_mtls_ssl_context(
+            ca_cert=INTERNAL_MTLS_CA_CERT,
+            client_cert=INTERNAL_MTLS_CLIENT_CERT,
+            client_key=INTERNAL_MTLS_CLIENT_KEY,
+        )
+        if ctx:
+            verify = ctx
+    return httpx.AsyncClient(timeout=timeout, verify=verify)
+
+
 async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
     internal_key = _require_internal_service_api_key()
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with _create_internal_client(timeout=4.0) as client:
             response = await client.get(
                 f"{ORCHESTRATOR_URL}{path}",
                 params=params,
@@ -2447,7 +2477,7 @@ async def _proxy_post_internal(
 ) -> Any:
     internal_key = _require_internal_service_api_key()
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with _create_internal_client(timeout=timeout) as client:
             response = await client.post(
                 f"{ORCHESTRATOR_URL}{path}",
                 json=json_body,

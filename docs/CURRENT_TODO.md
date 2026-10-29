@@ -13,6 +13,12 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-10-29: Phase 5 of 10/10 Enterprise Roadmap — Zero-Trust Multi-Tenant OIDC & Gateway Hardening (Category C2: 9.7 ➔ 10.0).**
+- **Strict Multi-Tenant OIDC Validation (`middleware.py`):** Added `validate_strict_oidc_claims()` enforcing RFC 7519 / NIST SP 800-218 standards (valid `sub`, `iss`, `aud`, tenant isolation `tid`/`tenant_id`, and flexible role extraction across Keycloak, Okta, and Azure AD).
+- **Mutual TLS (mTLS) Inter-Service Mesh (`main.py`):** Implemented `build_mtls_ssl_context()` and `_create_internal_client()`, securing internal gateway-to-orchestrator and gateway-to-sandbox-runner traffic.
+- **Enterprise Hardened Template (`.env.enterprise.example`):** Documented hardened zero-trust settings for enterprise production deployments.
+- **Auth Modes Test Suite (`test_auth_modes.py`):** 8 tests passing verifying token rejections (status 401/403) and mTLS context validation.
+
 **COMPLETE — 2026-10-29: Phase 4 of 10/10 Enterprise Roadmap — Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (Category C6: 9.2 ➔ 10.0).**
 - **Local Pre-Cached Container Image Detection (`factory-stack.ts`, `main.ts`):** Implemented `localImageCandidates()` and candidate inspection logic in `ensureImages()`, instantly recognizing locally built images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners without downloading.
 - **Real-Time Throughput & Byte Progress UX (`starting.html`, `starting-preload.ts`):** Enabled instantaneous MB/s throughput calculation and layer progress indicators (`45.2 MB / 180.0 MB • 14.2 MB/s`), replacing static spinning indicators with clear feedback.

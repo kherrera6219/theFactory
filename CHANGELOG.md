@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 5: Zero-Trust Multi-Tenant OIDC & Gateway Hardening (2026-10-29)
+
+#### Added
+- **Strict OIDC Claim Enforcement**: Added `services/api-gateway/api_gateway/middleware.py` with `validate_strict_oidc_claims()` strictly validating standard RFC 7519 / NIST SP 800-218 claims (`sub`, `iss`, `aud`, multi-tenant `tenant_id`/`tid`, and roles across Keycloak `realm_access`, Azure AD `groups`, and OAuth `scope`).
+- **Inter-Service Mutual TLS (mTLS) Mesh**: Implemented `build_mtls_ssl_context()` and `_create_internal_client()` in `api-gateway`, enabling mutual certificate verification when communicating between internal services (`INTERNAL_MTLS_ENABLED=true`).
+- **Enterprise Configuration Template**: Added `.env.enterprise.example` documenting hardened production configurations for Keycloak, Okta, and Azure AD alongside internal mTLS cert paths.
+- **Dedicated Auth Modes Verification Suite**: Created `tests/services/test_auth_modes.py` (8 tests passing in 0.83s) validating token rejections for missing subjects, issuer/audience mismatches, cross-tenant isolation, and certificate errors.
+
 ### 10/10 Enterprise Roadmap Phase 4: Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (2026-10-29)
 
 #### Added
