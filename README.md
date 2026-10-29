@@ -354,7 +354,81 @@ make up-full-dedicated
 
 ## Mission Control Views & Operator Console
 
-Mission Control provides 16 specialized operator views for full factory governance:
+Mission Control is the unified operator console for theFactory, available as both a web console (`http://localhost:3000`) and a native Windows desktop application. Below is a visual walkthrough illustrating the core operator workflow:
+
+### 1. Requirements Intake & PM Agent Consultation
+The operator initiates work through natural language. The PM Agent negotiates scope, clarifies ambiguities, and produces an immutable, binding Statement of Work (SOW) feature contract with acceptance criteria and resource boundaries.
+
+<p align="center">
+  <img src="docs/screenshots/02-chat.png" alt="PM Agent Requirements Negotiation and SOW Intake Console" width="850">
+</p>
+
+---
+
+### 2. Live Smelt Cycle Progress & Sandbox Execution
+Every mission progresses through formal lifecycle gates. The mission detail view presents a real-time stepper tracking phase progression, container sandbox execution status, and live output logs.
+
+<p align="center">
+  <img src="docs/screenshots/16-mission-detail.png" alt="Mission Control Phase Stepper and Real-Time Execution Detail" width="850">
+</p>
+
+---
+
+### 3. Specialist Agent Fleet & Health Telemetry
+The fleet monitor displays live operational status across all 41 specialized agents—including Executive, Interface, Pod Managers, Language Specialists, and Audit QC workers—with real-time heartbeat status, round-trip latency, and host resource utilization.
+
+<p align="center">
+  <img src="docs/screenshots/07-agents.png" alt="41 Specialist Agent Fleet Telemetry and Status Grid" width="850">
+</p>
+
+---
+
+### 4. Semantic Engine & LogicNodes AST Extraction
+During language ingestion and smelting, code structures are extracted into paradigm-independent LogicNodes and Refined-IR data flows, allowing structural analysis and type inference before codegen.
+
+<p align="center">
+  <img src="docs/screenshots/08-logicnodes.png" alt="LogicNodes Structural AST and Refined-IR Inspector" width="850">
+</p>
+
+---
+
+### 5. Multi-Protocol Bus Event Mesh
+All inter-agent communication is mediated through 6 typed Redis protocol streams (Alpha, Beta, Delta, Sigma, Omega, Rho). The bus monitor provides real-time event inspection, payload payload verification, and W3C distributed tracing context tracking.
+
+<p align="center">
+  <img src="docs/screenshots/09-protocol-bus.png" alt="Protocol Bus Real-Time Stream Event Inspector" width="850">
+</p>
+
+---
+
+### 6. Code Review, Diffs & Human Approval Gates
+Before synthesized source code is finalized for delivery, operators can inspect multi-file side-by-side diffs, review unit tests and test oracle outputs, and provide cryptographic sign-off.
+
+<p align="center">
+  <img src="docs/screenshots/03-builder.png" alt="Code Builder Multi-File Diff Review and Human Approval Interface" width="850">
+</p>
+
+---
+
+### 7. Performance Observability & DORA Metrics
+Factory health telemetry tracks global throughput, deployment frequency, change failure rates, and p95 latency percentiles with drill-downs across worker queues and model provider response times.
+
+<p align="center">
+  <img src="docs/screenshots/11-performance.png" alt="Performance Observability and DORA System Metrics" width="850">
+</p>
+
+---
+
+### 8. Security Guardrails, Prompt Defense & Audit Logs
+Integrated security monitors log prompt injection defense triggers, PII detection events, and container egress attempts, while the audit console provides an immutable, hash-chained compliance audit trail.
+
+<p align="center">
+  <img src="docs/screenshots/10-alerts.png" alt="Security Alerts and Guardrail Trigger Dashboard" width="850">
+</p>
+
+---
+
+### Complete Index of Mission Control Views
 
 1. **Operations Dashboard** (`/dashboard`): Global system throughput, total mission counts, and active worker statuses.
 2. **Chat Intake & PM Consultation** (`/chat`): Interactive natural language requirements negotiation with the PM Agent.
