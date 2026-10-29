@@ -426,7 +426,13 @@ def _validate_envelope(envelope: dict[str, Any]) -> None:
     )
 
 
-def _build_envelope(*, correlation_id: str, payload_ref: str) -> dict[str, Any]:
+def _build_envelope(
+    *,
+    correlation_id: str,
+    payload_ref: str,
+    traceparent: str | None = None,
+    tracestate: str | None = None,
+) -> dict[str, Any]:
     envelope = {
         "event_id": f"evt-{uuid.uuid4()}",
         "topic": INTAKE_TOPIC,
@@ -437,6 +443,16 @@ def _build_envelope(*, correlation_id: str, payload_ref: str) -> dict[str, Any]:
         "schema": "missions.intake.v1",
         "priority": "NORMAL",
     }
+    if traceparent:
+        envelope["traceparent"] = traceparent
+    if tracestate:
+        envelope["tracestate"] = tracestate
+    try:
+        from thefactory_common.tracing import inject_envelope_trace_context
+
+        inject_envelope_trace_context(envelope)
+    except Exception:
+        pass
     _validate_envelope(envelope)
     return envelope
 

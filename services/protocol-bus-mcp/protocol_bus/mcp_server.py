@@ -233,6 +233,8 @@ class EventEnvelope(BaseModel):
     # canonical values this transport writes; the lowercase bus vocabulary is
     # accepted additively so a bus-priority envelope is not rejected (UPG-22).
     priority: Literal["NORMAL", "HIGH", "low", "normal", "high", "critical"]
+    traceparent: str | None = None
+    tracestate: str | None = None
 
     @model_validator(mode="after")
     def _validate_timestamp(self) -> "EventEnvelope":
@@ -252,6 +254,8 @@ class MessageEnvelope(BaseModel):
     priority: Literal["low", "normal", "high", "critical"]
     timestamp: str
     payload: dict[str, Any]
+    traceparent: str | None = None
+    tracestate: str | None = None
 
     @model_validator(mode="after")
     def _validate_timestamp(self) -> "MessageEnvelope":
@@ -269,6 +273,8 @@ class SendMessageRequest(BaseModel):
     correlation_id: str | None = Field(default=None, max_length=120)
     priority: Literal["low", "normal", "high", "critical"] = "normal"
     payload: dict[str, Any] = Field(default_factory=dict)
+    traceparent: str | None = None
+    tracestate: str | None = None
 
 
 def _validate_protocol_payload(protocol: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -600,6 +606,9 @@ async def send_message(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    traceparent = payload.traceparent or request.headers.get("traceparent")
+    tracestate = payload.tracestate or request.headers.get("tracestate")
+
     envelope = MessageEnvelope(
         message_id=f"msg-{uuid.uuid4()}",
         schema_version=payload.schema_version,
@@ -610,6 +619,8 @@ async def send_message(
         priority=payload.priority,
         timestamp=datetime.now(UTC).isoformat(),
         payload=protocol_payload,
+        traceparent=traceparent,
+        tracestate=tracestate,
     )
     envelope_json = json.dumps(envelope.model_dump(mode="json"))
 

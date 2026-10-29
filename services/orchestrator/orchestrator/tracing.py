@@ -3,7 +3,15 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+from contextlib import contextmanager
 from typing import Any
+
+from thefactory_common.tracing import (
+    extract_envelope_trace_context,
+    extract_w3c_trace_context,
+    inject_envelope_trace_context,
+    inject_w3c_trace_context,
+)
 
 LOGGER = logging.getLogger(__name__)
 TRUTHY_VALUES = {"1", "true", "yes", "on"}
@@ -91,6 +99,32 @@ def current_span_id() -> str | None:
     return f"{context.span_id:016x}"
 
 
+@contextmanager
+def trace_from_carrier(
+    operation_name: str,
+    carrier: dict[str, Any] | None,
+    attributes: dict[str, Any] | None = None,
+):
+    """Context manager to start a span linked to an upstream parent extracted from carrier."""
+    if not _enabled() or not carrier:
+        yield None
+        return
+
+    try:
+        from opentelemetry import trace
+
+        extracted_ctx = extract_w3c_trace_context(carrier)
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span(operation_name, context=extracted_ctx) as span:
+            if attributes:
+                for k, v in attributes.items():
+                    span.set_attribute(k, str(v))
+            yield span
+    except Exception as exc:
+        LOGGER.debug("trace_from_carrier exception: %s", exc)
+        yield None
+
+
 def trace_operation(operation_name: str, attributes: dict[str, Any] | None = None):
     """Decorator to trace a function call with OTEL spans."""
     def decorator(func):
@@ -110,7 +144,7 @@ def trace_operation(operation_name: str, attributes: dict[str, Any] | None = Non
                     return func(*args, **kwargs)
             except Exception:
                 return func(*args, **kwargs)
-        
+
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             try:
@@ -128,3 +162,16 @@ def trace_operation(operation_name: str, attributes: dict[str, Any] | None = Non
             return async_wrapper
         return wrapper
     return decorator
+
+
+__all__ = [
+    "configure_tracing",
+    "current_span_id",
+    "current_trace_id",
+    "extract_envelope_trace_context",
+    "extract_w3c_trace_context",
+    "inject_envelope_trace_context",
+    "inject_w3c_trace_context",
+    "trace_from_carrier",
+    "trace_operation",
+]

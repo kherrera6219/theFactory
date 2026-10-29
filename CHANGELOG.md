@@ -6,6 +6,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 2: W3C Distributed Tracing across Redis Protocol Envelopes (2026-10-29)
+
+#### Added
+- **W3C Distributed Tracing in Protocol Envelopes**: Extended `schemas/event.envelope.schema.json` with W3C `traceparent` and `tracestate` properties, enabling end-to-end trace propagation across asynchronous Redis stream events.
+- **Shared Tracing Context Engine**: Added `shared_runtime/thefactory_common/tracing.py` with `inject_w3c_trace_context()`, `extract_w3c_trace_context()`, `inject_envelope_trace_context()`, and `extract_envelope_trace_context()`.
+- **Protocol Bus & Gateway Trace Injection**: Updated `EventEnvelope`, `MessageEnvelope`, and `SendMessageRequest` in `services/protocol-bus-mcp/protocol_bus/mcp_server.py` and `_build_envelope` in `services/api-gateway/api_gateway/main.py` to accept, validate, and inject trace headers.
+- **Orchestrator Remote Span Continuation**: Enhanced `services/orchestrator/orchestrator/tracing.py` with `trace_from_carrier()` context manager to start child spans linked directly to remote upstream parents extracted from Redis messages.
+- **Comprehensive Tracing Test Suite**: Created `tests/services/test_distributed_tracing.py` (12 tests passing in 1.04s, 83.9% line coverage) validating traceparent injection, remote parent span linking, and envelope contract synchronization.
+
 ### 10/10 Enterprise Roadmap Phase 1: Reciprocal Rank Fusion Hybrid Search (2026-10-29)
 
 #### Added

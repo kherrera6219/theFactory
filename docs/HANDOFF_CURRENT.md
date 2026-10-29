@@ -10,6 +10,12 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-10-29) — read first
 
+**COMPLETE — 2026-10-29: Phase 2 of 10/10 Enterprise Roadmap — W3C Distributed Tracing across Redis Protocol Envelopes (Category C7: 9.3 ➔ 10.0).**
+- **Canonical Envelope Tracing (`schemas/event.envelope.schema.json`):** Extended JSON Schema and Pydantic envelope models (`EventEnvelope`, `MessageEnvelope`, `SendMessageRequest`) with W3C `traceparent` and `tracestate` properties.
+- **Shared Propagation Engine (`thefactory_common/tracing.py`):** Implemented `inject_w3c_trace_context`, `extract_w3c_trace_context`, `inject_envelope_trace_context`, and `extract_envelope_trace_context` to propagate OpenTelemetry trace carriers across asynchronous Redis streams.
+- **Microservice Integration:** Wired W3C trace injection and propagation across `api-gateway` intake publishing (`_build_envelope`), `orchestrator` state lifecycle transitions (`build_state_envelope`, `parse_intake_envelope`), and `protocol-bus-mcp` HTTP endpoint (`/send`).
+- **Distributed Trace Unit Suite:** Created `tests/services/test_distributed_tracing.py` (12 tests passing in 1.04s) verifying remote parent span continuation, carrier propagation, and schema validation with 83.9% combined coverage.
+
 **COMPLETE — 2026-10-29: Phase 1 of 10/10 Enterprise Roadmap — Reciprocal Rank Fusion (RRF) Hybrid Search (Category C5: 9.3 ➔ 10.0).**
 - **Reciprocal Rank Fusion Hybrid Search (`knowledge_lake.py`):** Implemented `reciprocal_rank_fusion` and `search_hybrid`, uniting dense vector similarity (Qdrant) and sparse lexical token matching (PostgreSQL) using $RRF(d) = \sum \frac{1}{k + r_i(d)}$.
 - **Exact Symbol Retrieval Boost:** Enhanced keyword search with exact symbol matching bonus for specialized standards and code identifiers (e.g. `MISRA-C:Rule-10.1`).

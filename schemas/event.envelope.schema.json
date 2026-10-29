@@ -50,6 +50,20 @@
         "high",
         "critical"
       ]
+    },
+    "traceparent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "W3C traceparent header (version-traceid-parentid-traceflags)"
+    },
+    "tracestate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "W3C tracestate header"
     }
   },
   "additionalProperties": false

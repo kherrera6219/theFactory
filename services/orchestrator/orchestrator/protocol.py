@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from thefactory_common.tracing import inject_envelope_trace_context
+
 from shared_runtime.protocol import ProtocolValidationError as _SharedProtocolValidationError
 from shared_runtime.protocol import parse_date_time as _shared_parse_date_time
 from shared_runtime.protocol import to_event_priority as _to_event_priority
@@ -86,6 +88,7 @@ class EnvelopeValidator:
             "schema": "missions.state.v1",
             "priority": priority,
         }
+        inject_envelope_trace_context(envelope)
         self.validate(envelope)
         return envelope
 
@@ -117,6 +120,10 @@ class EnvelopeValidator:
                     raw_fields.get("priority") or self.settings.default_priority
                 ),
             }
+            if raw_fields.get("traceparent"):
+                envelope["traceparent"] = raw_fields.get("traceparent")
+            if raw_fields.get("tracestate"):
+                envelope["tracestate"] = raw_fields.get("tracestate")
 
         self.validate(envelope)
         return envelope
