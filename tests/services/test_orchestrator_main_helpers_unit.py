@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -427,3 +428,135 @@ def test_upsert_agent_heartbeat_handles_emit_failures(monkeypatch) -> None:
     )
 
     assert record["agent_id"] == "AGENT-01-PM"
+
+def test_probe_agent_health_and_process_rss() -> None:
+    from orchestrator.heartbeat_service import get_process_rss_bytes, probe_agent_health
+
+    rss = get_process_rss_bytes()
+    assert isinstance(rss, int)
+    assert rss >= 0
+
+    class _MockAgent:
+        agent_id = "AGENT-99-TEST"
+        name = "Test Agent"
+        tier = "support"
+
+    probe = probe_agent_health(_MockAgent())
+    assert probe["live_health_probe"] is True
+    assert probe["is_healthy"] is True
+    assert probe["latency_ms"] > 0.0
+    assert probe["rss_bytes"] >= 0
+
+    # Unhealthy agent probe
+    class _BadAgent:
+        agent_id = ""
+        name = None
+        tier = None
+
+    bad_probe = probe_agent_health(_BadAgent())
+    assert bad_probe["live_health_probe"] is True
+    assert bad_probe["is_healthy"] is False
+
+
+def test_state_for_agent_branches() -> None:
+    from orchestrator.heartbeat_service import _state_for_agent
+
+    runtime_base = {
+        "redis_ready": True,
+        "db_ready": True,
+        "protocol_ready": True,
+        "consumer_running": True,
+    }
+
+    # db_ready=False
+    assert _state_for_agent(category="executive", short_code="CEO", queue_depth=1, runtime={**runtime_base, "db_ready": False}) == "ERROR"
+
+    # protocol_ready=False for executive / pod_manager / pod_audit
+    assert _state_for_agent(category="executive", short_code="CEO", queue_depth=1, runtime={**runtime_base, "protocol_ready": False}) == "ERROR"
+
+    # redis_ready=False for BROKER / IS / CEO
+    assert _state_for_agent(category="support", short_code="BROKER", queue_depth=1, runtime={**runtime_base, "redis_ready": False}) == "ERROR"
+
+    # consumer_running=False for executive
+    assert _state_for_agent(category="executive", short_code="CEO", queue_depth=1, runtime={**runtime_base, "consumer_running": False}) == "PAUSED"
+
+    # queue_depth <= 0
+    assert _state_for_agent(category="support", short_code="ACC", queue_depth=0, runtime=runtime_base) == "IDLE"
+
+    # verifying categories
+    assert _state_for_agent(category="pod_audit", short_code="AUDA", queue_depth=2, runtime=runtime_base) == "VERIFYING"
+    assert _state_for_agent(category="support", short_code="TESTER", queue_depth=2, runtime=runtime_base) == "VERIFYING"
+
+    # running categories
+    assert _state_for_agent(category="interface", short_code="PM", queue_depth=2, runtime=runtime_base) == "RUNNING"
+
+    # active categories
+    assert _state_for_agent(category="support", short_code="HW", queue_depth=2, runtime=runtime_base) == "ACTIVE"
+
+
+def test_workload_for_agent_branches() -> None:
+    from orchestrator.heartbeat_service import _workload_for_agent
+
+    assert _workload_for_agent(category="support", state="ERROR", queue_depth=5) == 0
+    assert _workload_for_agent(category="support", state="PAUSED", queue_depth=5) == 40
+    assert _workload_for_agent(category="support", state="IDLE", queue_depth=0) == 6
+    assert _workload_for_agent(category="interface", state="RUNNING", queue_depth=2) == 42 + 2 * 14
+
+def test_heartbeat_service_upsert_direct(monkeypatch) -> None:
+    app = SimpleNamespace(state=SimpleNamespace(settings=SimpleNamespace()))
+    payload = AgentHeartbeatUpsert(agent_id="AGENT-01-PM", state="RUNNING")
+
+    monkeypatch.setattr(
+        orchestrator_heartbeat.storage,
+        "upsert_agent_heartbeat",
+        lambda *_args: {"agent_id": "AGENT-01-PM", "state_changed": True},
+    )
+
+    calls = []
+    async def _emit(*_args: Any, **_kwargs: Any) -> None:
+        calls.append("emitted")
+
+    monkeypatch.setattr(orchestrator_heartbeat, "_emit_agent_telemetry_event", _emit)
+
+    record = asyncio.run(
+        orchestrator_heartbeat._upsert_agent_heartbeat(
+            app,
+            payload,
+            emit_stream_event=True,
+        )
+    )
+    assert record["agent_id"] == "AGENT-01-PM"
+    assert calls == ["emitted"]
+
+
+def test_agent_heartbeat_loop_iteration(monkeypatch) -> None:
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            settings=SimpleNamespace(),
+            redis_ready=True,
+            db_ready=True,
+            protocol_ready=True,
+            consumer_task=None,
+        )
+    )
+
+    monkeypatch.setattr("orchestrator.main._initialize_app_state", lambda _app: None)
+    async def _mock_ensure(_app):
+        return (True, True)
+    monkeypatch.setattr(orchestrator_heartbeat, "ensure_runtime_ready", _mock_ensure)
+    monkeypatch.setattr(orchestrator_heartbeat.storage, "list_missions", lambda _s, _l: [])
+
+    upsert_calls = []
+    async def _mock_upsert(_app, payload, emit_stream_event):
+        upsert_calls.append(payload.agent_id)
+        return {}
+    monkeypatch.setattr(orchestrator_heartbeat, "_upsert_agent_heartbeat", _mock_upsert)
+
+    async def _mock_sleep(_secs):
+        raise asyncio.CancelledError()
+    monkeypatch.setattr(asyncio, "sleep", _mock_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(orchestrator_heartbeat.agent_heartbeat_loop(app))
+
+    assert len(upsert_calls) > 0

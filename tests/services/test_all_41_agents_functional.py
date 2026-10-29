@@ -17,6 +17,7 @@ from orchestrator.agent_base import (
     make_agent,
 )
 from orchestrator.agent_registry import AGENT_REGISTRY
+from orchestrator.heartbeat_service import probe_agent_health
 
 _AGENT_PARAMS = [
     pytest.param(defn, id=defn.agent_id) for defn in AGENT_REGISTRY
@@ -91,3 +92,52 @@ def test_agent_functional_lifecycle(defn) -> None:
     assert report.verdict == "PASS"
     assert report.agent_id == agent_id
     assert len(report.summary) > 0
+
+
+def test_all_41_agents_live_health_probes_and_telemetry() -> None:
+    from datetime import UTC, datetime
+
+    from orchestrator.main import _build_operations_agents_snapshot
+
+    # 1. Verify individual live probe for every single agent in AGENT_REGISTRY
+    latencies = []
+    for defn in AGENT_REGISTRY:
+        probe = probe_agent_health(defn)
+        assert probe["live_health_probe"] is True
+        assert probe["is_healthy"] is True
+        assert isinstance(probe["latency_ms"], float)
+        assert probe["latency_ms"] > 0.0
+        assert isinstance(probe["rss_bytes"], int)
+        assert probe["rss_bytes"] >= 0
+        latencies.append(probe["latency_ms"])
+
+    assert len(latencies) == 41
+
+    # 2. Verify operations snapshot delivers live_health_probe and real metrics for all 41 agents
+    runtime = {
+        "redis_ready": True,
+        "db_ready": True,
+        "protocol_ready": True,
+        "consumer_running": True,
+        "qdrant_ready": True,
+        "milvus_ready": True,
+        "neo4j_ready": True,
+        "object_storage_ready": True,
+    }
+    snapshot = _build_operations_agents_snapshot(
+        generated_at=datetime.now(UTC),
+        runtime=runtime,
+        missions=[],
+        pod_assignments=[],
+        recent_events=[],
+        agent_heartbeats=[],
+    )
+    assert snapshot["total_agents"] == 41
+    agents = snapshot["agents"]
+    assert len(agents) == 41
+
+    for agent_record in agents:
+        assert agent_record["live_health_probe"] is True
+        assert isinstance(agent_record["latency_ms"], (int, float))
+        assert agent_record["latency_ms"] > 0.0
+        assert isinstance(agent_record["rss_bytes"], int)

@@ -6,10 +6,9 @@ import logging
 import os
 import time
 import uuid
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -20,7 +19,6 @@ from shared_runtime.errors import ErrorSeverity, FactoryError
 from shared_runtime.logging_config import configure_logging
 
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
-from .agent_integrations import build_agent_integration_record
 from .agent_registry import (  # noqa: F401  (used by callers via _main)
     AGENT_REGISTRY,
     normalize_language,
@@ -701,192 +699,16 @@ def _build_operations_agents_snapshot(
     recent_events: list[Any],
     agent_heartbeats: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    active_states = {MissionState.queued, MissionState.running, MissionState.verified}
-    active_missions = [mission for mission in missions if mission.state in active_states]
-    active_mission_ids = {mission.mission_id for mission in active_missions}
-    verified_mission_ids = {
-        mission.mission_id for mission in missions if mission.state == MissionState.verified
-    }
-    complete_mission_ids = {
-        mission.mission_id for mission in missions if mission.state == MissionState.complete
-    }
-    mission_by_id = {mission.mission_id: mission for mission in missions}
+    from .routes.operations import _build_operations_agents_snapshot as _routes_build_snapshot
 
-    assignment_by_mission: dict[str, str] = {}
-    active_ids_by_pod: dict[str, list[str]] = defaultdict(list)
-    for assignment in pod_assignments:
-        mission_id = str(assignment.get("mission_id", ""))
-        pod_key = _normalize_pod_name(str(assignment.get("pod_name", "")))
-        if not mission_id or not pod_key:
-            continue
-        assignment_by_mission[mission_id] = pod_key
-        if mission_id in active_mission_ids:
-            active_ids_by_pod[pod_key].append(mission_id)
-
-    specialist_lookup: dict[tuple[str, str], str] = {}
-    specialist_missions: dict[str, list[str]] = {}
-    for agent in AGENT_REGISTRY:
-        if agent.category != "specialist":
-            continue
-        specialist_missions[agent.agent_id] = []
-        pod_key = _normalize_pod_name(agent.pod)
-        for specialty in agent.specialties:
-            specialist_lookup[(pod_key, normalize_language(specialty))] = agent.agent_id
-
-    for mission_id in sorted(active_mission_ids):
-        pod_key = assignment_by_mission.get(mission_id)
-        if not pod_key:
-            continue
-        mission = mission_by_id.get(mission_id)
-        if mission is None:
-            continue
-        normalized_language = normalize_language(mission.requested_target_language)
-        specialist_id = specialist_lookup.get((pod_key, normalized_language))
-        if specialist_id is None and pod_key == "poda":
-            specialist_id = "AGENT-14-PYTHON"
-        if specialist_id is not None:
-            specialist_missions.setdefault(specialist_id, []).append(mission_id)
-
-    pod_active_counts = {pod: len(ids) for pod, ids in active_ids_by_pod.items()}
-    recent_complete_events = 0
-    for event in recent_events:
-        if hasattr(event, "new_state"):
-            new_state = getattr(event, "new_state", "")
-            candidate = getattr(new_state, "value", new_state)
-        elif isinstance(event, dict):
-            candidate = event.get("new_state", "")
-        else:
-            candidate = ""
-        if str(candidate).upper() == "COMPLETE":
-            recent_complete_events += 1
-    deployment_backlog = max(len(complete_mission_ids), recent_complete_events)
-
-    sorted_active_ids = sorted(active_mission_ids)
-    sorted_verified_ids = sorted(verified_mission_ids)
-    sorted_complete_ids = sorted(complete_mission_ids)
-    heartbeat_map = {
-        str(record.get("agent_id", "")): record
-        for record in agent_heartbeats
-        if isinstance(record, dict) and str(record.get("agent_id", ""))
-    }
-    integration_map = {
-        record["agent_id"]: record
-        for record in (build_agent_integration_record(agent) for agent in AGENT_REGISTRY)
-    }
-
-    agents_payload: list[dict[str, Any]] = []
-    for agent in AGENT_REGISTRY:
-        pod_key = _normalize_pod_name(agent.pod)
-        live_record = heartbeat_map.get(agent.agent_id)
-        integration_record = integration_map.get(agent.agent_id, {})
-        persona_profile = integration_record.get("persona_profile", {})
-        heartbeat_age_seconds: int | None = None
-        heartbeat_source = "heuristic"
-
-        if agent.category in {"interface", "executive"}:
-            queue_depth = len(active_mission_ids)
-            related_missions = sorted_active_ids
-        elif agent.category == "support":
-            if agent.short_code == "HW":
-                related_missions = sorted(active_ids_by_pod.get("podb", []))
-                queue_depth = len(related_missions)
-            elif agent.short_code == "TESTER":
-                related_missions = sorted_verified_ids
-                queue_depth = len(related_missions)
-            elif agent.short_code == "DEPLOY":
-                related_missions = sorted_complete_ids
-                queue_depth = deployment_backlog
-            else:
-                related_missions = sorted_active_ids
-                queue_depth = len(related_missions)
-        elif agent.category in {"pod_manager", "pod_audit"}:
-            related_missions = sorted(active_ids_by_pod.get(pod_key, []))
-            queue_depth = len(related_missions)
-        else:
-            related_missions = sorted(specialist_missions.get(agent.agent_id, []))
-            queue_depth = len(related_missions)
-
-        if live_record is not None:
-            heartbeat_source = "live"
-            state = str(live_record.get("state", "IDLE")).upper()
-            queue_depth = max(0, int(live_record.get("queue_depth", 0)))
-            workload_pct = min(100, max(0, int(live_record.get("workload_pct", 0))))
-            live_missions = live_record.get("active_mission_ids", [])
-            if isinstance(live_missions, list):
-                related_missions = [
-                    mission_id
-                    for mission_id in (str(value) for value in live_missions)
-                    if mission_id
-                ][:25]
-            heartbeat_iso = str(live_record.get("last_heartbeat", generated_at.isoformat()))
-            heartbeat_dt = _parse_iso_datetime(heartbeat_iso)
-            if heartbeat_dt is not None:
-                heartbeat_age_seconds = max(0, int((generated_at - heartbeat_dt).total_seconds()))
-                if heartbeat_age_seconds > AGENT_HEARTBEAT_STALE_SECONDS:
-                    heartbeat_source = "stale"
-                    if state not in {"ERROR", "PAUSED"}:
-                        state = "PAUSED"
-        else:
-            state = _state_for_agent(
-                category=agent.category,
-                short_code=agent.short_code,
-                queue_depth=queue_depth,
-                runtime=runtime,
-            )
-            workload_pct = _workload_for_agent(
-                category=agent.category,
-                state=state,
-                queue_depth=queue_depth,
-            )
-            heartbeat_iso = (generated_at - timedelta(seconds=(agent.index % 9) * 3)).isoformat()
-            heartbeat_age_seconds = None
-
-        agents_payload.append(
-            {
-                "index": agent.index,
-                "agent_id": agent.agent_id,
-                "short_code": agent.short_code,
-                "name": agent.name,
-                "tier": agent.tier,
-                "pod": agent.pod,
-                "role": agent.role,
-                "category": agent.category,
-                "specialties": list(agent.specialties),
-                "state": state,
-                "queue_depth": queue_depth,
-                "workload_pct": workload_pct,
-                "last_heartbeat_iso": heartbeat_iso,
-                "active_mission_ids": related_missions[:25],
-                "heartbeat_source": heartbeat_source,
-                "heartbeat_age_seconds": heartbeat_age_seconds,
-                "runtime_class": agent.runtime_class,
-                "persona_profile": persona_profile if isinstance(persona_profile, dict) else {},
-            }
-        )
-
-    state_counts: dict[str, int] = defaultdict(int)
-    tier_counts: dict[str, int] = defaultdict(int)
-    pod_counts: dict[str, int] = defaultdict(int)
-    for record in agents_payload:
-        state_counts[str(record["state"])] += 1
-        tier_counts[str(record["tier"])] += 1
-        pod_counts[str(record["pod"])] += 1
-
-    return {
-        "generated_at": generated_at.isoformat(),
-        "total_agents": len(agents_payload),
-        "runtime": runtime,
-        "mission_backlog": {
-            "active": len(active_mission_ids),
-            "verified": len(verified_mission_ids),
-            "complete": len(complete_mission_ids),
-            "assigned_active": sum(pod_active_counts.values()),
-        },
-        "tier_counts": dict(sorted(tier_counts.items())),
-        "pod_counts": dict(sorted(pod_counts.items())),
-        "state_counts": dict(sorted(state_counts.items())),
-        "agents": agents_payload,
-    }
+    return _routes_build_snapshot(
+        generated_at=generated_at,
+        runtime=runtime,
+        missions=missions,
+        pod_assignments=pod_assignments,
+        recent_events=recent_events,
+        agent_heartbeats=agent_heartbeats,
+    )
 
 
 @asynccontextmanager

@@ -17,6 +17,7 @@ from ..heartbeat_service import (
     AGENT_HEARTBEAT_STALE_SECONDS,
     _state_for_agent,
     _workload_for_agent,
+    probe_agent_health,
 )
 from ..models import AlertStateUpdate, MissionRecord
 from ..protocol_bus_producer import fetch_lane_activity
@@ -325,6 +326,11 @@ def _build_operations_agents_snapshot(
             related_missions = sorted(specialist_missions.get(agent.agent_id, []))
             queue_depth = len(related_missions)
 
+        probe = probe_agent_health(agent)
+        live_health_probe = True
+        latency_ms = probe["latency_ms"]
+        rss_bytes = probe["rss_bytes"]
+
         if live_record is not None:
             heartbeat_source = "live"
             state = str(live_record.get("state", "IDLE")).upper()
@@ -337,6 +343,13 @@ def _build_operations_agents_snapshot(
                     for mission_id in (str(value) for value in live_missions)
                     if mission_id
                 ][:25]
+            metadata = live_record.get("metadata", {})
+            if isinstance(metadata, dict):
+                live_health_probe = bool(metadata.get("live_health_probe", True))
+                if "latency_ms" in metadata:
+                    latency_ms = float(metadata["latency_ms"])
+                if "rss_bytes" in metadata:
+                    rss_bytes = int(metadata["rss_bytes"])
             heartbeat_iso = str(live_record.get("last_heartbeat", generated_at.isoformat()))
             heartbeat_dt = _parse_iso_datetime(heartbeat_iso)
             if heartbeat_dt is not None:
@@ -380,6 +393,9 @@ def _build_operations_agents_snapshot(
                 "heartbeat_source": heartbeat_source,
                 "heartbeat_age_seconds": heartbeat_age_seconds,
                 "persona_profile": persona_profile if isinstance(persona_profile, dict) else {},
+                "live_health_probe": live_health_probe,
+                "latency_ms": latency_ms,
+                "rss_bytes": rss_bytes,
             }
         )
 

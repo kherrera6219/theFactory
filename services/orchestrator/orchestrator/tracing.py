@@ -110,19 +110,15 @@ def trace_from_carrier(
         yield None
         return
 
-    try:
-        from opentelemetry import trace
+    from opentelemetry import trace
 
-        extracted_ctx = extract_w3c_trace_context(carrier)
-        tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span(operation_name, context=extracted_ctx) as span:
-            if attributes:
-                for k, v in attributes.items():
-                    span.set_attribute(k, str(v))
-            yield span
-    except Exception as exc:
-        LOGGER.debug("trace_from_carrier exception: %s", exc)
-        yield None
+    extracted_ctx = extract_w3c_trace_context(carrier)
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span(operation_name, context=extracted_ctx) as span:
+        if attributes:
+            for k, v in attributes.items():
+                span.set_attribute(k, str(v))
+        yield span
 
 
 def trace_operation(operation_name: str, attributes: dict[str, Any] | None = None):

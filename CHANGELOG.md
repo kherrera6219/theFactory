@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 3: Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (2026-10-29)
+
+#### Added
+- **Dynamic Live Health Probes & RSS Measurement**: Implemented `probe_agent_health(agent)` and cross-platform native `get_process_rss_bytes()` (Windows via `ctypes.windll.psapi` / Linux & macOS via `resource`) in `services/orchestrator/orchestrator/heartbeat_service.py`, verifying contract integrity and measuring process memory and round-trip probe latency.
+- **Agent Telemetry Stream Propagation**: Emitted `live_health_probe=True`, `latency_ms`, and `rss_bytes` across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads`.
+- **Unified Operations Endpoint**: Updated `_build_operations_agents_snapshot` in `services/orchestrator/orchestrator/routes/operations.py` to annotate all 41 agents with live health status, latency, and RSS memory usage; deduplicated orchestrator routes to reference the single canonical implementation.
+- **Shared Runtime Path Registration**: Registered `shared_runtime` in root `conftest.py` so that all microservices and tests cleanly resolve `thefactory_common` without path collisions.
+- **Comprehensive Agent Telemetry & Heartbeat Test Suites**: Added `test_all_41_agents_live_health_probes_and_telemetry` to `tests/services/test_all_41_agents_functional.py` and 5 unit tests to `tests/services/test_orchestrator_main_helpers_unit.py` (67 passed in 5.88s), pushing heartbeat service module coverage to 86.8%.
+
+
 ### 10/10 Enterprise Roadmap Phase 2: W3C Distributed Tracing across Redis Protocol Envelopes (2026-10-29)
 
 #### Added

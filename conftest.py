@@ -18,6 +18,7 @@ if str(_REPO_ROOT) not in sys.path:
 # for every later module. Registering the roots here once removes the ordering
 # dependency; `importmode = "importlib"` in pyproject removes the shadowing.
 _SERVICE_ROOTS = (
+    _REPO_ROOT / "shared_runtime",
     _REPO_ROOT / "services" / "pod-worker",
     _REPO_ROOT / "services" / "orchestrator",
     _REPO_ROOT / "services" / "api-gateway",

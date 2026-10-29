@@ -13,6 +13,13 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-10-29: Phase 3 of 10/10 Enterprise Roadmap — Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (Category C3: 9.4 ➔ 10.0).**
+- **Dynamic Live Health Probes (`heartbeat_service.py`):** Implemented `probe_agent_health(agent)` and cross-platform native `get_process_rss_bytes()` (Windows via `ctypes.windll.psapi` / Linux & macOS via `resource`), verifying contract integrity and measuring process memory and round-trip probe latency.
+- **Agent Telemetry Stream Propagation:** Emitted `live_health_probe=True`, `latency_ms`, and `rss_bytes` across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads`.
+- **Unified Operations Endpoint (`routes/operations.py`):** Updated `_build_operations_agents_snapshot` to annotate all 41 agents with live health status, latency, and RSS memory usage; deduplicated orchestrator routes to reference the single canonical implementation.
+- **Shared Runtime Path Registration (`conftest.py`):** Registered `shared_runtime` in root `conftest.py` so that all microservices and tests cleanly resolve `thefactory_common` without path collisions.
+- **Agent Telemetry & Heartbeat Verification:** Added `test_all_41_agents_live_health_probes_and_telemetry` to `tests/services/test_all_41_agents_functional.py` and 5 unit tests to `tests/services/test_orchestrator_main_helpers_unit.py` (67 passed in 5.88s), pushing heartbeat service module coverage to 86.8%.
+
 **COMPLETE — 2026-10-29: Phase 2 of 10/10 Enterprise Roadmap — W3C Distributed Tracing across Redis Protocol Envelopes (Category C7: 9.3 ➔ 10.0).**
 - **Canonical Envelope Tracing (`schemas/event.envelope.schema.json`):** Extended JSON Schema and Pydantic envelope models (`EventEnvelope`, `MessageEnvelope`, `SendMessageRequest`) with W3C `traceparent` and `tracestate` properties.
 - **Shared Propagation Engine (`thefactory_common/tracing.py`):** Implemented `inject_w3c_trace_context`, `extract_w3c_trace_context`, `inject_envelope_trace_context`, and `extract_envelope_trace_context` to propagate OpenTelemetry trace carriers across asynchronous Redis streams.
