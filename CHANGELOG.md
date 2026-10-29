@@ -6,6 +6,20 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 20-Language Functional Verification, 41-Agent Operational Lifecycle, and Zero-Hang Windows Installer (2026-10-29)
+
+#### Added
+- Added automated functional verification suite for all 20 supported languages and their specialist agents in `tests/services/test_20_languages_functional.py` and standalone script `scripts/test_20_languages_verification.py`.
+- Added operational lifecycle verification suite for all 41 registered agents across all tiers (Executive, Interface, Pod Managers, Pod Audit/QC, Support Ring, and Specialists) in `tests/services/test_all_41_agents_functional.py` and standalone script `scripts/test_all_agents_validation.py`.
+- Generated execution evidence artifacts: `docs/evidence/language_verification_20_languages.json` (20/20 PASS) and `docs/evidence/agent_validation_all_41_agents.json` (41/41 PASS).
+- Added `theFactory-MissionControl-Setup-0.1.0.exe` and `theFactory-Setup.exe` directly in the project root directory for immediate double-click desktop installation.
+
+#### Fixed
+- **Zero-Hang NSIS Installer**: Replaced blocking external child process calls (`docker version` and `wsl.exe --status` inside 32-bit SysWOW64) in `apps/mission-control/build/installer.nsh` with instant, pure-native NSIS `FileExists` checks, completely eliminating installer freezes during prerequisite checks.
+- **Silent Install & Uninstall Support**: Added `${If} ${Silent} Abort ${EndIf}` in `FactoryPrereqPage` and `un.FactoryDataPage` so headless/silent installs (`/S`) run without hanging on modal GUI dialogs.
+- **Desktop Shortcut Reliability**: Added `customInstall` hook in `installer.nsh` ensuring launcher shortcut (`theFactory Mission Control.lnk`) is registered on both the active Windows desktop and user profile desktop, with clean removal upon uninstallation.
+- **TypeScript Toolchain Check**: Fixed TypeScript syntax preflight check in `services/pod-worker/pod_worker/toolchains.py` to check `tsc --noEmit` instead of running Node's JavaScript-only `--check` flag on TypeScript files with explicit type annotations.
+
 ### Live Synthesis Timeout Governance & Real-Time Telemetry Dashboard (2026-10-28)
 
 #### Added

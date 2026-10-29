@@ -85,8 +85,15 @@ make tls-certs
 ### 3. Open Mission Control
 Access the operator console either via browser or native desktop application:
 - **Web App**: Open [http://localhost:3000](http://localhost:3000) for real-time mission execution, live telemetry, and PM intake.
-- **Native Windows Desktop App**: Install via 	heFactory-MissionControl-Setup-0.1.0.exe (build with 
-pm --prefix apps/mission-control run electron:package) featuring standalone embedded Next.js server, tray controller, live operations dashboard, and automated 5-second telemetry polling.
+- **Native Windows Desktop App**: Install via `theFactory-MissionControl-Setup-0.1.0.exe` (located directly in the repository root or built with `npm --prefix apps/mission-control run electron:package`) featuring standalone embedded Next.js server, tray controller, live operations dashboard, automated 5-second telemetry polling, and zero-hang native prerequisite checks.
+
+---
+
+## 20-Language Specialists & 41-Agent Operational Verification
+
+theFactory incorporates a verified 41-agent hierarchy and dedicated toolchains for 20 programming languages across 4 paradigm pods:
+- **20 Language Verification**: Automated validation covering Pod routing, AST/regex extraction, syntax preflight, and report generation (`tests/services/test_20_languages_functional.py`).
+- **41 Agent Lifecycle**: Exhaustive end-to-end verification of Executive (CEO), Interface (PM), all 4 Pod Managers, all 4 Pod Audit/QC agents, and all 12 Support Ring agents (`tests/services/test_all_41_agents_functional.py`).
 
 ---
 

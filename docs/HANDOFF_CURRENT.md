@@ -1,14 +1,22 @@
 # Current Handoff
 
-Document version: 2026.10.28
-Last updated: 2026-10-28
+Document version: 2026.10.29
+Last updated: 2026-10-29
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
 
-## Latest session (2026-10-28) — read first
+## Latest session (2026-10-29) — read first
+
+**COMPLETE — 2026-10-29: 20-Language Functional Verification, Full 41-Agent Operational Lifecycle, and Zero-Hang Windows Installer Hardening.**
+- **20 Language Functional Verification (20/20 PASS):** Created automated regression test `tests/services/test_20_languages_functional.py` and runner `scripts/test_20_languages_verification.py`. Verified syntax extraction, pod routing, specialist instance resolution, toolchain preflight, and agent reports across all 20 supported languages. Evidence saved to `docs/evidence/language_verification_20_languages.json`.
+- **TypeScript Toolchain Decoupling:** Fixed `pod_worker/toolchains.py` syntax check for TypeScript by isolating `tsc` execution from `node --check`.
+- **Full 41-Agent Operational Lifecycle (41/41 PASS):** Verified all 41 agents in `AGENT_REGISTRY` across Executive (`AGENT-02-CEO`), Interface (`AGENT-01-PM`), Pod Managers (Pods A-D), Pod Audit/QC (Pods A-D), Support Ring (12 agents), and Specialists (19 classes). Automated via `tests/services/test_all_41_agents_functional.py` (`41 passed in 0.16s`) and evidence saved to `docs/evidence/agent_validation_all_41_agents.json`.
+- **Zero-Hang Windows Desktop App Installer:** Refactored `apps/mission-control/build/installer.nsh` to replace external process execution with instant pure-native NSIS `FileExists` instructions; added silent install/uninstall abort logic (`${If} ${Silent} Abort ${EndIf}`) and dual desktop shortcut creation (`customInstall`); verified setup binary placed directly in repository root (`theFactory-MissionControl-Setup-0.1.0.exe`).
+
+## Previous session (2026-10-28)
 
 **COMPLETE — 2026-10-28: Live Synthesis Timeout Governance & Real-Time Telemetry Dashboard.**
 - **Live LLM End-to-End Verification:** Verified live `gemini-3.8-flash` codegen producing 48,761 characters of modular Python RPG battle engine.

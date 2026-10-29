@@ -1,7 +1,7 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.09.28
-Last updated: 2026-09-28
+Document version: 2026.10.29
+Last updated: 2026-10-29
 Status: Implemented and validated end to end on Windows (WQ #9); first public release pending
 Audience: Maintainers, release managers, operators
 
@@ -75,7 +75,7 @@ silently and never touches the stack.
 | Startup pipeline, tray lifecycle, single instance, Start with Windows | `apps/mission-control/electron/main.ts`, `tray.ts` |
 | Status / progress window | `apps/mission-control/electron/starting.html`, `starting-preload.ts` |
 | Per-start `.env` refresh that preserves secrets | `apps/mission-control/electron/env-generator.ts` (`upsertEnvValues`) |
-| Custom NSIS pages and hooks | `apps/mission-control/build/installer.nsh` |
+| Custom NSIS pages and hooks (pure-native checks, zero-hang prerequisite detection, silent install support) | `apps/mission-control/build/installer.nsh` |
 | Published-image overlay | `deploy/docker-compose.installer.yaml` |
 | Image publishing and version stamping | `.github/workflows/release.yml` |
 
