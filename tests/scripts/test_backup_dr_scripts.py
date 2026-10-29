@@ -45,6 +45,9 @@ def test_backup_script_dry_run_creates_sql_artifact() -> None:
     assert "INSERT INTO missions" in content
 
     backup_path.unlink(missing_ok=True)
+    backups_dir = ROOT / "backups"
+    if backups_dir.exists() and not any(backups_dir.iterdir()):
+        backups_dir.rmdir()
 
 
 def test_dr_drill_dry_run_executes_without_runtime_dependencies() -> None:
@@ -63,3 +66,6 @@ def test_dr_drill_dry_run_executes_without_runtime_dependencies() -> None:
     assert backup_path.exists()
 
     backup_path.unlink(missing_ok=True)
+    backups_dir = ROOT / "backups"
+    if backups_dir.exists() and not any(backups_dir.iterdir()):
+        backups_dir.rmdir()

@@ -68,8 +68,24 @@ def pytest_sessionfinish(session, exitstatus: int) -> None:
         ".mypy_cache",
         ".ruff_cache",
         ".ruff-cache",
+        "backups",
+        "output",
     }
     leaked = new_entries - ignored
+
+    # Clean up transient runtime outputs created by tests if they were not initially present
+    for transient_dir in ("backups", "output"):
+        p = _REPO_ROOT / transient_dir
+        if p.exists() and transient_dir not in _INITIAL_ROOT_ENTRIES:
+            try:
+                import shutil
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    p.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     if leaked:
         raise RuntimeError(
             f"Test root pollution detected: tests created files/directories directly in repository root: {sorted(leaked)}"
