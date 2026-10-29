@@ -13,6 +13,7 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
 COPY services/agent-runtime /app
 COPY shared_runtime /app/shared_runtime
+ENV PYTHONPATH=/app:/app/shared_runtime
 COPY services/orchestrator/orchestrator /app/orchestrator
 COPY schemas /app/schemas
 COPY protocol /app/protocol

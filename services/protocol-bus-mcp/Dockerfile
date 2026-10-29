@@ -13,6 +13,7 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
 COPY services/protocol-bus-mcp /app
 COPY shared_runtime /app/shared_runtime
+ENV PYTHONPATH=/app:/app/shared_runtime
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends ca-certificates liblzma5 \
     && python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \

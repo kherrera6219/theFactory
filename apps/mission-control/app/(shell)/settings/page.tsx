@@ -648,6 +648,8 @@ export default function SettingsPage() {
               </p>
             </div>
             <select
+              id="agent-topology-select"
+              aria-label="Agent Deployment Topology Mode"
               value={preferences.agentTopology ?? "condensed"}
               onChange={(e) => updatePreference("agentTopology", e.target.value as "condensed" | "dedicated")}
               style={{

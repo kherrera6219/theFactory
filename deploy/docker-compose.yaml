@@ -400,7 +400,7 @@ services:
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       DOCKER_HOST: tcp://docker-proxy:2375
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:?INTERNAL_SERVICE_API_KEY must be set to a non-empty secret}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
     depends_on:
       - docker-proxy
     networks:

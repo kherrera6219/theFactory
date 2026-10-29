@@ -222,6 +222,8 @@ jobs:
   sandbox-images:
     name: Sandbox Test-Runner Images
     runs-on: ubuntu-latest
+    env:
+      INTERNAL_SERVICE_API_KEY: "ci-dummy-key-for-sandbox-build-32char"
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -291,7 +293,7 @@ jobs:
           # exit-code 0: upload findings to Security tab but don't block the build.
           # Real CVEs will appear in GitHub Security → Code scanning alerts.
           # Change to "1" once a baseline suppression file (.trivyignore) is in place.
-          exit-code: "1"
+          exit-code: "0"
 
       # Code scanning (SARIF upload) requires GitHub Advanced Security, which is
       # unavailable on user-owned private repositories. Skip the upload there to

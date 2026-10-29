@@ -13,6 +13,7 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
 COPY services/audit-worker /app
 COPY shared_runtime /app/shared_runtime
+ENV PYTHONPATH=/app:/app/shared_runtime
 COPY schemas /app/schemas
 COPY protocol /app/protocol
 RUN apt-get update \
