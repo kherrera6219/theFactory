@@ -88,7 +88,7 @@ FunctionEnd
 
 ; Sets $0 to "running", "installed" or "missing".
 Function FactoryDockerState
-  nsExec::ExecToStack 'docker version --format "{{.Server.Version}}"'
+  nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process \"Docker Desktop\", \"com.docker.backend\" -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
   Pop $1
   Pop $2
   ${If} $1 == 0
@@ -141,6 +141,13 @@ FunctionEnd
 
 
 !endif ; !BUILD_UNINSTALLER
+
+!macro customInstall
+  CreateShortCut "$DESKTOP\${SHORTCUT_NAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
+  ${If} ${FileExists} "$PROFILE\Desktop"
+    CreateShortCut "$PROFILE\Desktop\${SHORTCUT_NAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
+  ${EndIf}
+!macroend
 
 ; ---------------------------------------------------------------------------
 ; Installer: finish page with run-now and opt-in "Start with Windows"
@@ -247,6 +254,10 @@ FunctionEnd
 
     DeleteRegValue HKCU "${FACTORY_RUN_KEY}" "${FACTORY_AUTOSTART_NAME}"
     DeleteRegValue HKCU "${FACTORY_STARTUP_APPROVED_KEY}" "${FACTORY_AUTOSTART_NAME}"
+    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
+    ${If} ${FileExists} "$PROFILE\Desktop\${SHORTCUT_NAME}.lnk"
+      Delete "$PROFILE\Desktop\${SHORTCUT_NAME}.lnk"
+    ${EndIf}
 
     ${If} $R9 == "purge"
       DetailPrint "Removing application data in $R8"
