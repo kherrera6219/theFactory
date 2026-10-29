@@ -528,3 +528,241 @@ def test_get_language_context_returns_none_on_storage_error(monkeypatch) -> None
         raise RuntimeError("db down")
     monkeypatch.setattr(knowledge_lake, "list_knowledge", _raise)
     assert knowledge_lake.get_language_context(settings=_settings(), language="python") is None
+
+# ---------------------------------------------------------------------------
+# Reciprocal Rank Fusion (RRF) & Hybrid Search
+# ---------------------------------------------------------------------------
+
+def test_reciprocal_rank_fusion_basic() -> None:
+    list1 = [
+        {"knowledge_id": "doc.a", "score": 0.95},
+        {"knowledge_id": "doc.b", "score": 0.85},
+    ]
+    list2 = [
+        {"knowledge_id": "doc.b", "score": 0.90},
+        {"knowledge_id": "doc.c", "score": 0.70},
+    ]
+
+    fused = knowledge_lake.reciprocal_rank_fusion([list1, list2], k=60, top_k=5)
+    # doc.b appears in both lists: 1/(60+2) + 1/(60+1) ~= 0.016129 + 0.016393 ~= 0.032522
+    # doc.a appears in list1: 1/(60+1) ~= 0.016393
+    # doc.c appears in list2: 1/(60+2) ~= 0.016129
+    assert len(fused) == 3
+    assert fused[0]["knowledge_id"] == "doc.b"
+    assert fused[1]["knowledge_id"] == "doc.a"
+    assert fused[2]["knowledge_id"] == "doc.c"
+    assert fused[0]["score"] > fused[1]["score"] > fused[2]["score"]
+
+
+def test_reciprocal_rank_fusion_empty_and_malformed() -> None:
+    assert knowledge_lake.reciprocal_rank_fusion([]) == []
+    assert knowledge_lake.reciprocal_rank_fusion([[], None]) == []
+    assert knowledge_lake.reciprocal_rank_fusion([[{"knowledge_id": ""}, "invalid"]]) == []
+
+
+def test_search_hybrid_both_sources_fused(monkeypatch) -> None:
+    monkeypatch.setattr(knowledge_lake, "_semantic_search_enabled", lambda _s: True)
+    vector_results = [
+        {"knowledge_id": "docs.c.memory", "content": {"combined_text": "C memory management"}, "score": 0.95},
+        {"knowledge_id": "docs.c.misra", "content": {"combined_text": "MISRA-C guidelines"}, "score": 0.80},
+    ]
+    keyword_results = [
+        {"knowledge_id": "docs.c.misra", "content": {"combined_text": "MISRA-C guidelines"}, "score": 2.5},
+        {"knowledge_id": "docs.c.raii", "content": {"combined_text": "RAII patterns"}, "score": 1.0},
+    ]
+    monkeypatch.setattr(knowledge_lake, "_vector_search", lambda **_k: vector_results)
+    monkeypatch.setattr(knowledge_lake, "_keyword_search", lambda **_k: keyword_results)
+
+    fused = knowledge_lake.search_hybrid(
+        settings=_settings(),
+        language="c",
+        concept="MISRA-C:Rule-10.1",
+        top_k=5,
+    )
+    # docs.c.misra appears in both dense and sparse results, so RRF promotes it to rank 1
+    assert len(fused) == 3
+    assert fused[0]["knowledge_id"] == "docs.c.misra"
+
+
+def test_search_hybrid_vector_only(monkeypatch) -> None:
+    monkeypatch.setattr(knowledge_lake, "_semantic_search_enabled", lambda _s: True)
+    vector_results = [{"knowledge_id": "docs.python.numpy", "content": {}, "score": 0.99}]
+    monkeypatch.setattr(knowledge_lake, "_vector_search", lambda **_k: vector_results)
+    monkeypatch.setattr(knowledge_lake, "_keyword_search", lambda **_k: [])
+
+    results = knowledge_lake.search_hybrid(
+        settings=_settings(),
+        language="python",
+        concept="array math",
+        top_k=5,
+    )
+    assert len(results) == 1
+    assert results[0]["knowledge_id"] == "docs.python.numpy"
+
+
+def test_search_hybrid_keyword_only(monkeypatch) -> None:
+    monkeypatch.setattr(knowledge_lake, "_semantic_search_enabled", lambda _s: False)
+    keyword_results = [{"knowledge_id": "docs.rust.tokio", "content": {}, "score": 1.5}]
+    monkeypatch.setattr(knowledge_lake, "_keyword_search", lambda **_k: keyword_results)
+
+    results = knowledge_lake.search_hybrid(
+        settings=_settings(),
+        language="rust",
+        concept="async executor",
+        top_k=5,
+    )
+    assert len(results) == 1
+    assert results[0]["knowledge_id"] == "docs.rust.tokio"
+
+
+def test_query_documentation_hybrid_flag(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        knowledge_lake,
+        "search_hybrid",
+        lambda **_k: calls.append("search_hybrid") or [{"knowledge_id": "fused.doc"}],
+    )
+
+    results = knowledge_lake.query_documentation(
+        settings=_settings(),
+        language="python",
+        concept="concurrency",
+        hybrid=True,
+    )
+    assert calls == ["search_hybrid"]
+    assert results == [{"knowledge_id": "fused.doc"}]
+
+
+def test_get_language_context_with_query_hint(monkeypatch) -> None:
+    bootstrap = [
+        {"knowledge_id": "docs.cpp.bootstrap", "content": {"combined_text": "C++ core language spec."}},
+    ]
+    monkeypatch.setattr(knowledge_lake, "list_knowledge", lambda _s, _m, limit: bootstrap)
+    extra_snippet = [
+        {"knowledge_id": "docs.cpp.algorithms", "content": {"combined_text": "std::ranges algorithms."}},
+    ]
+    monkeypatch.setattr(knowledge_lake, "search_hybrid", lambda **_k: extra_snippet)
+
+    result = knowledge_lake.get_language_context(
+        settings=_settings(),
+        language="cpp",
+        query="algorithms",
+    )
+    assert result is not None
+    assert "C++ core language spec." in result
+    assert "std::ranges algorithms." in result
+
+
+def test_keyword_search_exact_symbol_bonus(monkeypatch) -> None:
+    records = [
+        {
+            "knowledge_id": "docs.c.general",
+            "content": {"language": "c", "combined_text": "misra rule guidelines for coding"},
+        },
+        {
+            "knowledge_id": "docs.c.rule10",
+            "content": {"language": "c", "combined_text": "adherence to MISRA-C:Rule-10.1 conversion"},
+        },
+    ]
+    monkeypatch.setattr(knowledge_lake, "list_knowledge", lambda *_a, **_k: records)
+
+    results = knowledge_lake._keyword_search(
+        settings=_settings(),
+        language_key="c",
+        concept_key="MISRA-C:Rule-10.1",
+        top_k=5,
+    )
+    assert len(results) == 2
+    # The record with exact symbol substring match receives the bonus and ranks first
+    assert results[0]["knowledge_id"] == "docs.c.rule10"
+
+def test_get_language_context_with_query_handles_exceptions_gracefully(monkeypatch) -> None:
+    bootstrap = [
+        {"knowledge_id": "docs.python.bootstrap", "content": {"combined_text": "Python bootstrap."}},
+    ]
+    monkeypatch.setattr(knowledge_lake, "list_knowledge", lambda _s, _m, limit: bootstrap)
+
+    def _raise(**_k):
+        raise RuntimeError("search failed")
+
+    monkeypatch.setattr(knowledge_lake, "search_hybrid", _raise)
+
+    # Must not raise — swallows and returns bootstrap docs
+    result = knowledge_lake.get_language_context(settings=_settings(), language="python", query="any query")
+    assert result == "Python bootstrap."
+
+
+def test_get_language_context_with_query_skips_duplicate_and_malformed(monkeypatch) -> None:
+    bootstrap = [
+        {"knowledge_id": "docs.python.bootstrap", "content": {"combined_text": "Python bootstrap."}},
+    ]
+    monkeypatch.setattr(knowledge_lake, "list_knowledge", lambda _s, _m, limit: bootstrap)
+
+    extra_docs = [
+        {"knowledge_id": "docs.python.bootstrap", "content": {"combined_text": "Duplicate bootstrap."}},
+        {"knowledge_id": "docs.python.bad", "content": "not a dict"},
+        {"knowledge_id": "docs.python.empty", "content": {}},
+    ]
+    monkeypatch.setattr(knowledge_lake, "search_hybrid", lambda **_k: extra_docs)
+
+    result = knowledge_lake.get_language_context(settings=_settings(), language="python", query="extra")
+    assert result == "Python bootstrap."
+
+
+def test_vector_search_deserializes_json_content_string(monkeypatch) -> None:
+    monkeypatch.setattr(knowledge_embeddings, "vector_for_content", lambda *_a, **_k: [0.1] * 8)
+    monkeypatch.setattr(qdrant_store, "ensure_collection", lambda _s: None)
+    monkeypatch.setattr(qdrant_store, "_request_json", lambda _s, _m, _p, payload: {
+        "result": [
+            "not a dict hit",
+            {
+                "payload": {
+                    "knowledge_id": "docs.python.json1",
+                    "content": '{"combined_text": "valid json"}',
+                },
+                "score": 0.88,
+            },
+            {
+                "payload": {
+                    "knowledge_id": "docs.python.json2",
+                    "content": "{invalid json string",
+                },
+                "score": 0.77,
+            },
+        ]
+    })
+
+    results = knowledge_lake._vector_search(
+        settings=_settings(), language_key="python", concept_key="json test", top_k=5
+    )
+    assert len(results) == 2
+    assert results[0]["content"] == {"combined_text": "valid json"}
+    assert results[1]["content"] == {}
+
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_embed_text_gemini_and_none(monkeypatch) -> None:
+    # Test none provider
+    settings_none = _settings(knowledge_embedding_provider="none")
+    assert await knowledge_lake.embed_text("test", settings_none) is None
+
+    # Test empty text
+    settings_gemini = _settings(knowledge_embedding_provider="gemini")
+    assert await knowledge_lake.embed_text("", settings_gemini) is None
+
+    # Test gemini provider with mocked call
+    monkeypatch.setattr(
+        "orchestrator.knowledge_embeddings._gemini_embedding",
+        lambda _s, text, dimensions: [0.5] * dimensions,
+    )
+    vector = await knowledge_lake.embed_text("sample code", settings_gemini)
+    assert vector == [0.5] * 8
+
+    # Test error handling
+    def _fail(*_a, **_k):
+        raise RuntimeError("embed error")
+    monkeypatch.setattr("orchestrator.knowledge_embeddings._gemini_embedding", _fail)
+    assert await knowledge_lake.embed_text("sample code", settings_gemini) is None

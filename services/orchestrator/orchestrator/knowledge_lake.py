@@ -13,8 +13,11 @@ available (``KNOWLEDGE_EMBEDDING_PROVIDER`` set to ``gemini`` or ``openai``)
 on later.  When no provider is configured, PostgreSQL keyword search is the
 only retrieval path.
 
-- ``query_documentation`` — keyword search over indexed docs (PostgreSQL),
-  with optional Qdrant vector pre-search when embeddings are configured
+- ``search_hybrid``          — Reciprocal Rank Fusion (RRF) combining dense vector
+                               embeddings and sparse PostgreSQL keyword search
+- ``reciprocal_rank_fusion`` — Multi-rank fusion algorithm for hybrid retrieval
+- ``query_documentation``    — Search over indexed docs (PostgreSQL keyword search
+                               or Qdrant vector search, with optional RRF hybrid mode)
 - ``is_stocked``          — check whether a mission has knowledge entries
 - ``index_documentation`` — upsert a documentation chunk (PostgreSQL + Qdrant)
 - ``get_language_context`` — merged text for prompt injection (PostgreSQL)
@@ -79,21 +82,114 @@ def is_stocked(
     return any(isinstance(r, dict) for r in records)
 
 
+def reciprocal_rank_fusion(
+    ranked_lists: list[list[dict[str, Any]]],
+    k: int = 60,
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    """Combine multiple ranked candidate lists using Reciprocal Rank Fusion (RRF).
+
+    Formula for each candidate item:
+        RRF_Score(d) = sum(1.0 / (k + rank_i(d)))
+    where rank_i(d) is 1-based rank in candidate list i.
+
+    Items appearing across multiple lists (e.g. both dense vector similarity
+    and sparse keyword match) receive cumulative score boosts.
+    """
+    scores: dict[str, float] = {}
+    doc_map: dict[str, dict[str, Any]] = {}
+
+    for rlist in ranked_lists:
+        if not isinstance(rlist, list):
+            continue
+        for rank, item in enumerate(rlist, start=1):
+            if not isinstance(item, dict):
+                continue
+            kid = str(item.get("knowledge_id") or "")
+            if not kid:
+                continue
+            if kid not in doc_map:
+                doc_map[kid] = item
+            scores[kid] = scores.get(kid, 0.0) + (1.0 / (k + rank))
+
+    fused: list[dict[str, Any]] = []
+    for kid, rrf_score in sorted(scores.items(), key=lambda kv: kv[1], reverse=True):
+        candidate = dict(doc_map[kid])
+        candidate["score"] = round(rrf_score, 6)
+        fused.append(candidate)
+
+    return fused[:top_k]
+
+
+def search_hybrid(
+    *,
+    settings: Any,
+    language: str,
+    concept: str,
+    top_k: int = 5,
+    k: int = 60,
+) -> list[dict[str, Any]]:
+    """Reciprocal Rank Fusion (RRF) hybrid search over Knowledge Lake docs.
+
+    Executes dense vector search (when semantic embeddings are enabled in Qdrant)
+    and sparse lexical search (PostgreSQL token/keyword overlap), fusing the
+    ranked lists via RRF.
+
+    When only one modality is available or non-empty, falls back smoothly to that
+    modality. When both produce hits, fuses them according to:
+        RRF_Score(d) = 1/(k + rank_dense) + 1/(k + rank_sparse)
+    """
+    language_key = language.strip().lower()
+    concept_key = concept.strip().lower()
+
+    vector_results: list[dict[str, Any]] = []
+    if _semantic_search_enabled(settings):
+        vector_results = _vector_search(
+            settings=settings,
+            language_key=language_key,
+            concept_key=concept_key,
+            top_k=top_k * 2,
+        )
+
+    keyword_results = _keyword_search(
+        settings=settings,
+        language_key=language_key,
+        concept_key=concept_key,
+        top_k=top_k * 2,
+    )
+
+    if vector_results and keyword_results:
+        return reciprocal_rank_fusion([vector_results, keyword_results], k=k, top_k=top_k)
+    if vector_results:
+        return vector_results[:top_k]
+    return keyword_results[:top_k]
+
+
 def query_documentation(
     *,
     settings: Any,
     language: str,
     concept: str,
     top_k: int = 5,
+    hybrid: bool = False,
 ) -> list[dict[str, Any]]:
     """Semantic search over Knowledge Lake docs for *language* and *concept*.
 
     Returns a list of matching records ordered by relevance (descending).
     Each record: ``{"knowledge_id": str, "content": dict, "score": float}``.
 
-    Falls back to a PostgreSQL keyword filter when Qdrant vector search is
-    unavailable or returns no results.
+    When *hybrid* is True, uses ``search_hybrid`` with Reciprocal Rank Fusion (RRF).
+    When *hybrid* is False (default), attempts vector similarity search first and
+    falls back to PostgreSQL keyword filter.
     """
+    if hybrid:
+        return search_hybrid(
+            settings=settings,
+            language=language,
+            concept=concept,
+            top_k=top_k,
+        )
+
     language_key = language.strip().lower()
     concept_key = concept.strip().lower()
 
@@ -177,11 +273,18 @@ def index_documentation(
     return True
 
 
-def get_language_context(*, settings: Any, language: str) -> str | None:
+def get_language_context(
+    *,
+    settings: Any,
+    language: str,
+    query: str | None = None,
+) -> str | None:
     """Return merged documentation text for *language* suitable for prompt injection.
 
     Queries the global Knowledge Lake (PostgreSQL ``mission_knowledge``) for
     bootstrap docs of the target language and returns a truncated string.
+    When *query* is provided, additionally retrieves targeted documentation
+    via hybrid search and appends relevant excerpts.
     Returns None when nothing is indexed or storage is unavailable.
     """
     language_key = language.strip().lower()
@@ -205,6 +308,25 @@ def get_language_context(*, settings: Any, language: str) -> str | None:
         text = str(content.get("combined_text") or "").strip()
         if text:
             parts.append(text)
+
+    if query and query.strip():
+        try:
+            extra_docs = search_hybrid(
+                settings=settings,
+                language=language_key,
+                concept=query.strip(),
+                top_k=3,
+            )
+            for item in extra_docs:
+                if item.get("knowledge_id") == knowledge_id:
+                    continue
+                item_content = item.get("content") or {}
+                if isinstance(item_content, dict):
+                    extra_text = str(item_content.get("combined_text") or "").strip()
+                    if extra_text and extra_text not in parts:
+                        parts.append(extra_text)
+        except Exception as exc:
+            LOGGER.debug("knowledge_lake.get_language_context extra docs lookup error: %s", exc)
 
     if not parts:
         return None
@@ -544,7 +666,13 @@ def _keyword_search(
         text_tokens = set(_tok.findall(combined_text))
         overlap = len(concept_tokens & text_tokens)
         id_overlap = len(concept_tokens & set(_tok.findall(knowledge_id)))
-        score = (overlap + id_overlap * 2) / max(len(concept_tokens), 1)
+        exact_bonus = 0.0
+        if concept_key.lower().strip() and (
+            concept_key.lower().strip() in combined_text
+            or concept_key.lower().strip() in knowledge_id
+        ):
+            exact_bonus = 3.0
+        score = (overlap + id_overlap * 2 + exact_bonus) / max(len(concept_tokens), 1)
 
         if score > 0:
             scored.append((score, {

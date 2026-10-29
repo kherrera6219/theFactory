@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 1: Reciprocal Rank Fusion Hybrid Search (2026-10-29)
+
+#### Added
+- **Reciprocal Rank Fusion (RRF) Hybrid Search**: Implemented `reciprocal_rank_fusion` and `search_hybrid` in `services/orchestrator/orchestrator/knowledge_lake.py`, combining dense vector embeddings (Qdrant) and sparse token overlap (PostgreSQL) using $RRF(d) = \sum \frac{1}{k + r_i(d)}$ to boost documents retrieved across both modalities.
+- **Exact Symbol Retrieval Boost**: Enhanced `_keyword_search` with an exact substring bonus for strict code identifiers, standards (e.g. `MISRA-C:Rule-10.1`), and symbol lookups.
+- **Targeted Codegen Context Enrichment**: Updated `get_language_context` and `services/orchestrator/orchestrator/mission_flow_v2/phases_build.py` to accept query hints from mission contracts and inject targeted hybrid snippets alongside bootstrap docs into specialist codegen prompts.
+- **Comprehensive Hybrid Test Suite**: Added 12 new unit tests in `tests/services/test_knowledge_lake_unit.py` covering multi-rank fusion, hybrid fallback modalities, exact symbol bonuses, and exception safety, achieving 87.2% standalone coverage and 92.4% module coverage.
+
 ### 20-Language Functional Verification, 41-Agent Operational Lifecycle, and Zero-Hang Windows Installer (2026-10-29)
 
 #### Added

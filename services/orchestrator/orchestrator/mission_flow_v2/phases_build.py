@@ -579,10 +579,14 @@ async def _prepare_specialist_plan(
         )
         # Knowledge Lake retrieval (Phase 2): inject documentation context the
         # IS-Agent stocked during FETCH into the specialist codegen prompt.
+        _query_hint = str(getattr(mission, "title", "") or "")
+        # Knowledge Lake retrieval: inject documentation context the
+        # IS-Agent stocked during FETCH into the specialist codegen prompt.
         knowledge_context = await asyncio.to_thread(
             knowledge_lake.get_language_context,
             settings=settings,
             language=_target_lang,
+            query=_query_hint,
         )
         if knowledge_context:
             _codegen_context["knowledge_context"] = knowledge_context
