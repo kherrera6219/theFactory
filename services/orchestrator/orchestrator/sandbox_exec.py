@@ -178,6 +178,8 @@ class SandboxResult:
     #: printing Docker's error text and exiting 125). Callers must report these
     #: as "not verified", never as a defect in the artifact.
     infrastructure_error: str | None = None
+    duration_ms: float = 0.0
+    warm_pool_hit: bool = False
 
     @property
     def succeeded(self) -> bool:
@@ -303,6 +305,8 @@ def result_from_payload(payload: dict[str, object], *, fallback_image: str, time
         infrastructure_error=(
             str(payload["infrastructure_error"]) if payload.get("infrastructure_error") else None
         ),
+        duration_ms=float(payload.get("duration_ms") or 0.0),
+        warm_pool_hit=bool(payload.get("warm_pool_hit")),
     )
 
 
@@ -455,8 +459,11 @@ async def run_in_sandbox_local(
     """
     timeout = clamp_timeout(timeout_seconds)
     memory = clamp_memory_mb(memory_mb)
+    t0 = asyncio.get_event_loop().time()
+    was_cached = str(base_image) in _PRESENT_IMAGES
     image_problem = await ensure_sandbox_image(docker_bin, str(base_image))
     if image_problem:
+        dt_ms = round((asyncio.get_event_loop().time() - t0) * 1000, 2)
         return SandboxResult(
             exit_code=-1,
             stdout="",
@@ -466,6 +473,8 @@ async def run_in_sandbox_local(
             memory_limit_mb=memory,
             base_image=str(base_image),
             infrastructure_error=image_problem,
+            duration_ms=dt_ms,
+            warm_pool_hit=False,
         )
     _make_workspace_readable(workspace_dir)
     args = build_sandbox_args(
@@ -504,6 +513,7 @@ async def run_in_sandbox_local(
             base_image=str(base_image),
         )
 
+    dt_ms = round((asyncio.get_event_loop().time() - t0) * 1000, 2)
     return SandboxResult(
         exit_code=int(proc.returncode or 0),
         stdout=stdout_bytes.decode("utf-8", errors="replace"),
@@ -512,6 +522,8 @@ async def run_in_sandbox_local(
         timeout_seconds=timeout,
         memory_limit_mb=memory,
         base_image=str(base_image),
+        duration_ms=dt_ms,
+        warm_pool_hit=was_cached,
     )
 
 

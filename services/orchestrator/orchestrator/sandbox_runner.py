@@ -59,6 +59,21 @@ def _authorize(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
+_WARM_POOL_IMAGES: set[str] = set()
+
+
+def record_warm_image(image: str) -> None:
+    _WARM_POOL_IMAGES.add(image)
+
+
+def get_warm_pool_status() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "pool_size": len(_WARM_POOL_IMAGES),
+        "warm_images": sorted(_WARM_POOL_IMAGES),
+    }
+
+
 def result_to_payload(result: SandboxResult) -> dict[str, Any]:
     return {
         "exit_code": result.exit_code,
@@ -69,6 +84,8 @@ def result_to_payload(result: SandboxResult) -> dict[str, Any]:
         "memory_limit_mb": result.memory_limit_mb,
         "base_image": result.base_image,
         "infrastructure_error": result.infrastructure_error,
+        "duration_ms": result.duration_ms,
+        "warm_pool_hit": result.warm_pool_hit,
     }
 
 
@@ -81,6 +98,12 @@ async def livez() -> dict[str, bool]:
 async def sandbox_health(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     _authorize(authorization)
     return {"ok": True, "runner": "sandbox-runner"}
+
+
+@app.get("/internal/sandbox/warm-pool")
+async def sandbox_warm_pool(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    _authorize(authorization)
+    return get_warm_pool_status()
 
 
 @app.post("/internal/sandbox/execute")
@@ -109,4 +132,5 @@ async def sandbox_execute(
         timeout_seconds=timeout,
         memory_mb=memory,
     )
+    record_warm_image(payload.base_image)
     return result_to_payload(result)

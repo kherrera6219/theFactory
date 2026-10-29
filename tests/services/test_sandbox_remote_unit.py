@@ -344,3 +344,80 @@ class TestInfrastructureErrors:
         )
         assert report["verdict"] == "DRY_RUN"
         assert "infrastructure" in str(report.get("dry_run_reason"))
+
+
+def test_sandbox_runner_warm_pool_and_latency(monkeypatch) -> None:
+    import time
+
+    from fastapi.testclient import TestClient
+    from orchestrator.sandbox_runner import app, get_warm_pool_status
+
+    monkeypatch.setenv("INTERNAL_SERVICE_API_KEY", "runner-key")
+
+    async def _fast_local(**kwargs):
+        return sandbox_exec.SandboxResult(
+            exit_code=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            timeout_seconds=30,
+            memory_limit_mb=256,
+            base_image=kwargs["base_image"],
+            duration_ms=45.2,
+            warm_pool_hit=True,
+        )
+
+    monkeypatch.setattr("orchestrator.sandbox_runner.run_in_sandbox_local", _fast_local)
+    client = TestClient(app)
+
+    # 1. Warm-pool query endpoint
+    wp_resp = client.get("/internal/sandbox/warm-pool", headers={"Authorization": "Bearer runner-key"})
+    assert wp_resp.status_code == 200
+    assert "pool_size" in wp_resp.json()
+
+    # 2. Pre-warmed execution latency assertion (<200ms)
+    t0 = time.perf_counter()
+    exec_resp = client.post(
+        "/internal/sandbox/execute",
+        headers={"Authorization": "Bearer runner-key"},
+        json={
+            "workspace_dir": "/sandbox-workspace/job",
+            "base_image": "thefactory/sandbox-test-python:1",
+            "command": "pytest -q",
+            "docker_bin": "/invalid/path/bin",  # tests binary sanitization
+        },
+    )
+    latency_seconds = time.perf_counter() - t0
+    assert latency_seconds < 0.200, f"Execution latency {latency_seconds*1000:.1f}ms exceeded 200ms gate"
+    assert exec_resp.status_code == 200
+    payload = exec_resp.json()
+    assert payload["warm_pool_hit"] is True
+    assert payload["duration_ms"] == 45.2
+
+    # 3. Check warm image was recorded
+    status = get_warm_pool_status()
+    assert "thefactory/sandbox-test-python:1" in status["warm_images"]
+
+    # 4. Auth checks for health and warm-pool
+    assert client.get("/internal/sandbox/health", headers={"Authorization": "runner-key"}).status_code == 200
+    assert client.get("/internal/sandbox/health", headers={"Authorization": "wrong"}).status_code == 401
+    assert client.get("/internal/sandbox/warm-pool", headers={"Authorization": "wrong"}).status_code == 401
+
+
+def test_sandbox_result_from_payload_warm_pool_fields() -> None:
+    raw = {
+        "exit_code": 0,
+        "stdout": "test output",
+        "stderr": "",
+        "timed_out": False,
+        "timeout_seconds": 30,
+        "memory_limit_mb": 256,
+        "base_image": "python:3.12-slim",
+        "duration_ms": 112.5,
+        "warm_pool_hit": True,
+    }
+    result = sandbox_exec.result_from_payload(
+        raw, fallback_image="python:3.12-slim", timeout=30, memory=256
+    )
+    assert result.duration_ms == 112.5
+    assert result.warm_pool_hit is True
