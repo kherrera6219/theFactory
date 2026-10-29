@@ -46,6 +46,9 @@ Function FactoryPrereqPage
   ${If} ${isUpdated}
     Abort ; an update keeps the machine it already runs on
   ${EndIf}
+  ${If} ${Silent}
+    Abort ; silent install skips custom UI dialog
+  ${EndIf}
   !insertmacro MUI_HEADER_TEXT "Prerequisites" "theFactory runs its services in Docker Desktop."
   nsDialogs::Create 1018
   Pop $FactoryPrereqDialog
@@ -172,6 +175,9 @@ FunctionEnd
 ; ---------------------------------------------------------------------------
 !macro customUnWelcomePage
 Function un.FactoryDataPage
+  ${If} ${Silent}
+    Abort ; silent uninstall skips custom UI dialog and keeps data
+  ${EndIf}
   !insertmacro MUI_HEADER_TEXT "Your factory data" "Choose what happens to your missions, settings and audit evidence."
   nsDialogs::Create 1018
   Pop $0
