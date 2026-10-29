@@ -68,9 +68,14 @@ def run_toolchain_check(language: str, source_code: str) -> ToolchainCheckResult
                 res = subprocess.run([py_bin, "-m", "py_compile", file_path], capture_output=True, text=True, check=False)
                 return ToolchainCheckResult(language=lang, passed=(res.returncode == 0), compiler_found=True, output=res.stderr or res.stdout)
 
-        elif lang in {"javascript", "typescript"}:
+        elif lang == "javascript":
             if shutil.which("node"):
                 res = subprocess.run(["node", "--check", file_path], capture_output=True, text=True, check=False)
+                return ToolchainCheckResult(language=lang, passed=(res.returncode == 0), compiler_found=True, output=res.stderr or res.stdout)
+
+        elif lang == "typescript":
+            if shutil.which("tsc"):
+                res = subprocess.run(["tsc", "--noEmit", file_path], capture_output=True, text=True, check=False)
                 return ToolchainCheckResult(language=lang, passed=(res.returncode == 0), compiler_found=True, output=res.stderr or res.stdout)
 
         elif lang == "go":

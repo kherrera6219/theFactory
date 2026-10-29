@@ -15,6 +15,15 @@
 
 !include nsDialogs.nsh
 !include LogicLib.nsh
+!ifndef nsProcess::FindProcess
+  !include "nsProcess.nsh"
+!endif
+
+!macro customCheckAppRunning
+  nsProcess::_KillProcess /NOUNLOAD "${APP_EXECUTABLE_FILENAME}"
+  Pop $0
+  nsProcess::_Unload
+!macroend
 
 ; Must equal AUTOSTART_NAME in electron/main.ts: one registry value, one setting.
 !define FACTORY_AUTOSTART_NAME "com.holygrail.mission-control"
@@ -88,9 +97,14 @@ FunctionEnd
 
 ; Sets $0 to "running", "installed" or "missing".
 Function FactoryDockerState
-  nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process \"Docker Desktop\", \"com.docker.backend\" -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+  nsProcess::_FindProcess /NOUNLOAD "Docker Desktop.exe"
   Pop $1
-  Pop $2
+  ${If} $1 == 0
+    StrCpy $0 "running"
+    Return
+  ${EndIf}
+  nsProcess::_FindProcess /NOUNLOAD "com.docker.backend.exe"
+  Pop $1
   ${If} $1 == 0
     StrCpy $0 "running"
     Return
@@ -104,10 +118,11 @@ FunctionEnd
 
 ; Sets $0 to "ok" or "missing".
 Function FactoryWslState
-  nsExec::ExecToStack '"$SYSDIR\wsl.exe" --status'
-  Pop $1
-  Pop $2
-  ${If} $1 == 0
+  ${If} ${FileExists} "$WINDIR\System32\wsl.exe"
+    StrCpy $0 "ok"
+  ${ElseIf} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
+    StrCpy $0 "ok"
+  ${ElseIf} ${FileExists} "$SYSDIR\wsl.exe"
     StrCpy $0 "ok"
   ${Else}
     StrCpy $0 "missing"
