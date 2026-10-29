@@ -25,6 +25,10 @@ import {
   parseEnvText,
   sandboxRetags,
   stackCommands,
+  localImageCandidates,
+  parsePullProgress,
+  formatBytes,
+  formatThroughput,
   type StackPaths,
   type StartupStepId,
 } from "./factory-stack";
@@ -279,7 +283,7 @@ function runDocker(args: string[], onLine?: (line: string) => void): Promise<Run
     const consume = (chunk: Buffer) => {
       const text = chunk.toString();
       output += text;
-      for (const line of text.split(/\r?\n/)) {
+      for (const line of text.split(/[\r\n]+/)) {
         if (line.trim()) onLine?.(line.trim());
       }
     };
@@ -448,26 +452,73 @@ async function ensureImages(): Promise<boolean> {
   const images = imagesToPull(tag);
   for (const [index, image] of images.entries()) {
     const fraction = index / images.length;
-    const present = await runDocker(["image", "inspect", "--format", "{{.Id}}", image]);
+    const imgProgressText = `Image ${index + 1} of ${images.length}`;
+
+    // 1. Check if exact published image is already present
+    let present = await runDocker(["image", "inspect", "--format", "{{.Id}}", image]);
+
+    // 2. Local cache detection: check candidate local / developer / pre-warmed tags
+    if (present.code !== 0) {
+      const candidates = localImageCandidates(image, tag);
+      for (const candidate of candidates) {
+        const candidateCheck = await runDocker(["image", "inspect", "--format", "{{.Id}}", candidate]);
+        if (candidateCheck.code === 0) {
+          await runDocker(["tag", candidate, image]);
+          present = { code: 0, output: candidateCheck.output };
+          stepReport("images", `${imgProgressText} pre-cached locally (${candidate}).`, fraction,
+            `using local cache: ${candidate} -> ${image}`);
+          break;
+        }
+      }
+    }
+
     if (present.code === 0) {
-      stepReport("images", `Image ${index + 1} of ${images.length} already present.`, fraction,
+      stepReport("images", `${imgProgressText} already present.`, fraction,
         `present: ${image}`);
       continue;
     }
-    stepReport("images", `Downloading image ${index + 1} of ${images.length}…`, fraction,
-      `pulling ${image}`);
+
+    // 3. Download image with real-time throughput metrics
+    stepReport("images", `Downloading ${imgProgressText}…`, fraction, `pulling ${image}`);
+    const downloadStartTime = Date.now();
+    let lastBytes = 0;
+    let lastTime = downloadStartTime;
+
     const pulled = await runDocker(["pull", image], (line) => {
-      // Docker's per-layer progress is noisy; keep only milestone lines.
+      // Parse layer progress for real-time throughput
+      const progress = parsePullProgress(line);
+      if (progress && progress.totalBytes > 0) {
+        const now = Date.now();
+        const deltaSec = (now - lastTime) / 1000;
+        if (deltaSec >= 0.5) {
+          const deltaBytes = Math.max(0, progress.currentBytes - lastBytes);
+          const bytesPerSec = deltaSec > 0 ? deltaBytes / deltaSec : 0;
+          const currentThroughput = formatThroughput(bytesPerSec);
+          const bytesProgress = `${formatBytes(progress.currentBytes)} / ${formatBytes(progress.totalBytes)}`;
+          lastBytes = progress.currentBytes;
+          lastTime = now;
+          report({
+            step: "images",
+            imageProgress: `${imgProgressText} (${Math.round((progress.currentBytes / progress.totalBytes) * 100)}%)`,
+            throughput: currentThroughput,
+            bytesProgress,
+          });
+        }
+      }
+
+      // Docker's per-layer progress is noisy; keep only milestone lines in the log view.
       if (/Pull complete|Downloaded newer|Status:|digest:|error/i.test(line)) {
         report({ log: line });
       }
     });
+
     if (pulled.code !== 0) {
       report({ step: "images", failed: true, detail: `Could not download ${image}.`,
         log: pulled.output.trim().split("\n").slice(-3).join(" | ") });
       return false;
     }
   }
+
   for (const [source, local] of sandboxRetags(tag)) {
     await runDocker(["tag", source, local]);
   }

@@ -10,6 +10,9 @@ export type StatusUpdate = {
   progress?: number;
   log?: string;
   failed?: boolean;
+  throughput?: string;
+  bytesProgress?: string;
+  imageProgress?: string;
 };
 
 contextBridge.exposeInMainWorld("startingAPI", {

@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 4: Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (2026-10-29)
+
+#### Added
+- **Local Pre-Cached Container Image Detection**: Added `localImageCandidates()` to `apps/mission-control/electron/factory-stack.ts` and integrated into `ensureImages()` in `main.ts`, automatically detecting locally built or pre-warmed images in Docker Desktop and skipping redundant multi-gigabyte downloads.
+- **Real-Time Throughput & Byte Progress UX**: Added `parsePullProgress()`, `formatBytes()`, and `formatThroughput()` to calculate and stream instantaneous MB/s download speed and byte progress to `starting.html` and `starting-preload.ts`.
+- **Standalone Image Pre-Warming CLI Tool**: Created `scripts/preload_desktop_images.py` with `--check`, `--dry-run`, `--registry`, and `--tag` support, scanning local Docker cache, reporting cached vs missing images, and downloading/retagging them ahead of time.
+- **Comprehensive Unit Tests**: Added 5 new tests in `apps/mission-control/electron/factory-stack.test.ts` (23 passed) and 8 tests in `tests/scripts/test_preload_desktop_images.py` (8 passed in 0.12s).
+
 ### 10/10 Enterprise Roadmap Phase 3: Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (2026-10-29)
 
 #### Added

@@ -13,6 +13,12 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-10-29: Phase 4 of 10/10 Enterprise Roadmap — Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (Category C6: 9.2 ➔ 10.0).**
+- **Local Pre-Cached Container Image Detection (`factory-stack.ts`, `main.ts`):** Implemented `localImageCandidates()` and candidate inspection logic in `ensureImages()`, instantly recognizing locally built images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners without downloading.
+- **Real-Time Throughput & Byte Progress UX (`starting.html`, `starting-preload.ts`):** Enabled instantaneous MB/s throughput calculation and layer progress indicators (`45.2 MB / 180.0 MB • 14.2 MB/s`), replacing static spinning indicators with clear feedback.
+- **Standalone Image Pre-Warming CLI Tool (`preload_desktop_images.py`):** Shipped pre-warming CLI utility providing `--check`, `--dry-run`, and automatic image retagging for zero-delay desktop application startup.
+- **Testing & Verification:** Added 5 new unit tests to `apps/mission-control/electron/factory-stack.test.ts` (23 passed) and 8 unit tests in `tests/scripts/test_preload_desktop_images.py` (8 passed in 0.12s).
+
 **COMPLETE — 2026-10-29: Phase 3 of 10/10 Enterprise Roadmap — Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (Category C3: 9.4 ➔ 10.0).**
 - **Dynamic Live Health Probes (`heartbeat_service.py`):** Implemented `probe_agent_health(agent)` and cross-platform native `get_process_rss_bytes()` (Windows via `ctypes.windll.psapi` / Linux & macOS via `resource`), verifying contract integrity and measuring process memory and round-trip probe latency.
 - **Agent Telemetry Stream Propagation:** Emitted `live_health_probe=True`, `latency_ms`, and `rss_bytes` across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads`.

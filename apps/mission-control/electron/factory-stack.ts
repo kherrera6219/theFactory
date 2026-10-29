@@ -85,6 +85,90 @@ export function sandboxRetags(
   return SANDBOX_IMAGES.map((image) => [publishedImage(image.published, tag, registry), image.local]);
 }
 
+/**
+ * Local candidate tags to check before initiating a remote registry download.
+ * If any of these are present in Docker Desktop, the runner can retag them
+ * to the canonical published name and skip the multi-gigabyte pull.
+ */
+export function localImageCandidates(image: string, tag: string): string[] {
+  const candidates: string[] = [];
+  // 1. Sandbox image matching
+  for (const s of SANDBOX_IMAGES) {
+    if (image.includes(s.published)) {
+      candidates.push(s.local);
+      candidates.push(`thefactory/${s.published}:latest`);
+      candidates.push(`thefactory/${s.published}:${tag}`);
+      candidates.push(`${s.published}:latest`);
+      candidates.push(`thefactory-${s.published}:latest`);
+      candidates.push(`thefactory-${s.published}:${tag}`);
+    }
+  }
+
+  // 2. Service image matching
+  for (const svc of SERVICE_IMAGES) {
+    if (image.includes(`thefactory-${svc}`)) {
+      candidates.push(`thefactory-${svc}:${tag}`);
+      candidates.push(`thefactory-${svc}:latest`);
+      candidates.push(`thefactory/${svc}:${tag}`);
+      candidates.push(`thefactory/${svc}:latest`);
+      candidates.push(`deploy-${svc}:latest`);
+      candidates.push(`deploy-${svc}`);
+    }
+  }
+
+  return Array.from(new Set(candidates)).filter((c) => c !== image);
+}
+
+/** Parses byte strings like '12.4MB', '500KB', '1.2GB', '45B' into raw bytes. */
+export function parseByteUnit(val: string): number {
+  const match = val.trim().match(/^([\d.]+)\s*([a-zA-Z]+)$/);
+  if (!match) return 0;
+  const num = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  switch (unit) {
+    case "B": return Math.round(num);
+    case "KB": case "KIB": return Math.round(num * 1024);
+    case "MB": case "MIB": return Math.round(num * 1024 * 1024);
+    case "GB": case "GIB": return Math.round(num * 1024 * 1024 * 1024);
+    default: return Math.round(num);
+  }
+}
+
+/**
+ * Parses Docker pull progress lines such as:
+ * "e387034c44c5: Downloading [=====> ] 12.3MB/114.2MB"
+ * or "Extracting [========> ] 45.6MB/114.2MB"
+ */
+export function parsePullProgress(line: string): {
+  layerId?: string;
+  currentBytes: number;
+  totalBytes: number;
+  phase: string;
+} | null {
+  const layerMatch = line.match(/^([a-f0-9]+):\s*(Downloading|Extracting)\s+\[[=>\s]+\]\s+([\d.]+\s*[a-zA-Z]+)\/([\d.]+\s*[a-zA-Z]+)/i);
+  if (layerMatch) {
+    return {
+      layerId: layerMatch[1],
+      phase: layerMatch[2].toLowerCase(),
+      currentBytes: parseByteUnit(layerMatch[3]),
+      totalBytes: parseByteUnit(layerMatch[4]),
+    };
+  }
+  return null;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function formatThroughput(bytesPerSec: number): string {
+  if (bytesPerSec <= 0) return "0.0 MB/s";
+  return `${formatBytes(bytesPerSec)}/s`;
+}
+
 /** Leading `docker compose ...` arguments shared by every action. */
 export function composeBase(paths: StackPaths): string[] {
   return [

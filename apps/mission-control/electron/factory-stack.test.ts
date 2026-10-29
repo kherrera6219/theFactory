@@ -11,6 +11,11 @@ import {
   standaloneServerCandidates,
   embeddedServerEnv,
   parseEnvText,
+  localImageCandidates,
+  parsePullProgress,
+  parseByteUnit,
+  formatBytes,
+  formatThroughput,
 } from "./factory-stack";
 import { describe as describeStep, parseArgs, runMaintenance } from "./maintenance";
 
@@ -191,5 +196,52 @@ describe("embedded server environment", () => {
 
   it("forwards only what Mission Control needs", () => {
     expect(embeddedServerEnv(backend, "v").POSTGRES_PASSWORD).toBeUndefined();
+  });
+});
+
+
+describe("image pre-cache candidates and throughput formatting", () => {
+  it("resolves local candidates for service images", () => {
+    const candidates = localImageCandidates("ghcr.io/kherrera6219/thefactory-orchestrator:v1.0.0", "v1.0.0");
+    expect(candidates).toContain("thefactory-orchestrator:v1.0.0");
+    expect(candidates).toContain("thefactory-orchestrator:latest");
+    expect(candidates).toContain("thefactory/orchestrator:latest");
+    expect(candidates).toContain("deploy-orchestrator:latest");
+  });
+
+  it("resolves local candidates for sandbox runner images", () => {
+    const candidates = localImageCandidates("ghcr.io/kherrera6219/thefactory-sandbox-test-python:v1.0.0", "v1.0.0");
+    expect(candidates).toContain("thefactory/sandbox-test-python:1");
+    expect(candidates).toContain("thefactory/sandbox-test-python:latest");
+    expect(candidates).toContain("sandbox-test-python:latest");
+  });
+
+  it("parses byte units correctly", () => {
+    expect(parseByteUnit("100B")).toBe(100);
+    expect(parseByteUnit("10KB")).toBe(10240);
+    expect(parseByteUnit("1.5MB")).toBe(Math.round(1.5 * 1024 * 1024));
+    expect(parseByteUnit("2GB")).toBe(2 * 1024 * 1024 * 1024);
+  });
+
+  it("parses docker pull progress lines", () => {
+    const line = "e387034c44c5: Downloading [=====>                                       ]  12.3MB/114.2MB";
+    const res = parsePullProgress(line);
+    expect(res).not.toBeNull();
+    expect(res?.layerId).toBe("e387034c44c5");
+    expect(res?.phase).toBe("downloading");
+    expect(res?.currentBytes).toBeGreaterThan(12 * 1024 * 1024);
+    expect(res?.totalBytes).toBeGreaterThan(114 * 1024 * 1024);
+
+    expect(parsePullProgress("Already exists")).toBeNull();
+  });
+
+  it("formats bytes and throughput cleanly", () => {
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(2048)).toBe("2.0 KB");
+    expect(formatBytes(15 * 1024 * 1024)).toBe("15.0 MB");
+    expect(formatBytes(2 * 1024 * 1024 * 1024)).toBe("2.00 GB");
+
+    expect(formatThroughput(0)).toBe("0.0 MB/s");
+    expect(formatThroughput(14.5 * 1024 * 1024)).toBe("14.5 MB/s");
   });
 });

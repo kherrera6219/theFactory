@@ -29,7 +29,8 @@
   .bar { height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
   .bar > div { height: 100%; width: 0%; background: #2f81f7; transition: width .3s ease; }
   .bar.failed > div { background: #f85149; }
-  .pct { display: flex; justify-content: space-between; font-size: 12px; color: #9da7b3; margin: 6px 0 12px; }
+  .pct { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #9da7b3; margin: 6px 0 12px; }
+  .throughput-badge { font-family: Consolas, monospace; font-size: 11.5px; color: #58a6ff; background: #161b22; padding: 2px 6px; border-radius: 4px; border: 1px solid #30363d; }
   pre { flex: 1; min-height: 60px; margin: 0; padding: 10px 12px; background: #010409; border: 1px solid #21262d; border-radius: 6px;
         font: 11.5px/1.45 Consolas, "Cascadia Mono", monospace; color: #9da7b3; overflow: auto; white-space: pre-wrap; -webkit-app-region: no-drag; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; -webkit-app-region: no-drag; }
@@ -44,7 +45,11 @@
     <p class="sub" id="detail" aria-live="polite">Preparing&hellip;</p>
     <ol id="steps" aria-label="Startup steps"></ol>
     <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fill"></div></div>
-    <div class="pct"><span id="stepText"></span><span id="pctText">0%</span></div>
+    <div class="pct">
+      <span id="stepText"></span>
+      <span id="throughputBadge" class="throughput-badge" style="display: none;"></span>
+      <span id="pctText">0%</span>
+    </div>
     <pre id="log" aria-label="Startup log"></pre>
     <div class="actions">
       <button id="logsBtn" type="button">Open logs folder</button>
@@ -55,6 +60,7 @@
     const api = window.startingAPI;
     const stepsEl = document.getElementById("steps");
     const logEl = document.getElementById("log");
+    const throughputBadgeEl = document.getElementById("throughputBadge");
     let steps = [];
 
     function renderSteps(active, failed) {
@@ -80,8 +86,16 @@
         if (update.step) {
           renderSteps(update.step, Boolean(update.failed));
           const current = steps.find((s) => s.id === update.step);
-          document.getElementById("stepText").textContent = current ? current.label : "";
+          document.getElementById("stepText").textContent = update.imageProgress || (current ? current.label : "");
+        } else if (update.imageProgress) {
+          document.getElementById("stepText").textContent = update.imageProgress;
         }
+
+        if (update.throughput || update.bytesProgress) {
+          throughputBadgeEl.style.display = "inline";
+          throughputBadgeEl.textContent = [update.bytesProgress, update.throughput].filter(Boolean).join(" • ");
+        }
+
         if (typeof update.progress === "number") {
           const pct = Math.max(0, Math.min(100, Math.round(update.progress)));
           document.getElementById("fill").style.width = pct + "%";
