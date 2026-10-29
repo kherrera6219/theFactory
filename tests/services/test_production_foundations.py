@@ -727,6 +727,10 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
             "/internal/missions/mission-1/pod-assignment",
             "/internal/missions/mission-1/chain-trace",
             "/internal/missions/mission-1/build-artifacts/source-bundle-package",
+            "/missions/mission-1/knowledge-graph",
+            "/missions/mission-1/build-artifacts/source-bundle-package",
+            "/missions/mission-1/pod-assignment",
+            "/missions/mission-1/chain-trace",
         }:
             return {"path": path, "ok": True}
         return [{"path": path, "params": params}]
@@ -768,13 +772,13 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
 
     assert ("/internal/missions/mission-1/pod-assignment", None) in calls
     assert ("/internal/missions/mission-1/chain-trace", None) in calls
-    assert ("/internal/missions/mission-1/logicnodes", {"limit": 4}) in calls
-    assert ("/internal/missions/mission-1/knowledge", {"limit": 3}) in calls
-    assert ("/internal/missions/mission-1/knowledge-graph", {"limit": 3}) in calls
-    assert ("/internal/missions/mission-1/audit-reports", {"limit": 2}) in calls
-    assert ("/internal/missions/mission-1/audit-artifacts", {"limit": 2}) in calls
-    assert ("/internal/missions/mission-1/build-artifacts", {"limit": 2}) in calls
-    assert ("/internal/missions/mission-1/build-artifacts/source-bundle-package", None) in calls
+    assert ("/missions/mission-1/logicnodes", {"limit": 4}) in calls
+    assert ("/missions/mission-1/knowledge", {"limit": 3}) in calls
+    assert ("/missions/mission-1/knowledge-graph", {"limit": 3}) in calls
+    assert ("/missions/mission-1/audit-reports", {"limit": 2}) in calls
+    assert ("/missions/mission-1/audit-artifacts", {"limit": 2}) in calls
+    assert ("/missions/mission-1/build-artifacts", {"limit": 2}) in calls
+    assert ("/missions/mission-1/build-artifacts/source-bundle-package", None) in calls
     assert ("/internal/operations/summary", None) in calls
     assert (
         "/internal/operations/agents",

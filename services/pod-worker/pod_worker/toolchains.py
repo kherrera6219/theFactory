@@ -28,7 +28,7 @@ class ToolchainCheckResult:
     output: str
 
 
-def run_toolchain_check(language: str, source_code: str) -> ToolchainCheckResult:
+def run_toolchain_check(language: str, source_code: str, filename: str | None = None) -> ToolchainCheckResult:
     """Run pre-flight syntax/compiler check for *language* using available local toolchains.
 
     Returns ToolchainCheckResult with compiler_found=False if toolchain binary is absent.
@@ -58,7 +58,13 @@ def run_toolchain_check(language: str, source_code: str) -> ToolchainCheckResult
             "julia": ".jl",
         }
         ext = ext_map.get(lang, ".txt")
-        file_path = os.path.join(tmpdir, f"main{ext}")
+        file_name = filename or f"main{ext}"
+        if lang == "java":
+            import re
+            m = re.search(r"public\s+class\s+(\w+)", source_code)
+            if m:
+                file_name = f"{m.group(1)}.java"
+        file_path = os.path.join(tmpdir, file_name)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(source_code)
 
@@ -85,7 +91,7 @@ def run_toolchain_check(language: str, source_code: str) -> ToolchainCheckResult
 
         elif lang == "rust":
             if shutil.which("rustc"):
-                res = subprocess.run(["rustc", "--parse-only", file_path], capture_output=True, text=True, check=False)
+                res = subprocess.run(["rustc", "--crate-type=lib", "--emit=metadata", "--out-dir", tmpdir, file_path], capture_output=True, text=True, check=False)
                 return ToolchainCheckResult(language=lang, passed=(res.returncode == 0), compiler_found=True, output=res.stderr or res.stdout)
 
         elif lang in {"c", "cpp"}:

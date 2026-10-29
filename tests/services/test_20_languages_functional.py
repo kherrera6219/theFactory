@@ -70,7 +70,7 @@ def test_language_specialist_and_extractor_functional(language: str) -> None:
     assert len(res.functions) > 0, f"No functions extracted for {language}"
 
     # 4. Toolchain check
-    tc_res = run_toolchain_check(language, code)
+    tc_res = run_toolchain_check(language, code, filename=filename)
     assert tc_res.passed is True, f"Toolchain preflight failed for {language}: {tc_res.output}"
 
     # 5. Agent validate and execute

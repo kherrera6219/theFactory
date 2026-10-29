@@ -462,7 +462,7 @@ def test_dependency_status_covers_http_and_redis_failure_paths(monkeypatch) -> N
     redis_client = SimpleNamespace(
         ping=lambda: (_ for _ in ()).throw(RuntimeError("ping failed"))
     )
-    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda timeout: _Client())
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda *args, **kwargs: _Client())
     monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
     monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
 
@@ -708,7 +708,7 @@ def test_anthropic_builder_preview_max_tokens_exceeds_thinking_budget(monkeypatc
             return _FakeResponse(200, {"content": [{"type": "text", "text": "Plan drafted."}]})
 
     monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "anthropic-key")
-    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda timeout: _Client())
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda *args, **kwargs: _Client())
 
     result = asyncio.run(
         api_gateway_main._anthropic_builder_preview(
@@ -753,7 +753,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(
+        lambda *args, **kwargs: _Client(
             _FakeResponse(
                 200,
                 {"content": [{"type": "text", "text": "Architect the API.\nTest the rollout."}]},
@@ -774,7 +774,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(500, {})),
+        lambda *args, **kwargs: _Client(_FakeResponse(500, {})),
     )
     assert (
         asyncio.run(
@@ -791,7 +791,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(200, None, json_error=True)),
+        lambda *args, **kwargs: _Client(_FakeResponse(200, None, json_error=True)),
     )
     assert (
         asyncio.run(
@@ -809,7 +809,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(
+        lambda *args, **kwargs: _Client(
             _FakeResponse(
                 200,
                 {
@@ -838,7 +838,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(error=RuntimeError("network down")),
+        lambda *args, **kwargs: _Client(error=RuntimeError("network down")),
     )
     assert (
         asyncio.run(
@@ -885,14 +885,14 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(200, {"ok": True})),
+        lambda *args, **kwargs: _Client(_FakeResponse(200, {"ok": True})),
     )
     assert asyncio.run(api_gateway_main._proxy_get_internal("/missions")) == {"ok": True}
 
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(404, {})),
+        lambda *args, **kwargs: _Client(_FakeResponse(404, {})),
     )
     with pytest.raises(HTTPException, match="resource not found"):
         asyncio.run(api_gateway_main._proxy_get_internal("/missions/missing"))
@@ -900,7 +900,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(500, {})),
+        lambda *args, **kwargs: _Client(_FakeResponse(500, {})),
     )
     with pytest.raises(HTTPException, match="query failed"):
         asyncio.run(api_gateway_main._proxy_get_internal("/missions/error"))
@@ -908,7 +908,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(error=api_gateway_main.httpx.ConnectError("offline")),
+        lambda *args, **kwargs: _Client(error=api_gateway_main.httpx.ConnectError("offline")),
     )
     with pytest.raises(HTTPException, match="orchestrator unavailable"):
         asyncio.run(api_gateway_main._proxy_get_internal("/missions/offline"))
@@ -916,7 +916,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(401, {"detail": "forbidden"})),
+        lambda *args, **kwargs: _Client(_FakeResponse(401, {"detail": "forbidden"})),
     )
     with pytest.raises(HTTPException, match="internal auth rejected"):
         asyncio.run(api_gateway_main._proxy_get_internal("/internal/thing"))
@@ -924,7 +924,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(500, {})),
+        lambda *args, **kwargs: _Client(_FakeResponse(500, {})),
     )
     with pytest.raises(HTTPException, match="internal query failed"):
         asyncio.run(api_gateway_main._proxy_get_internal("/internal/thing"))
@@ -932,7 +932,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(500, {"detail": "bad write"})),
+        lambda *args, **kwargs: _Client(_FakeResponse(500, {"detail": "bad write"})),
     )
     with pytest.raises(HTTPException, match="bad write"):
         asyncio.run(api_gateway_main._proxy_post_internal("/missions", json_body={"a": 1}))
@@ -940,7 +940,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(_FakeResponse(200, {"status": "ok"})),
+        lambda *args, **kwargs: _Client(_FakeResponse(200, {"status": "ok"})),
     )
     assert asyncio.run(api_gateway_main._proxy_post_internal("/missions", json_body={"a": 1})) == {
         "status": "ok"
