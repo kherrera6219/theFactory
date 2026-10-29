@@ -117,6 +117,7 @@ type LocalPreferences = {
   maxParallelAgents: number;
   cpuLimitPct: number;
   memoryLimitPct: number;
+  agentTopology?: "condensed" | "dedicated";
 };
 
 type VaultSlotRecord = {
@@ -163,6 +164,7 @@ const DEFAULT_PREFERENCES: LocalPreferences = {
   maxParallelAgents: 8,
   cpuLimitPct: 80,
   memoryLimitPct: 80,
+  agentTopology: "condensed",
 };
 
 function parseNumberInput(value: string, fallback: number): number {
@@ -637,6 +639,32 @@ export default function SettingsPage() {
             />
           </label>
         </div>
+        <div style={{ marginTop: "16px", padding: "12px", background: "#0d1117", borderRadius: "6px", border: "1px solid #30363d" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <strong style={{ fontSize: "13.5px", color: "#e6edf3" }}>Agent Deployment Topology Mode</strong>
+              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#8b949e" }}>
+                Select runtime topology: &apos;Condensed&apos; uses shared pod workers for low resource usage; &apos;Dedicated&apos; scales 41 isolated per-language containers.
+              </p>
+            </div>
+            <select
+              value={preferences.agentTopology ?? "condensed"}
+              onChange={(e) => updatePreference("agentTopology", e.target.value as "condensed" | "dedicated")}
+              style={{
+                padding: "6px 12px",
+                background: "#161b22",
+                color: "#e6edf3",
+                border: "1px solid #30363d",
+                borderRadius: "6px",
+                fontSize: "13px",
+              }}
+            >
+              <option value="condensed">Condensed (Shared Pods)</option>
+              <option value="dedicated">Dedicated (41 Isolated Containers)</option>
+            </select>
+          </div>
+        </div>
+
         {/* FIX #10: Save button and inline feedback in same panel as the fields */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
           <button

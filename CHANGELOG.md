@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### 10/10 Enterprise Roadmap Phase 6: Dynamic Deployment Topology Orchestrator (2026-10-29)
+
+#### Added
+- **Dynamic Topology Orchestration CLI**: Created `scripts/manage_topology.py` enabling one-command switching between `condensed` (shared pod workers, lightweight) and `dedicated` (41 isolated containers) topologies (`--mode [condensed|dedicated]`, `--status`, `--dry-run`), synchronizing `.env` (`AGENT_AUTOFILL_NON_POD_HEARTBEATS`) and preventing desynchronization incidents without touching persistent data volumes.
+- **Mission Control Topology Configuration UX**: Added an Agent Deployment Topology Mode selector to Section 1 ("Runtime Preferences") in `apps/mission-control/app/(shell)/settings/page.tsx`, allowing operators to configure condensed or dedicated runtime topology directly from the UI.
+- **Topology Orchestration Test Suite**: Added `tests/scripts/test_manage_topology.py` (6 passed in 0.12s) testing topology status queries, dry-run mutations, and environment variable synchronizations.
+
 ### 10/10 Enterprise Roadmap Phase 5: Zero-Trust Multi-Tenant OIDC & Gateway Hardening (2026-10-29)
 
 #### Added
