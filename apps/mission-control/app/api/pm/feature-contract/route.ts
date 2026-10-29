@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(modifiedPayload),
       cache: "no-store",
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
     });
 
     const text = await upstream.text();

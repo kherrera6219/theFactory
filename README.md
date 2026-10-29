@@ -83,7 +83,10 @@ make tls-certs
   ```
 
 ### 3. Open Mission Control
-Open [http://localhost:3000](http://localhost:3000) to access the operator console, draft SOWs, and monitor real-time mission execution.
+Access the operator console either via browser or native desktop application:
+- **Web App**: Open [http://localhost:3000](http://localhost:3000) for real-time mission execution, live telemetry, and PM intake.
+- **Native Windows Desktop App**: Install via 	heFactory-MissionControl-Setup-0.1.0.exe (build with 
+pm --prefix apps/mission-control run electron:package) featuring standalone embedded Next.js server, tray controller, live operations dashboard, and automated 5-second telemetry polling.
 
 ---
 

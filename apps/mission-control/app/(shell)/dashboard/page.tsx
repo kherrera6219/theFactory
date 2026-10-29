@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
@@ -8,8 +8,15 @@ import { Panel } from "../../components/panel";
 import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../../components/status";
 import { humanizeState } from "../../lib/format";
 import { useLastRefreshed } from "../../lib/use-last-refreshed";
-import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
-import type { GatewayHealth, MissionRecord } from "../../lib/types";
+import {
+  getGatewayHealth,
+  getGatewayReadyState,
+  getOperationsSummary,
+  listMissions,
+} from "../../lib/api-client";
+import type { GatewayHealth, MissionRecord, OperationsSummary } from "../../lib/types";
+
+const POLL_INTERVAL_MS = 5000;
 
 function summarizeStates(missions: MissionRecord[]) {
   const summary = new Map<string, number>();
@@ -24,48 +31,100 @@ function summarizeStates(missions: MissionRecord[]) {
 
 export default function DashboardPage() {
   const [missions, setMissions] = useState<MissionRecord[]>([]);
+  const [summary, setSummary] = useState<OperationsSummary | null>(null);
   const [health, setHealth] = useState<GatewayHealth | null>(null);
   const [readyState, setReadyState] = useState<{ ready: boolean; detail?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
 
   const lastRefreshedLabel = useLastRefreshed(lastFetchAt);
-  const stateSummary = useMemo(() => summarizeStates(missions), [missions]);
+
+  const stateSummary = useMemo(() => {
+    if (summary?.mission_state_counts && Object.keys(summary.mission_state_counts).length > 0) {
+      return Object.entries(summary.mission_state_counts)
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 5);
+    }
+    return summarizeStates(missions);
+  }, [summary, missions]);
+
+  const totalMissions = useMemo(() => {
+    if (summary?.mission_state_counts && Object.keys(summary.mission_state_counts).length > 0) {
+      return Object.values(summary.mission_state_counts).reduce((acc, count) => acc + count, 0);
+    }
+    return missions.length;
+  }, [summary, missions]);
+
+  const runningCount = useMemo(() => {
+    if (summary?.mission_state_counts) {
+      return summary.mission_state_counts["RUNNING"] ?? 0;
+    }
+    return missions.filter((item) => item.state.toUpperCase() === "RUNNING").length;
+  }, [summary, missions]);
+
+  const verifiedCount = useMemo(() => {
+    if (summary?.mission_state_counts) {
+      return summary.mission_state_counts["VERIFIED"] ?? 0;
+    }
+    return missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length;
+  }, [summary, missions]);
+
+  const failedCount = useMemo(() => {
+    if (summary?.mission_state_counts) {
+      return summary.mission_state_counts["FAILED"] ?? 0;
+    }
+    return missions.filter((item) => item.state.toUpperCase() === "FAILED").length;
+  }, [summary, missions]);
+
+  const loadData = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+    try {
+      const [data, summaryData, healthData, ready] = await Promise.all([
+        listMissions(50),
+        getOperationsSummary().catch(() => null),
+        getGatewayHealth().catch(() => null),
+        getGatewayReadyState().catch(() => null),
+      ]);
+      setMissions(data);
+      if (summaryData) {
+        setSummary(summaryData);
+      }
+      setHealth(healthData);
+      setReadyState(ready);
+      setLastFetchAt(new Date().toISOString());
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load mission overview.");
+    } finally {
+      if (isInitial) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [data, healthData, ready] = await Promise.all([
-          listMissions(30),
-          getGatewayHealth(),
-          getGatewayReadyState(),
-        ]);
-        if (!cancelled) {
-          setMissions(data);
-          setHealth(healthData);
-          setReadyState(ready);
-          setLastFetchAt(new Date().toISOString());
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load mission overview.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
+    void loadData(true);
 
-    void load();
+    const interval = window.setInterval(() => {
+      if (!cancelled) {
+        void loadData(false);
+      }
+    }, POLL_INTERVAL_MS);
+
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [loadData]);
 
   return (
     <div className="page shell-page">
@@ -78,7 +137,20 @@ export default function DashboardPage() {
 
       <Panel
         title="System Health Snapshot"
-        actions={lastRefreshedLabel ? <span className="last-refreshed">{lastRefreshedLabel}</span> : undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            {lastRefreshedLabel ? <span className="last-refreshed">{lastRefreshedLabel}</span> : null}
+            <button
+              type="button"
+              className="ghost-button text-xs"
+              onClick={() => void loadData(false)}
+              disabled={loading || refreshing}
+              aria-label="Refresh dashboard metrics"
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+        }
       >
         {error && (
           <SystemMessage
@@ -96,28 +168,28 @@ export default function DashboardPage() {
         <div className="kpi-grid" aria-label="Mission metrics">
           <MetricCard
             label="Total Missions"
-            value={error ? "—" : missions.length}
+            value={error ? "—" : totalMissions}
             loading={loading}
             tone={error ? "neutral" : "info"}
             detail={error ? "Waiting for runtime" : "Loaded from mission service"}
           />
           <MetricCard
             label="Running"
-            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}
+            value={error ? "—" : runningCount}
             loading={loading}
             tone="warning"
             detail="Active execution"
           />
           <MetricCard
             label="Verified"
-            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}
+            value={error ? "—" : verifiedCount}
             loading={loading}
             tone="healthy"
             detail="Passed validation"
           />
           <MetricCard
             label="Failed"
-            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "FAILED").length}
+            value={error ? "—" : failedCount}
             loading={loading}
             tone="critical"
             detail="Needs operator attention"

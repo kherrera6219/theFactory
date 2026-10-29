@@ -86,10 +86,14 @@ def build_missions_router() -> APIRouter:
         prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
         if len(prompt) < 3:
             raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
+        body_to_forward = {
+            **payload,
+            "prompt": prompt,
+        }
         return await gateway_main._proxy_post_internal(
             "/internal/pm/feature-contract",
-            json_body={"prompt": prompt, "metadata": payload.get("metadata") or {}},
-            timeout=20.0,
+            json_body=body_to_forward,
+            timeout=120.0,
         )
 
     @router.get("/v1/missions/{mission_id}/logicnodes")

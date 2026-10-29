@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Live Synthesis Timeout Governance & Real-Time Telemetry Dashboard (2026-10-28)
+
+#### Added
+- Integrated `getOperationsSummary()` into `apps/mission-control/app/(shell)/dashboard/page.tsx` to display true database-wide mission counts across all statuses (109+ missions: Complete, Verified, Clarifying) instead of a hard-capped 30-item sample.
+- Added automated 5-second polling interval and an on-demand manual "Refresh" button in Mission Control System Health Snapshot header.
+- Added `internal-net` network bridge in `deploy/docker-compose.yaml` ensuring clean internal communication between `sandbox-runner` and `docker-proxy`.
+
+#### Changed
+- Extended LLM provider HTTP client timeouts from 20s/60s to 180s across `.env.example`, `deploy/docker-compose.yaml`, and `services/orchestrator/orchestrator/llm_delegation/config.py` preventing premature timeouts during large-scale modular code synthesis with high thinking effort.
+- Extended PM Agent feature-contract timeout to 120s across `apps/mission-control/app/api/pm/feature-contract/route.ts` and `services/api-gateway/api_gateway/routers/missions.py` ensuring deep SOW intake completes smoothly without UI abort triggers.
+- Re-packaged and re-installed Windows native desktop application (`theFactory-MissionControl-Setup-0.1.0.exe`).
+
+#### Fixed
+- Fixed UTF-8 console output encoding in `scripts/run_demo_mission.py` preventing Windows `charmap` UnicodeEncodeErrors.
+- Fixed `run_demo_mission.py` to poll server-assigned `mission_id` rather than client provisional ID.
+
+
 ### 10/10 Enterprise Hardening and Architecture Modernization (2026-10-27)
 
 #### Security & Sandbox Isolation

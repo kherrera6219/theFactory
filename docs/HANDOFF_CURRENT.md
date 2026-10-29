@@ -1,14 +1,22 @@
 # Current Handoff
 
-Document version: 2026.10.27
-Last updated: 2026-10-27
+Document version: 2026.10.28
+Last updated: 2026-10-28
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
 
-## Latest session (2026-10-27) — read first
+## Latest session (2026-10-28) — read first
+
+**COMPLETE — 2026-10-28: Live Synthesis Timeout Governance & Real-Time Telemetry Dashboard.**
+- **Live LLM End-to-End Verification:** Verified live `gemini-3.8-flash` codegen producing 48,761 characters of modular Python RPG battle engine.
+- **Timeout Expansion (180s):** Fixed premature 60s HTTP client abort during large game/application codegen. Configured 180s timeouts across `.env.example`, `deploy/docker-compose.yaml`, and `llm_delegation/config.py`; 120s timeout on gateway and UI PM feature-contract routes.
+- **Operations Summary on Dashboard:** Upgraded `apps/mission-control/app/(shell)/dashboard/page.tsx` to read `getOperationsSummary()`, accurately displaying true total mission count (109+) and breakdowns with 5s polling and manual refresh.
+- **Electron Desktop App Installer:** Successfully rebuilt standalone Next.js server and Electron app, packaged `theFactory-MissionControl-Setup-0.1.0.exe`, uninstalled previous build, reinstalled, and confirmed active on port 59925.
+
+## Previous session (2026-10-27)
 
 **COMPLETE — 2026-10-27: 10/10 Enterprise Upgrade Plan (All 5 Phases Finished & Verified).**
 Following the Enterprise App Review (baseline composite score 6.8/10), all 5 phases of [`docs/TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md`](TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md) were executed, verified, and committed:

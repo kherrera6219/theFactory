@@ -19,6 +19,12 @@ import argparse
 import json
 import sys
 import time
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -118,11 +124,11 @@ def check_connectivity(api_key: str) -> list[str]:
     if not failures:
         # Check LLM provider is not offline
         status, body = _get("/health", api_key=api_key)
-        if isinstance(body, dict):
+        if isinstance(body, dict) and "llm_provider" in body:
             llm = body.get("llm_provider", "offline")
             if llm == "offline":
                 failures.append(
-                    "LLM provider is 'offline' — set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env "
+                    "LLM provider is 'offline' — set GEMINI_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY in .env "
                     "and restart: `make down && make up`"
                 )
 
@@ -137,9 +143,10 @@ def submit_mission(
     prompt: str,
     language: str,
     api_key: str,
+    gemini_key: str = "",
 ) -> str | None:
     mission_id = f"demo-{uuid.uuid4().hex[:12]}"
-    payload = {
+    payload: dict[str, Any] = {
         "mission_id": mission_id,
         "prompt": prompt,
         "requested_target_language": language,
@@ -149,10 +156,19 @@ def submit_mission(
         "data_classification": "TIER_0_PUBLIC",
         "created_at": datetime.now(UTC).isoformat(),
     }
+    if gemini_key:
+        payload["metadata"] = {
+            "vault": {
+                "gemini_api_key": gemini_key,
+                "llm_provider": "gemini",
+                "llm_model": "gemini-3.8-flash",
+            }
+        }
     status, body = _post("/v1/missions", payload, api_key=api_key)
     if status in (200, 201):
-        print(f"  ✅ Mission submitted: {mission_id}")
-        return mission_id
+        actual_id = (body.get("mission_id") if isinstance(body, dict) else None) or mission_id
+        print(f"  ✅ Mission submitted: {actual_id}")
+        return actual_id
     print(f"  ❌ Submission failed: HTTP {status} — {body}")
     return None
 
@@ -399,11 +415,22 @@ def main() -> int:
     if args.api_base:
         API_BASE = args.api_base.rstrip("/")
 
+    dot_env = {}
+    if os.path.exists('.env'):
+        try:
+            dot_env = dict(line.strip().split('=', 1) for line in open('.env') if '=' in line and not line.strip().startswith('#'))
+        except Exception:
+            pass
+
     api_key = (
         args.api_key
         or os.getenv("ORCHESTRATOR_ADMIN_API_KEY")
         or os.getenv("DEMO_API_KEY")
+        or os.getenv("INTERNAL_SERVICE_API_KEY")
+        or dot_env.get("INTERNAL_SERVICE_API_KEY")
+        or dot_env.get("ORCHESTRATOR_API_KEYS", "").split(",")[0].split("=")[0]
     )
+    gemini_key = os.getenv("GEMINI_API_KEY") or dot_env.get("GEMINI_API_KEY", "")
     if not api_key:
         print(
             "ERROR: no API key found — pass --api-key, or set "
@@ -443,7 +470,7 @@ def main() -> int:
     # Submit
     print_section("SUBMITTING MISSION")
     t_start = time.monotonic()
-    mission_id = submit_mission(prompt, args.language, api_key)
+    mission_id = submit_mission(prompt, args.language, api_key, gemini_key=gemini_key)
     if not mission_id:
         return 2
 

@@ -1,0 +1,14 @@
+{
+  "run_at": "2026-10-28T18:22:01.884168+00:00",
+  "mission_id": "demo-0057cee7d9fd",
+  "prompt": "Build a Python function called `fetch_weather(city: str) -> dict` that calls the Open-Meteo free API (no key required) for the given city's current temperature and wind speed. Return a dict with keys: city, temperature_c, wind_speed_kmh, fetched_at (ISO timestamp). Include docstring and type hints.",
+  "language": "python",
+  "elapsed_seconds": 306.82,
+  "final_state": "TIMEOUT",
+  "passed": false,
+  "generated_output_present": false,
+  "delivery_summary_present": false,
+  "fetch_result_present": false,
+  "artifact_count": 0,
+  "artifacts": []
+}
