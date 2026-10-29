@@ -237,9 +237,20 @@ jobs:
 
       - name: Build vendored sandbox images
         run: |
-          docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
-            sandbox-test-python sandbox-test-java sandbox-test-kotlin sandbox-test-scala \
-            sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp
+          for attempt in 1 2 3; do
+            echo "Building vendored sandbox images (attempt $attempt/3)..."
+            if docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
+              sandbox-test-python sandbox-test-java sandbox-test-kotlin sandbox-test-scala \
+              sandbox-test-php sandbox-test-r sandbox-test-node sandbox-csharp; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Sandbox build failed after 3 attempts."
+              exit 1
+            fi
+            echo "Transient build/network failure; retrying in 5 seconds..."
+            sleep 5
+          done
 
       - name: Verify each runner separates correct from broken artifacts
         run: python scripts/verify_sandbox_images.py

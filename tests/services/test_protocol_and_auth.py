@@ -195,6 +195,17 @@ def test_parse_intake_envelope_paths() -> None:
     assert built["topic"] == validator.settings.intake_topic
     assert built["payload_ref"] == "registry://missions/mission-1/intake"
 
+    # Verify W3C traceparent and tracestate propagation
+    built_traced = validator.parse_intake_envelope(
+        {
+            "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "tracestate": "congo=t61rcWkgMzE",
+        },
+        {"mission_id": "mission-1-traced"},
+    )
+    assert built_traced["traceparent"] == "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    assert built_traced["tracestate"] == "congo=t61rcWkgMzE"
+
     embedded = {
         "event_id": "evt-embedded",
         "topic": validator.settings.intake_topic,
