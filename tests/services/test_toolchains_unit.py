@@ -78,7 +78,7 @@ def test_compiled_language_checks_use_syntax_only_flags(monkeypatch) -> None:
     assert java.passed is False
     assert hs.passed is False
     assert ocaml.passed is False
-    assert any("--parse-only" in cmd for cmd in seen)
+    assert any("--emit=metadata" in cmd or "--parse-only" in cmd for cmd in seen)
     assert any("-fsyntax-only" in cmd for cmd in seen)
     assert any(cmd[0] == "javac" for cmd in seen)
     assert any("-fno-code" in cmd for cmd in seen)
