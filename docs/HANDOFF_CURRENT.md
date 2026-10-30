@@ -10,22 +10,22 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-10-29) — read first
 
-**COMPLETE — 2026-10-29: The 10/10 Enterprise Action Plan — 100% Completion across all 7 Categories (Composite Score 10.0 / 10.0).**
-- **Phase 7 (Testing & Verification 9.5 ➔ 10.0 — `da3111d`):** Added warm-pool execution, latency profiling (`duration_ms`), and `GET /internal/sandbox/warm-pool` endpoint in `sandbox_runner.py` and `sandbox_exec.py`, achieving <200ms execution latency and 100% module coverage.
-- **Phase 6 (Architecture & Modularity 9.5 ➔ 10.0 — `78dd6b8`):** Shipped `scripts/manage_topology.py` for automated one-command scaling between condensed and 41-container dedicated topologies; added Deployment Topology Mode selector in Mission Control UI (`settings/page.tsx`).
-- **Phase 5 (Security & Egress 9.7 ➔ 10.0 — `5f54cca`):** Added strict OIDC claim validation (`sub`, `iss`, `aud`, `tenant_id`, `roles`) in `services/api-gateway/api_gateway/middleware.py`, inter-service mTLS mesh, and `.env.enterprise.example`.
-- **Phase 4 (Operator Experience & UI 9.2 ➔ 10.0 — `5d7c426`):** Added local image pre-cache detection in `factory-stack.ts` and `main.ts`, real-time throughput metrics (MB/s) in `starting.html`, and `scripts/preload_desktop_images.py`.
-- **Phase 3 (Agent Governance 9.4 ➔ 10.0 — `4bf754d`):** Implemented dynamic live health probes, cross-platform RSS memory probes, and live latency metrics across all 41 registered agents in `heartbeat_service.py` and `/operations/agents`.
-- **Phase 2 (Observability & Tracing 9.3 ➔ 10.0 — `0621ce2`):** W3C OpenTelemetry distributed tracing context (`traceparent`, `tracestate`) across all Redis protocol streams and microservices.
-- **Phase 1 (Data Integrity & Audit 9.3 ➔ 10.0 — `6c4994b`):** Reciprocal Rank Fusion (RRF) hybrid search in `knowledge_lake.py` combining dense Qdrant vector search and sparse PostgreSQL keyword search with symbol boosts.
+**COMPLETE — 2026-10-29: Enterprise Hardening & Architecture Alignment — Completed across all 7 technical domains.**
+- **Phase 7:** Added warm-pool execution, latency profiling (`duration_ms`), and `GET /internal/sandbox/warm-pool` endpoint in `sandbox_runner.py` and `sandbox_exec.py`, achieving <200ms execution latency and 100% module coverage.
+- **Phase 6:** Shipped `scripts/manage_topology.py` for automated one-command scaling between condensed and 41-container dedicated topologies; added Deployment Topology Mode selector in Mission Control UI (`settings/page.tsx`).
+- **Phase 5:** Added strict OIDC claim validation (`sub`, `iss`, `aud`, `tenant_id`, `roles`) in `services/api-gateway/api_gateway/middleware.py`, inter-service mTLS mesh, and `.env.enterprise.example`.
+- **Phase 4:** Added local image pre-cache detection in `factory-stack.ts` and `main.ts`, real-time throughput metrics (MB/s) in `starting.html`, and `scripts/preload_desktop_images.py`.
+- **Phase 3:** Implemented dynamic live health probes, cross-platform RSS memory probes, and live latency metrics across all 41 registered agents in `heartbeat_service.py` and `/operations/agents`.
+- **Phase 2:** W3C OpenTelemetry distributed tracing context (`traceparent`, `tracestate`) across all Redis protocol streams and microservices.
+- **Phase 1:** Reciprocal Rank Fusion (RRF) hybrid search in `knowledge_lake.py` combining dense Qdrant vector search and sparse PostgreSQL keyword search with symbol boosts.
 
-**PREVIOUS — 2026-10-29: Phase 2 of 10/10 Enterprise Roadmap — W3C Distributed Tracing across Redis Protocol Envelopes (Category C7: 9.3 ➔ 10.0).**
+**PREVIOUS — 2026-10-29: Phase 2: W3C Distributed Tracing across Redis Protocol Envelopes.**
 - **Canonical Envelope Tracing (`schemas/event.envelope.schema.json`):** Extended JSON Schema and Pydantic envelope models (`EventEnvelope`, `MessageEnvelope`, `SendMessageRequest`) with W3C `traceparent` and `tracestate` properties.
 - **Shared Propagation Engine (`thefactory_common/tracing.py`):** Implemented `inject_w3c_trace_context`, `extract_w3c_trace_context`, `inject_envelope_trace_context`, and `extract_envelope_trace_context` to propagate OpenTelemetry trace carriers across asynchronous Redis streams.
 - **Microservice Integration:** Wired W3C trace injection and propagation across `api-gateway` intake publishing (`_build_envelope`), `orchestrator` state lifecycle transitions (`build_state_envelope`, `parse_intake_envelope`), and `protocol-bus-mcp` HTTP endpoint (`/send`).
 - **Distributed Trace Unit Suite:** Created `tests/services/test_distributed_tracing.py` (12 tests passing in 1.04s) verifying remote parent span continuation, carrier propagation, and schema validation with 83.9% combined coverage.
 
-**COMPLETE — 2026-10-29: Phase 1 of 10/10 Enterprise Roadmap — Reciprocal Rank Fusion (RRF) Hybrid Search (Category C5: 9.3 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 1: Reciprocal Rank Fusion (RRF) Hybrid Search.**
 - **Reciprocal Rank Fusion Hybrid Search (`knowledge_lake.py`):** Implemented `reciprocal_rank_fusion` and `search_hybrid`, uniting dense vector similarity (Qdrant) and sparse lexical token matching (PostgreSQL) using $RRF(d) = \sum \frac{1}{k + r_i(d)}$.
 - **Exact Symbol Retrieval Boost:** Enhanced keyword search with exact symbol matching bonus for specialized standards and code identifiers (e.g. `MISRA-C:Rule-10.1`).
 - **Prompt Injection Context Enrichment (`phases_build.py`):** Extended `get_language_context` with optional `query` parameter to inject targeted hybrid snippets alongside bootstrap documentation into specialist codegen prompts.
@@ -51,11 +51,11 @@ Audience: Maintainers, operators, and AI coding agents
 
 **COMPLETE — 2026-10-27: 10/10 Enterprise Upgrade Plan (All 5 Phases Finished & Verified).**
 Following the Enterprise App Review (baseline composite score 6.8/10), all 5 phases of [`docs/TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md`](TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md) were executed, verified, and committed:
-- **Phase 1: Security & Sandbox Hardening (Score 7.0 -> 9.5):** Untrusted code execution in `sandbox_exec.py` hardened with `--user=65534:65534`, `--pids-limit=256`, and strict ulimits; `tecnativa/docker-socket-proxy` protects Docker daemon from `sandbox-runner`; `sandbox_runner.py` disallows blank/default keys; Trivy container scans in CI upgraded to blocking (`exit-code: 1`).
-- **Phase 2: Monolith Decomposition (Score 6.5 -> 9.5):** Decomposed 3,000-line `api-gateway/main.py` into modular APIRouters (`system.py`, `operations.py`, `missions.py`); extracted `pod_worker/routes.py` from `pod_worker/main.py`.
-- **Phase 3: Taxonomy Centralization & Strict Typing (Score 6.0 -> 9.5):** Created `shared_runtime/thefactory_common/taxonomy.py` defining canonical `SupportedLanguage` and `ParadigmPod` enums; integrated into `mission_flow.py` and `is_agent.py`; enforced `mypy` strict checks in `pyproject.toml`.
-- **Phase 4: Frontend State Architecture (Score 6.5 -> 9.5):** Decomposed monolithic 1,752-line Mission Control `chat/page.tsx` into modular components (`ChatConversationList`, `ChatInputArea`, `ChatClarificationPanel`, `ChatSowSection`, `ChatSidebar`) and shared domain helpers (`chat-helpers.ts`, `chat-types.ts`); verified 203 passing Vitest tests.
-- **Phase 5: Local LLM Support, Repo Hygiene & Documentation Consolidation (Score 5.5 -> 10.0):** Added `OllamaProvider` (supporting local HTTP endpoint e.g. `http://localhost:11434` and vLLM `/v1/chat/completions`); eliminated silent fallbacks with explicit fail-closed `ValueError` rejection on unrecognized LLM providers; added root-pollution session guard in `conftest.py`; moved dated sprint plans to `docs/archive/plans/`; deduplicated `AGENTS.md`; condensed `README.md` to 156 lines with a crisp 3-step quickstart; updated `CHANGELOG.md`.
+- **Phase 1: Security & Sandbox Hardening:** Untrusted code execution in `sandbox_exec.py` hardened with `--user=65534:65534`, `--pids-limit=256`, and strict ulimits; `tecnativa/docker-socket-proxy` protects Docker daemon from `sandbox-runner`; `sandbox_runner.py` disallows blank/default keys; Trivy container scans in CI upgraded to blocking (`exit-code: 1`).
+- **Phase 2: Monolith Decomposition:** Decomposed 3,000-line `api-gateway/main.py` into modular APIRouters (`system.py`, `operations.py`, `missions.py`); extracted `pod_worker/routes.py` from `pod_worker/main.py`.
+- **Phase 3: Taxonomy Centralization & Strict Typing:** Created `shared_runtime/thefactory_common/taxonomy.py` defining canonical `SupportedLanguage` and `ParadigmPod` enums; integrated into `mission_flow.py` and `is_agent.py`; enforced `mypy` strict checks in `pyproject.toml`.
+- **Phase 4: Frontend State Architecture:** Decomposed monolithic 1,752-line Mission Control `chat/page.tsx` into modular components (`ChatConversationList`, `ChatInputArea`, `ChatClarificationPanel`, `ChatSowSection`, `ChatSidebar`) and shared domain helpers (`chat-helpers.ts`, `chat-types.ts`); verified 203 passing Vitest tests.
+- **Phase 5: Local LLM Support, Repo Hygiene & Documentation Consolidation:** Added `OllamaProvider` (supporting local HTTP endpoint e.g. `http://localhost:11434` and vLLM `/v1/chat/completions`); eliminated silent fallbacks with explicit fail-closed `ValueError` rejection on unrecognized LLM providers; added root-pollution session guard in `conftest.py`; moved dated sprint plans to `docs/archive/plans/`; deduplicated `AGENTS.md`; condensed `README.md` to 156 lines with a crisp 3-step quickstart; updated `CHANGELOG.md`.
 
 ## Previous session (2026-10-26)
 

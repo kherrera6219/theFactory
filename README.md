@@ -24,9 +24,9 @@
 
 ---
 
-> **System Status (2026-10-29):** **10.0 / 10.0 Perfect Ten Enterprise Benchmark** achieved across all categories (ISO/IEC 25010, NIST SP 800-218 SSDF, OWASP LLM Top 10).
+> **System Status (2026-10-29):** Production-grade multi-agent software refinery validated against international standards for software quality (ISO/IEC 25010), secure software development (NIST SP 800-218 SSDF), and LLM application security (OWASP Top 10 for LLMs).
 > - **20 Language Toolchains**: 100% automated functional verification passing across all 4 paradigm pods (`tests/services/test_20_languages_functional.py`).
-> - **41 Agent Lifecycle**: Exhaustively verified across Executive, Interface, Pod Managers, Pod Audit/QC, and Support Rings with live-bus health telemetry and RSS memory probes (`tests/services/test_all_41_agents_functional.py`).
+> - **41 Agent Lifecycle**: Verified across Executive, Interface, Pod Managers, Pod Audit/QC, and Support Rings with live-bus health telemetry and RSS memory probes (`tests/services/test_all_41_agents_functional.py`).
 > - **Zero-Hang Windows Desktop App**: Native NSIS preflight checks, local image pre-cache detection, real-time throughput metrics, and non-destructive uninstaller (`theFactory-MissionControl-Setup-0.1.0.exe`).
 > - **Zero-Trust Multi-Tenant OIDC & mTLS**: Strict RFC 7519 / NIST SP 800-218 claim validation (`sub`, `iss`, `aud`, `tenant_id`, `roles`) and inter-service mutual TLS mesh ([`.env.enterprise.example`](.env.enterprise.example)).
 > - **Dynamic Topology Orchestrator**: One-command scaling between condensed and 41-container dedicated topologies (`scripts/manage_topology.py`).
@@ -51,7 +51,7 @@
 12. [3-Step Quick Start](#3-step-quick-start)
 13. [Makefile & Operational CLI Reference](#makefile--operational-cli-reference)
 14. [Mission Control Views & Operator Console](#mission-control-views--operator-console)
-15. [Quality Gates & Standards Compliance](#quality-gates--standards-compliance)
+15. [Standards Alignment & Verification Evidence](#standards-alignment--verification-evidence)
 16. [Documentation Index & License](#documentation-index--license)
 
 ---
@@ -449,30 +449,28 @@ Integrated security monitors log prompt injection defense triggers, PII detectio
 
 ---
 
-## Quality Gates & Standards Compliance
+## Standards Alignment & Verification Evidence
 
-theFactory complies with the highest international enterprise software benchmarks:
+theFactory enforces compliance across international standards for software quality (ISO/IEC 25010), secure software development (NIST SP 800-218 SSDF), and LLM application security (OWASP Top 10 for LLMs):
 
-| Standard / Dimension | Target Specification | Achieved Score | Implementation Evidence |
-|---|---|:---:|---|
-| **ISO/IEC 25010: Functional Suitability** | Complete requirements coverage & contract compliance | **10.0 / 10** | SOW contracts, 20-language verification suite |
-| **ISO/IEC 25010: Performance Efficiency** | Sub-200ms sandbox execution, efficient resource utilization | **10.0 / 10** | Warm-pool sandbox execution, native RSS memory probes |
-| **ISO/IEC 25010: Compatibility & Interoperability** | Multi-tenant OIDC, W3C distributed tracing context | **10.0 / 10** | Traceparent propagation across Redis, RFC 7519 OIDC |
-| **ISO/IEC 25010: Usability & Operator Experience** | Native zero-hang desktop app, real-time progress UX | **10.0 / 10** | Electron installer, throughput indicators, 16 UI views |
-| **ISO/IEC 25010: Reliability & Fault Tolerance** | Idempotent state recovery, fail-safe isolation | **10.0 / 10** | Mission Flow v2 state machine, non-destructive teardowns |
-| **ISO/IEC 25010: Security & Trust Boundaries** | Non-root sandbox, mTLS, zero network egress | **10.0 / 10** | `--user=65534`, `--network=none`, inter-service mTLS |
-| **ISO/IEC 25010: Maintainability & Modularity** | Clean service boundaries, 80%+ strict coverage floors | **10.0 / 10** | Modular FastAPI routers, 100% line coverage on critical modules |
-| **ISO/IEC 25010: Portability & Flexibility** | Scalable condensed vs dedicated topologies | **10.0 / 10** | `scripts/manage_topology.py`, cross-platform support |
-| **NIST SP 800-218 (SSDF)** | Secure software development lifecycle, artifact provenance | **10.0 / 10** | Cryptographic audit ledger, digest-pinned dependencies |
-| **OWASP Top 10 for LLMs** | Prompt injection protection, data leakage prevention | **10.0 / 10** | PII Guard, Prompt Guard block mode, fail-closed LLM routing |
-| **COMPOSITE BENCHMARK** | **Uncontested Industry-Standard Benchmark** | 🏆 **10.0 / 10** | **Verified & Proven on `main`** |
+| Standard / Domain | Control Requirement | Architectural Enforcement | Automated Verification & Evidence |
+|---|---|---|---|
+| **ISO/IEC 25010: Functional Suitability** | Complete requirements coverage & contract compliance | Binding SOW feature contracts with automated acceptance gates | [`tests/services/test_20_languages_functional.py`](tests/services/test_20_languages_functional.py), 20-language verification suite |
+| **ISO/IEC 25010: Performance Efficiency** | Sub-200ms sandbox execution, efficient resource utilization | Warm-pool sandbox execution, BuildKit multi-stage caching, RSS memory monitoring | [`tests/services/test_sandbox_remote_unit.py`](tests/services/test_sandbox_remote_unit.py), native process memory probes |
+| **ISO/IEC 25010: Compatibility & Interoperability** | Multi-tenant OIDC identity & distributed trace context propagation | RFC 7519 OIDC claim validation, W3C traceparent context across all Redis streams | [`tests/services/test_distributed_tracing.py`](tests/services/test_distributed_tracing.py), schema-validated event envelopes |
+| **ISO/IEC 25010: Usability & Operator Experience** | Native zero-hang desktop app, real-time progress UX | Windows NSIS native installer, real-time throughput metrics, 16 operator views | [`apps/mission-control/`](apps/mission-control/), Playwright E2E accessibility suite (`axe-core`) |
+| **ISO/IEC 25010: Reliability & Fault Tolerance** | Idempotent state recovery, fail-safe isolation | Mission Flow v2 state machine with dead-letter queue (DLQ) and crash recovery | [`services/orchestrator/orchestrator/mission_flow_v2/`](services/orchestrator/orchestrator/mission_flow_v2/), DR drills |
+| **ISO/IEC 25010: Security & Trust Boundaries** | Non-root sandbox, mTLS, zero network egress | Non-root container sandboxes (`--user=65534`, `--network=none`), inter-service mTLS | [`services/orchestrator/orchestrator/sandbox_exec.py`](services/orchestrator/orchestrator/sandbox_exec.py), security scan workflow |
+| **ISO/IEC 25010: Maintainability & Modularity** | Clean service boundaries, 80%+ strict coverage floors | Modular FastAPI routers, 80%+ line and 70%+ branch CI coverage gates | [`scripts/check_coverage_thresholds.py`](scripts/check_coverage_thresholds.py), 100% critical module floors |
+| **ISO/IEC 25010: Portability & Flexibility** | Scalable condensed vs dedicated topologies | Multi-profile Docker Compose, dynamic topology orchestrator CLI | [`scripts/manage_topology.py`](scripts/manage_topology.py), Compose profiles |
+| **NIST SP 800-218 (SSDF)** | Secure software development lifecycle, artifact provenance | Cryptographic audit ledger, digest-pinned dependencies, CycloneDX & SPDX SBOM | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (SBOM, Trivy, CodeQL, release trust gate) |
+| **OWASP Top 10 for LLMs** | Prompt injection protection, data leakage prevention | Fail-closed PII redaction, prompt injection guardrails, isolated sandboxes | [`tests/eval/test_safety_evals.py`](tests/eval/test_safety_evals.py), [`services/orchestrator/orchestrator/prompt_registry.py`](services/orchestrator/orchestrator/prompt_registry.py) |
 
 ---
 
 ## Documentation Index & License
 
 - **Full Documentation Index**: [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md)
-- **10/10 Enterprise Action Plan**: [`PERFECT_TEN_ROADMAP.md`](file:///C:/Users/kevin/.gemini/antigravity/brain/65c59c9c-3863-4b65-a645-4b25f28e6f46/PERFECT_TEN_ROADMAP.md)
 - **Architecture Overview**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Mission Flow v2 Lifecycle**: [`docs/MISSION_FLOW_V2.md`](docs/MISSION_FLOW_V2.md)
 - **Architectural Decision Records (ADR)**: [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md)

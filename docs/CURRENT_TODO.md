@@ -13,42 +13,42 @@ as current work.
 
 ## Current Status
 
-**COMPLETE — 2026-10-29: Phase 7 of 10/10 Enterprise Roadmap — Sandbox Build Optimization & Warm-Pool Execution (Category C4: 9.5 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 7 — Sandbox Build Optimization & Warm-Pool Execution.**
 - **Warm-Pool Execution & Metrics (`sandbox_exec.py`, `sandbox_runner.py`):** Integrated warm-pool hit detection, latency tracking (`duration_ms`), and execution speedups across sandboxed test runners, eliminating cold-start latency.
 - **Warm-Pool API Endpoint (`/internal/sandbox/warm-pool`):** Exposed pool status endpoint for runtime QC readiness inspection.
 - **Latency & Runner Unit Verification (`test_sandbox_remote_unit.py`):** Verified execution latency < 200ms and achieved 100% module coverage on `sandbox_runner.py` with 15 passing tests.
 
-**COMPLETE — 2026-10-29: Phase 6 of 10/10 Enterprise Roadmap — Dynamic Deployment Topology Orchestrator (Category C1: 9.5 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 6 — Dynamic Deployment Topology Orchestrator.**
 - **Dynamic Topology Orchestrator (`manage_topology.py`):** Shipped automated one-command orchestration utility (`--mode [condensed|dedicated]`, `--status`, `--dry-run`), synchronizing `.env` flags and orchestrating transitions between condensed mode (shared pod workers) and full dedicated mode (41 isolated containers) with 100% data preservation.
 - **Mission Control Settings Integration (`settings/page.tsx`):** Added intuitive Agent Deployment Topology Mode selector in Runtime Preferences, allowing operators to seamlessly manage and inspect topology preferences.
 - **Test & Verification Suite (`test_manage_topology.py`):** 6 tests passing verifying status detection, dry-run execution, and environment mutations; Vitest suite passing with 208/208 tests.
 
-**COMPLETE — 2026-10-29: Phase 5 of 10/10 Enterprise Roadmap — Zero-Trust Multi-Tenant OIDC & Gateway Hardening (Category C2: 9.7 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 5 — Zero-Trust Multi-Tenant OIDC & Gateway Hardening.**
 - **Strict Multi-Tenant OIDC Validation (`middleware.py`):** Added `validate_strict_oidc_claims()` enforcing RFC 7519 / NIST SP 800-218 standards (valid `sub`, `iss`, `aud`, tenant isolation `tid`/`tenant_id`, and flexible role extraction across Keycloak, Okta, and Azure AD).
 - **Mutual TLS (mTLS) Inter-Service Mesh (`main.py`):** Implemented `build_mtls_ssl_context()` and `_create_internal_client()`, securing internal gateway-to-orchestrator and gateway-to-sandbox-runner traffic.
 - **Enterprise Hardened Template (`.env.enterprise.example`):** Documented hardened zero-trust settings for enterprise production deployments.
 - **Auth Modes Test Suite (`test_auth_modes.py`):** 8 tests passing verifying token rejections (status 401/403) and mTLS context validation.
 
-**COMPLETE — 2026-10-29: Phase 4 of 10/10 Enterprise Roadmap — Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (Category C6: 9.2 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 4 — Desktop Pre-Warmed Image Layering & Real-Time Throughput UX.**
 - **Local Pre-Cached Container Image Detection (`factory-stack.ts`, `main.ts`):** Implemented `localImageCandidates()` and candidate inspection logic in `ensureImages()`, instantly recognizing locally built images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners without downloading.
 - **Real-Time Throughput & Byte Progress UX (`starting.html`, `starting-preload.ts`):** Enabled instantaneous MB/s throughput calculation and layer progress indicators (`45.2 MB / 180.0 MB • 14.2 MB/s`), replacing static spinning indicators with clear feedback.
 - **Standalone Image Pre-Warming CLI Tool (`preload_desktop_images.py`):** Shipped pre-warming CLI utility providing `--check`, `--dry-run`, and automatic image retagging for zero-delay desktop application startup.
 - **Testing & Verification:** Added 5 new unit tests to `apps/mission-control/electron/factory-stack.test.ts` (23 passed) and 8 unit tests in `tests/scripts/test_preload_desktop_images.py` (8 passed in 0.12s).
 
-**COMPLETE — 2026-10-29: Phase 3 of 10/10 Enterprise Roadmap — Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (Category C3: 9.4 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 3 — Dynamic Live Health Probes & Resource Telemetry for All 41 Agents.**
 - **Dynamic Live Health Probes (`heartbeat_service.py`):** Implemented `probe_agent_health(agent)` and cross-platform native `get_process_rss_bytes()` (Windows via `ctypes.windll.psapi` / Linux & macOS via `resource`), verifying contract integrity and measuring process memory and round-trip probe latency.
 - **Agent Telemetry Stream Propagation:** Emitted `live_health_probe=True`, `latency_ms`, and `rss_bytes` across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads`.
 - **Unified Operations Endpoint (`routes/operations.py`):** Updated `_build_operations_agents_snapshot` to annotate all 41 agents with live health status, latency, and RSS memory usage; deduplicated orchestrator routes to reference the single canonical implementation.
 - **Shared Runtime Path Registration (`conftest.py`):** Registered `shared_runtime` in root `conftest.py` so that all microservices and tests cleanly resolve `thefactory_common` without path collisions.
 - **Agent Telemetry & Heartbeat Verification:** Added `test_all_41_agents_live_health_probes_and_telemetry` to `tests/services/test_all_41_agents_functional.py` and 5 unit tests to `tests/services/test_orchestrator_main_helpers_unit.py` (67 passed in 5.88s), pushing heartbeat service module coverage to 86.8%.
 
-**COMPLETE — 2026-10-29: Phase 2 of 10/10 Enterprise Roadmap — W3C Distributed Tracing across Redis Protocol Envelopes (Category C7: 9.3 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 2 — W3C Distributed Tracing across Redis Protocol Envelopes.**
 - **Canonical Envelope Tracing (`schemas/event.envelope.schema.json`):** Extended JSON Schema and Pydantic envelope models (`EventEnvelope`, `MessageEnvelope`, `SendMessageRequest`) with W3C `traceparent` and `tracestate` properties.
 - **Shared Propagation Engine (`thefactory_common/tracing.py`):** Implemented `inject_w3c_trace_context`, `extract_w3c_trace_context`, `inject_envelope_trace_context`, and `extract_envelope_trace_context` to propagate OpenTelemetry trace carriers across asynchronous Redis streams.
 - **Microservice Integration:** Wired W3C trace injection and propagation across `api-gateway` intake publishing (`_build_envelope`), `orchestrator` state lifecycle transitions (`build_state_envelope`, `parse_intake_envelope`), and `protocol-bus-mcp` HTTP endpoint (`/send`).
 - **Distributed Trace Unit Suite:** Created `tests/services/test_distributed_tracing.py` (12 tests passing in 1.04s) verifying remote parent span continuation, carrier propagation, and schema validation with 83.9% combined coverage.
 
-**COMPLETE — 2026-10-29: Phase 1 of 10/10 Enterprise Roadmap — Reciprocal Rank Fusion (RRF) Hybrid Search (Category C5: 9.3 ➔ 10.0).**
+**COMPLETE — 2026-10-29: Phase 1 — Reciprocal Rank Fusion (RRF) Hybrid Search.**
 - **Reciprocal Rank Fusion Hybrid Search (`knowledge_lake.py`):** Implemented `reciprocal_rank_fusion` and `search_hybrid`, uniting dense vector similarity (Qdrant) and sparse lexical token matching (PostgreSQL) using $RRF(d) = \sum \frac{1}{k + r_i(d)}$.
 - **Exact Symbol Retrieval Boost:** Enhanced keyword search with exact symbol matching bonus for specialized standards and code identifiers (e.g. `MISRA-C:Rule-10.1`).
 - **Prompt Injection Context Enrichment (`phases_build.py`):** Extended `get_language_context` with optional `query` parameter to inject targeted hybrid snippets alongside bootstrap documentation into specialist codegen prompts.
