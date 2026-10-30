@@ -24,14 +24,13 @@
 
 ---
 
-> **System Status (2026-10-29):** Production-grade multi-agent software refinery validated against international standards for software quality (ISO/IEC 25010), secure software development (NIST SP 800-218 SSDF), and LLM application security (OWASP Top 10 for LLMs).
-> - **20 Language Toolchains**: 100% automated functional verification passing across all 4 paradigm pods (`tests/services/test_20_languages_functional.py`).
-> - **41 Agent Lifecycle**: Verified across Executive, Interface, Pod Managers, Pod Audit/QC, and Support Rings with live-bus health telemetry and RSS memory probes (`tests/services/test_all_41_agents_functional.py`).
-> - **Zero-Hang Windows Desktop App**: Native NSIS preflight checks, local image pre-cache detection, real-time throughput metrics, and non-destructive uninstaller (`theFactory-MissionControl-Setup-0.1.0.exe`).
-> - **Zero-Trust Multi-Tenant OIDC & mTLS**: Strict RFC 7519 / NIST SP 800-218 claim validation (`sub`, `iss`, `aud`, `tenant_id`, `roles`) and inter-service mutual TLS mesh ([`.env.enterprise.example`](.env.enterprise.example)).
-> - **Dynamic Topology Orchestrator**: One-command scaling between condensed and 41-container dedicated topologies (`scripts/manage_topology.py`).
-> - **Sub-200ms Test Execution**: Multi-stage BuildKit caching and pre-warmed sandbox pool (`tests/services/test_sandbox_remote_unit.py`).
-> - **Default Routing**: Primary LLM route is **Google Gemini 3.8 Flash** with full local air-gapped LLM support (Ollama / vLLM).
+> **Key Architecture & Operational Highlights:**
+> - **20 Language Toolchains**: Automated syntax parsing, AST extraction, and isolated test execution across 20 languages.
+> - **41 Specialist Agents**: Role-based multi-agent architecture spanning executive planning, paradigm pods, language specialists, and quality control.
+> - **Hardened Container Sandbox**: Untrusted code executes in an unprivileged, non-networked Docker container (`--user=65534`, `--network=none`, `--read-only`).
+> - **Native Desktop & Web UI**: Mission Control operator console available as both a web application and a native Windows desktop app.
+> - **Flexible Model Support**: First-class support for Google Gemini 3.8 Flash, Anthropic Claude, OpenAI, and fully offline local LLMs via Ollama.
+> - **Dynamic Deployment Topologies**: One-command scaling between lightweight condensed mode and a 41-container dedicated fleet.
 
 ---
 
@@ -51,7 +50,7 @@
 12. [3-Step Quick Start](#3-step-quick-start)
 13. [Makefile & Operational CLI Reference](#makefile--operational-cli-reference)
 14. [Mission Control Views & Operator Console](#mission-control-views--operator-console)
-15. [Standards Alignment & Verification Evidence](#standards-alignment--verification-evidence)
+15. [How theFactory Works: In-Depth Walkthrough](#how-thefactory-works-in-depth-walkthrough)
 16. [Documentation Index & License](#documentation-index--license)
 
 ---
@@ -449,22 +448,69 @@ Integrated security monitors log prompt injection defense triggers, PII detectio
 
 ---
 
-## Standards Alignment & Verification Evidence
+## How theFactory Works: In-Depth Walkthrough
 
-theFactory enforces compliance across international standards for software quality (ISO/IEC 25010), secure software development (NIST SP 800-218 SSDF), and LLM application security (OWASP Top 10 for LLMs):
+theFactory is engineered to solve the fundamental failure modes of generative AI coding assistants: hallucinated APIs, broken multi-file refactors, missing test suites, and unverified code execution. Below is a detailed technical walkthrough of how the system executes a mission from initial user prompt to tested, verified delivery.
 
-| Standard / Domain | Control Requirement | Architectural Enforcement | Automated Verification & Evidence |
-|---|---|---|---|
-| **ISO/IEC 25010: Functional Suitability** | Complete requirements coverage & contract compliance | Binding SOW feature contracts with automated acceptance gates | [`tests/services/test_20_languages_functional.py`](tests/services/test_20_languages_functional.py), 20-language verification suite |
-| **ISO/IEC 25010: Performance Efficiency** | Sub-200ms sandbox execution, efficient resource utilization | Warm-pool sandbox execution, BuildKit multi-stage caching, RSS memory monitoring | [`tests/services/test_sandbox_remote_unit.py`](tests/services/test_sandbox_remote_unit.py), native process memory probes |
-| **ISO/IEC 25010: Compatibility & Interoperability** | Multi-tenant OIDC identity & distributed trace context propagation | RFC 7519 OIDC claim validation, W3C traceparent context across all Redis streams | [`tests/services/test_distributed_tracing.py`](tests/services/test_distributed_tracing.py), schema-validated event envelopes |
-| **ISO/IEC 25010: Usability & Operator Experience** | Native zero-hang desktop app, real-time progress UX | Windows NSIS native installer, real-time throughput metrics, 16 operator views | [`apps/mission-control/`](apps/mission-control/), Playwright E2E accessibility suite (`axe-core`) |
-| **ISO/IEC 25010: Reliability & Fault Tolerance** | Idempotent state recovery, fail-safe isolation | Mission Flow v2 state machine with dead-letter queue (DLQ) and crash recovery | [`services/orchestrator/orchestrator/mission_flow_v2/`](services/orchestrator/orchestrator/mission_flow_v2/), DR drills |
-| **ISO/IEC 25010: Security & Trust Boundaries** | Non-root sandbox, mTLS, zero network egress | Non-root container sandboxes (`--user=65534`, `--network=none`), inter-service mTLS | [`services/orchestrator/orchestrator/sandbox_exec.py`](services/orchestrator/orchestrator/sandbox_exec.py), security scan workflow |
-| **ISO/IEC 25010: Maintainability & Modularity** | Clean service boundaries, 80%+ strict coverage floors | Modular FastAPI routers, 80%+ line and 70%+ branch CI coverage gates | [`scripts/check_coverage_thresholds.py`](scripts/check_coverage_thresholds.py), 100% critical module floors |
-| **ISO/IEC 25010: Portability & Flexibility** | Scalable condensed vs dedicated topologies | Multi-profile Docker Compose, dynamic topology orchestrator CLI | [`scripts/manage_topology.py`](scripts/manage_topology.py), Compose profiles |
-| **NIST SP 800-218 (SSDF)** | Secure software development lifecycle, artifact provenance | Cryptographic audit ledger, digest-pinned dependencies, CycloneDX & SPDX SBOM | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (SBOM, Trivy, CodeQL, release trust gate) |
-| **OWASP Top 10 for LLMs** | Prompt injection protection, data leakage prevention | Fail-closed PII redaction, prompt injection guardrails, isolated sandboxes | [`tests/eval/test_safety_evals.py`](tests/eval/test_safety_evals.py), [`services/orchestrator/orchestrator/prompt_registry.py`](services/orchestrator/orchestrator/prompt_registry.py) |
+### 1. Requirements Negotiation & The Statement of Work (SOW)
+Unlike inline autocomplete plugins that generate code from incomplete single-line prompts, theFactory begins every project with an interactive intake session led by the **Product Manager Agent (`AGENT-01-PM`)**:
+
+- **Ambiguity Detection**: The PM Agent analyzes the prompt against domain-specific requirements matrices, asking targeted clarifying questions when requirements are underspecified.
+- **Contract Formulation**: Once requirements are clear, the PM Agent compiles an immutable **Statement of Work (SOW)**. The SOW explicitly enumerates:
+  - System boundary constraints and non-functional requirements.
+  - Required public API signatures, data schemas, and CLI commands.
+  - Acceptance criteria and automated test specifications.
+  - Computational resource budgets and execution timeouts.
+- **Operator Sign-Off**: Work cannot transition into code synthesis until the operator reviews and approves the SOW, ensuring strict alignment on scope and deliverables.
+
+### 2. Knowledge Retrieval via Reciprocal Rank Fusion (RRF)
+During the **FETCH** phase, the factory enriches agent prompts with relevant domain context from its persistent **Knowledge Lake**:
+
+- **Hybrid Search Engine**: The factory uses Reciprocal Rank Fusion (RRF) combining:
+  1. **Dense Vector Embeddings** (Qdrant) for conceptual similarity and architectural patterns.
+  2. **Sparse Lexical Search** (PostgreSQL full-text) with exact symbol bonuses for library idioms, compiler flags, and coding standards (e.g., MISRA-C rules, JVM concurrency hygiene).
+- **Context Injection**: Retrieved code examples and official documentation are dynamically injected into specialist agent prompts, eliminating hallucinated function calls and outdated dependency usage.
+
+### 3. Specialized Routing to Paradigm Pods
+theFactory avoids "one generalist model does everything" bottlenecks. Work items are routed to one of **four specialized paradigm pods**:
+
+- **Pod A (Dynamic & Scripting)**: Python, JavaScript, TypeScript, Ruby, PHP. Enforces PEP 8/PEP 604, ECMAScript 2024 standards, and OWASP web safety.
+- **Pod B (Systems & Compiled)**: C, C++, Rust, Go, Zig. Grounded in RAII resource management, buffer-safety checks, memory ownership semantics, and MISRA C:2012 compliance.
+- **Pod C (Enterprise & Managed VM)**: Java, C#, Scala, Kotlin. Implements SOLID architecture patterns, modern JVM/CLR async correctness, and strict type encapsulation.
+- **Pod D (Mathematical & Functional)**: R, MATLAB, Julia, Mathematica, Haskell, OCaml. Enforces functional purity, immutability, multiple dispatch, and vectorized matrix computations.
+
+### 4. Syntax Preflight & LogicNode Extraction
+Before executing code, theFactory validates structural integrity using native AST extractors:
+
+- **Structural Parsers**: Python uses native `ast`, JavaScript/TypeScript uses `esprima`, and Java uses `javalang` to construct abstract syntax trees directly from synthesized code.
+- **LogicNode Representation**: Code entities (functions, structs, classes, dependencies) are converted into language-agnostic **LogicNodes**. This allows the factory to inspect type signatures, call graphs, and architectural cohesion prior to compilation.
+- **Syntax Self-Healing**: If a syntax error or invalid import is detected during AST parsing, the error is immediately returned to the language specialist agent with compiler diagnostic messages for automated correction.
+
+### 5. Hardened Sandbox Test Execution ("The Squeeze Phase")
+Generated software cannot be certified as working simply because an LLM claims it works. theFactory subjects every build to **automated runtime execution** in an isolated Docker container:
+
+- **Host Defense-in-Depth**:
+  - Sandboxes run with `--user=65534:65534` (unprivileged `nobody` user) and `--cap-drop=ALL`.
+  - Network access is completely disabled (`--network=none`), preventing credential exfiltration or phone-home beacons.
+  - The root filesystem is mounted read-only (`--read-only`), with only a 64MB RAM tmpfs mounted at `/tmp` for temporary compiler scratch files.
+  - Strict process caps (`--pids-limit=256`) and CPU ceilings (`--cpus=1`) prevent fork bombs and host CPU exhaustion.
+- **Vendored Offline Test Runners**: The factory maintains pre-built, hash-pinned runner images for every supported language (e.g., `pytest`, `cargo test`, `vitest`, `PHPUnit`, `go test`, `dotnet test`, `ScalaTest`).
+- **Contract-Oracle Behavioral Equivalence**: Tests evaluate not only that the code runs, but that its behavior strictly matches the acceptance criteria defined in the initial SOW contract.
+- **Pre-Warmed Warm Pool**: A background container pool keeps sandbox execution latency under 200ms, enabling fast feedback cycles.
+
+### 6. Code Review, Diffs & Human Approval
+All generated files, documentation, and test suites are presented in Mission Control's **Builder & Diff Inspector**:
+
+- **Side-by-Side Review**: Operators can inspect unified diffs across every modified and generated file in the project workspace.
+- **Verification Reports**: Full test execution logs, compiler warnings, and runtime metrics are displayed alongside the code.
+- **Approval Gate**: The operator can approve delivery, request targeted revisions from specific specialist agents, or reject the mission.
+
+### 7. Delivery, Archival & Audit Ledger
+Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finalizes the mission:
+
+- **Immutable Evidence Packaging**: All artifacts, SOW contracts, test execution outputs, and inter-agent messages are packaged into a timestamped evidence bundle.
+- **Cryptographic Provenance**: Every deliverable is hashed with SHA-256 and recorded into the local audit ledger and S3/SeaweedFS Object Lock storage.
+- **Clean Project Workspace**: The complete source code, configuration files, and runnable tests are placed into the designated output folder, ready for immediate developer use.
 
 ---
 
