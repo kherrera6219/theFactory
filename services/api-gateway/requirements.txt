@@ -8,5 +8,5 @@ opentelemetry-api==1.45.1
 opentelemetry-sdk==1.45.1
 opentelemetry-exporter-otlp==1.45.1
 opentelemetry-instrumentation-fastapi==0.66b1
-opentelemetry-instrumentation-httpx==0.66b1
+opentelemetry-instrumentation-httpx==0.66b2
 PyJWT[crypto]==2.15.1
