@@ -237,7 +237,7 @@ def _build_mission_contract_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
-    safe_prompt = _clean_text(prompt, max_length=1200)
+    safe_prompt = _clean_text(prompt, max_length=12000, preserve_newlines=True)
     safe_mission_type = _clean_text(mission_type or "BUILD_NEW", max_length=48).upper()
     safe_output_mode = _clean_text(output_mode or "FULL_BUILD", max_length=48).upper()
     safe_language = _clean_text(requested_target_language or "auto", max_length=32).lower()
@@ -311,7 +311,7 @@ def _build_pm_feature_contract_prompt(
     conversation_context: dict[str, Any] | None = None,
     user_intent: str | None = None,
 ) -> str:
-    safe_prompt = _clean_text(prompt, max_length=1200)
+    safe_prompt = _clean_text(prompt, max_length=12000, preserve_newlines=True)
     safe_user_intent = _clean_text(user_intent or "draft", max_length=32).lower()
 
     docs_context = ""
@@ -348,7 +348,7 @@ def _build_pm_feature_contract_prompt(
     if isinstance(conversation_context, dict) and conversation_context:
         conversation_context_text = (
             "\nConversation context JSON (authoritative for this chat session):\n"
-            f"{_clean_text(json.dumps(conversation_context, sort_keys=True), max_length=5000)}\n\n"
+            f"{_clean_text(json.dumps(conversation_context, sort_keys=True), max_length=16000, preserve_newlines=True)}\n\n"
         )
 
     return (

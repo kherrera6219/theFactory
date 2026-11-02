@@ -68,7 +68,9 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     # High: role-override attempts
     ("ROLE_OVERRIDE",
      re.compile(
-         r"\b(you are now|act as|pretend (?:you are|to be)|your new role is|"
+         r"\b(you are now|pretend (?:you are|to be)|your new role is|"
+         r"act as (?:a|an)?\s*(?:unrestricted|different|new|evil|dan|jailbreak|hacked|unaligned|opposite)\b|"
+         r"act as (?:if|though) you (?:have no|are not bound|are unrestricted)|"
          r"ignore (?:all )?(?:previous |above )?instructions?|"
          r"disregard (?:all )?(?:previous |above )?instructions?|"
          r"forget (?:all )?(?:previous |above )?instructions?)\b",

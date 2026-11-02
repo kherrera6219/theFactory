@@ -6,6 +6,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM Agent Delegation Fixes, SOW Clarity, Dependency Hardening & Desktop Packaging (2026-11-01)
+
+#### Fixed
+- **PM Agent Prompt & Response Truncation**: Raised prompt sanitization character limit from 1,200 to 12,000 and context JSON from 5,000 to 16,000 chars in `prompts.py`; expanded summary length to 4,000 chars, individual functional requirements and acceptance criteria to 1,000 chars in `normalizers.py` and `fallbacks.py`; preserved newlines in `text.py`.
+- **False-Positive Role Override Detection**: Tuned `ROLE_OVERRIDE` regex pattern in `shared_runtime/prompt_guard.py` to prevent legitimate prompts (e.g. 'Act as the PM', 'ghosts act as hunters') from triggering adversarial prompt injection flags and degrading to stub contracts.
+- **Mission Control SOW Visibility During Clarification**: Preserved Statement of Work visibility in `chat/page.tsx` during clarification steps by maintaining state instead of resetting to `null`; updated `ChatSowSection.tsx` to render complete lists for Deliverables, Acceptance Criteria, Functional Requirements, Assumptions, and Risks.
+- **Dependency Security Alerts**: Upgraded `pypdf` from `6.21.2` to `6.21.4` in `services/orchestrator/requirements.txt`, resolving CVE-2026-119203 through CVE-2026-119209.
+
+#### Added
+- **GitHub README Expansion**: Restored detailed architectural documentation, removed subjective internal scores, and added 14 annotated interface screenshots illustrating the end-to-end user workflow.
+- **Desktop Application Packaging**: Built and signed `theFactory-MissionControl-Setup-0.1.0.exe` and reinstalled into `%LOCALAPPDATA%\Programs\theFactory Mission Control`.
+
 ### 10/10 Enterprise Roadmap Phase 7: Sandbox Build Optimization & Warm-Pool Execution (2026-10-29)
 
 #### Added

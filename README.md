@@ -353,9 +353,18 @@ make up-full-dedicated
 
 ## Mission Control Views & Operator Console
 
-Mission Control is the unified operator console for theFactory, available as both a web console (`http://localhost:3000`) and a native Windows desktop application. Below is a visual walkthrough illustrating the core operator workflow:
+Mission Control is the unified operator console for theFactory, available as both a web console (`http://localhost:3000`) and a native Windows desktop application. Below is a comprehensive visual walkthrough illustrating the core operator workflow:
 
-### 1. Requirements Intake & PM Agent Consultation
+### 1. Operations Dashboard & Real-Time Factory Overview
+The central mission control dashboard provides high-level observability over total factory throughput, active mission queues, pod allocations, resource utilization, and recent delivery health.
+
+<p align="center">
+  <img src="docs/screenshots/01-home.png" alt="Operations Dashboard and Factory Health Overview" width="850">
+</p>
+
+---
+
+### 2. Requirements Intake & PM Agent Consultation
 The operator initiates work through natural language. The PM Agent negotiates scope, clarifies ambiguities, and produces an immutable, binding Statement of Work (SOW) feature contract with acceptance criteria and resource boundaries.
 
 <p align="center">
@@ -364,7 +373,16 @@ The operator initiates work through natural language. The PM Agent negotiates sc
 
 ---
 
-### 2. Live Smelt Cycle Progress & Sandbox Execution
+### 3. Active Missions Pipeline & Queue State
+Track all active, queued, and completed software manufacturing missions. Each mission card displays target language, assigned pod, phase progression, elapsed wall-clock time, and live execution status.
+
+<p align="center">
+  <img src="docs/screenshots/04-missions.png" alt="Active Missions Pipeline and Queue Overview" width="850">
+</p>
+
+---
+
+### 4. Live Smelt Cycle Progress & Sandbox Execution
 Every mission progresses through formal lifecycle gates. The mission detail view presents a real-time stepper tracking phase progression, container sandbox execution status, and live output logs.
 
 <p align="center">
@@ -373,7 +391,16 @@ Every mission progresses through formal lifecycle gates. The mission detail view
 
 ---
 
-### 3. Specialist Agent Fleet & Health Telemetry
+### 5. Multi-Project Workspaces & Delivered Repositories
+Browse generated multi-file software projects, structural directory trees, and delivery manifests across all completed missions.
+
+<p align="center">
+  <img src="docs/screenshots/06-projects.png" alt="Workspace Projects and Multi-File Repository Browser" width="850">
+</p>
+
+---
+
+### 6. Specialist Agent Fleet & Health Telemetry
 The fleet monitor displays live operational status across all 41 specialized agents—including Executive, Interface, Pod Managers, Language Specialists, and Audit QC workers—with real-time heartbeat status, round-trip latency, and host resource utilization.
 
 <p align="center">
@@ -382,7 +409,7 @@ The fleet monitor displays live operational status across all 41 specialized age
 
 ---
 
-### 4. Semantic Engine & LogicNodes AST Extraction
+### 7. Semantic Engine & LogicNodes AST Extraction
 During language ingestion and smelting, code structures are extracted into paradigm-independent LogicNodes and Refined-IR data flows, allowing structural analysis and type inference before codegen.
 
 <p align="center">
@@ -391,7 +418,7 @@ During language ingestion and smelting, code structures are extracted into parad
 
 ---
 
-### 5. Multi-Protocol Bus Event Mesh
+### 8. Multi-Protocol Bus Event Mesh
 All inter-agent communication is mediated through 6 typed Redis protocol streams (Alpha, Beta, Delta, Sigma, Omega, Rho). The bus monitor provides real-time event inspection, payload payload verification, and W3C distributed tracing context tracking.
 
 <p align="center">
@@ -400,7 +427,16 @@ All inter-agent communication is mediated through 6 typed Redis protocol streams
 
 ---
 
-### 6. Code Review, Diffs & Human Approval Gates
+### 9. Brownfield Codebase & ZIP Ingestion
+Import existing legacy repositories or ZIP archives. The ingestion pipeline maps directory structures, indexes symbols into the Knowledge Lake, and extracts AST definitions for refactoring and porting missions.
+
+<p align="center">
+  <img src="docs/screenshots/13-repo-import.png" alt="Brownfield Repository and ZIP Ingestion Interface" width="850">
+</p>
+
+---
+
+### 10. Code Review, Diffs & Human Approval Gates
 Before synthesized source code is finalized for delivery, operators can inspect multi-file side-by-side diffs, review unit tests and test oracle outputs, and provide cryptographic sign-off.
 
 <p align="center">
@@ -409,7 +445,7 @@ Before synthesized source code is finalized for delivery, operators can inspect 
 
 ---
 
-### 7. Performance Observability & DORA Metrics
+### 11. Performance Observability & DORA Metrics
 Factory health telemetry tracks global throughput, deployment frequency, change failure rates, and p95 latency percentiles with drill-downs across worker queues and model provider response times.
 
 <p align="center">
@@ -418,11 +454,29 @@ Factory health telemetry tracks global throughput, deployment frequency, change 
 
 ---
 
-### 8. Security Guardrails, Prompt Defense & Audit Logs
+### 12. Security Guardrails, Prompt Defense & Alerts
 Integrated security monitors log prompt injection defense triggers, PII detection events, and container egress attempts, while the audit console provides an immutable, hash-chained compliance audit trail.
 
 <p align="center">
   <img src="docs/screenshots/10-alerts.png" alt="Security Alerts and Guardrail Trigger Dashboard" width="850">
+</p>
+
+---
+
+### 13. Cryptographic Audit Trail & Compliance Verification
+Inspect digitally signed verification certificates, hash-chained event logs, and offline sandbox execution evidence bundles for regulatory and legal compliance.
+
+<p align="center">
+  <img src="docs/screenshots/14-audit-log.png" alt="Cryptographic Audit Trail and Compliance Verification Console" width="850">
+</p>
+
+---
+
+### 14. Encrypted Credential Vault & Runtime Settings
+Manage encrypted API keys locally without cloud leakage, configure model provider fallbacks, run live preflight validation, and dynamically toggle between condensed and dedicated deployment topologies.
+
+<p align="center">
+  <img src="docs/screenshots/15-settings.png" alt="Encrypted Credential Vault and Runtime Preferences Settings" width="850">
 </p>
 
 ---

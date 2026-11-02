@@ -13,6 +13,14 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-01: PM Agent Delegation Fixes, SOW Clarity, Dependency Hardening & Desktop Packaging.**
+- **PM Agent Prompt & Response Truncation Resolution (`generators.py`, `normalizers.py`, `text.py`, `prompts.py`):** Eliminated artificial input truncation (raised from 1,200 to 12,000 chars) and output caps (expanded summary to 4,000 chars, individual requirements, acceptance criteria, assumptions, and risks from 120 to 1,000 chars), and preserved formatting newlines via `preserve_newlines=True`.
+- **False-Positive Prompt Injection Guard Tuning (`prompt_guard.py`):** Refined the `ROLE_OVERRIDE` regex pattern to exclusively detect adversarial jailbreaks while allowing legitimate functional prompts such as 'Act as the PM' or game logic descriptions.
+- **Mission Control Chat SOW Visibility & Rendering (`ChatSowSection.tsx`, `page.tsx`):** Ensured the Statement of Work remains visible when clarification questions are pending (`blocksLaunchForClarification`), and added full rendering for Functional Requirements, Assumptions, and Risks.
+- **Security Vulnerability Remediation (`requirements.txt`):** Upgraded `pypdf` from `6.21.2` to `6.21.4` across `services/orchestrator`, eliminating 7 CVEs (CVE-2026-119203 through CVE-2026-119209) flagged by Trivy and pip-audit.
+- **Desktop Application Build & Reinstall:** Packaged and signed `theFactory-MissionControl-Setup-0.1.0.exe` and installed into `%LOCALAPPDATA%\Programs\theFactory Mission Control`.
+- **GitHub README Enhancements:** Restored detailed technical documentation, removed subjective internal scores, and added 14 annotated interface screenshots illustrating the end-to-end user workflow.
+
 **COMPLETE — 2026-10-29: Phase 7 — Sandbox Build Optimization & Warm-Pool Execution.**
 - **Warm-Pool Execution & Metrics (`sandbox_exec.py`, `sandbox_runner.py`):** Integrated warm-pool hit detection, latency tracking (`duration_ms`), and execution speedups across sandboxed test runners, eliminating cold-start latency.
 - **Warm-Pool API Endpoint (`/internal/sandbox/warm-pool`):** Exposed pool status endpoint for runtime QC readiness inspection.

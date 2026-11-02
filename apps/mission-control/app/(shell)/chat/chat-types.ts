@@ -19,6 +19,8 @@ export type DisplayFeatureContract = {
   acceptance: string[];
   assumptions: string[];
   risks: string[];
+  functionalRequirements?: string[];
+  nonFunctionalRequirements?: string[];
   engagementType: string;
   likelyUsd?: number | null;
   highUsd?: number | null;

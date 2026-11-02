@@ -35,9 +35,10 @@ _SECRET_LIKE_PATTERN = re.compile(
 _MAX_CLEAN_INPUT_CHARS = 50000
 
 
-def _clean_text(value: Any, *, max_length: int = 160) -> str:
+def _clean_text(value: Any, *, max_length: int = 160, preserve_newlines: bool = False) -> str:
     text = str(value)[:_MAX_CLEAN_INPUT_CHARS]
-    text = _CONTROL_CHAR_PATTERN.sub(" ", text).strip()
+    pattern = _CODE_CONTROL_CHAR_PATTERN if preserve_newlines else _CONTROL_CHAR_PATTERN
+    text = pattern.sub("" if preserve_newlines else " ", text).strip()
     text = _EMAIL_PATTERN.sub("[redacted-email]", text)
     text = _SECRET_LIKE_PATTERN.sub("[redacted-secret]", text)
     return text[:max_length]
@@ -293,13 +294,13 @@ def _language_context(language: str | None) -> str:
     return "\n" + "\n".join(lines) + "\n"
 
 
-def _string_list(value: Any, *, limit: int, max_length: int = 120) -> list[str]:
+def _string_list(value: Any, *, limit: int, max_length: int = 1000) -> list[str]:
     if not isinstance(value, list):
         return []
     return [
         cleaned
         for item in value[:limit]
-        if (cleaned := _clean_text(item, max_length=max_length))
+        if (cleaned := _clean_text(item, max_length=max_length, preserve_newlines=True))
     ]
 
 

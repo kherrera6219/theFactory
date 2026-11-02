@@ -151,9 +151,9 @@ def _fallback_pm_feature_contract(
     language = _clean_text(requested_target_language or "", max_length=32).lower()
     contract = {
         "schema_version": "feature_contract.v1",
-        "title": _clean_text(prompt, max_length=80) or "Mission",
-        "summary": _clean_text(prompt, max_length=500),
-        "functional_requirements": [_clean_text(prompt, max_length=160) or "Complete mission"],
+        "title": _clean_text(prompt, max_length=120) or "Mission",
+        "summary": _clean_text(prompt, max_length=4000, preserve_newlines=True),
+        "functional_requirements": [_clean_text(prompt, max_length=1000, preserve_newlines=True) or "Complete mission"],
         "non_functional_requirements": [],
         "acceptance_criteria": ["Mission completes without error."],
         "target_languages": [language] if language else [],

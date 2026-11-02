@@ -510,21 +510,21 @@ export default function ChatPage() {
         blocksLaunchForClarification = needsClarification && clarifyingQuestions.length > 0;
         if (needsClarification && clarifyingQuestions.length > 0) {
           acknowledgement = [
-            "I drafted the current scope and need a few product decisions before launch:",
+            `I drafted an initial feature contract for "${featureContract.title || "New Mission"}".`,
+            featureContract.summary ? `\n${featureContract.summary}\n` : "",
+            "Before launching the factory, please review these key product decisions:",
             ...clarifyingQuestions.map((question, index) => `${index + 1}. ${question}`),
-            "Answer these, edit the defaults, or proceed with the recommended defaults.",
-          ].join("\n");
-        }
-        if (!needsClarification || clarifyingQuestions.length === 0) {
-          acknowledgement =
-          featureContract.acceptance_criteria.length > 0
-            ? [
-                `I drafted a feature contract for review. ${featureContract.summary}`,
-                `Acceptance: ${featureContract.acceptance_criteria.slice(0, 2).join("; ")}`,
-              ]
-                .filter(Boolean)
-                .join(" ")
-            : featureContract.summary || acknowledgement;
+            "\nYou can answer these in the chat, proceed with the recommended defaults, or inspect the full SOW below.",
+          ].filter(Boolean).join("\n");
+        } else {
+          acknowledgement = [
+            `I drafted a feature contract for review: **${featureContract.title || "New Mission"}**`,
+            featureContract.summary,
+            featureContract.acceptance_criteria && featureContract.acceptance_criteria.length > 0
+              ? `Key Acceptance Criteria:\n${featureContract.acceptance_criteria.slice(0, 4).map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+              : "",
+            "Please review the full Statement of Work below. Click 'Accept SOW and start' to begin execution.",
+          ].filter(Boolean).join("\n\n");
         }
         generatedContract = {
           title: featureContract.title || "New Mission",
@@ -541,6 +541,8 @@ export default function ChatPage() {
           acceptance: featureContract.acceptance_criteria ?? [],
           assumptions: featureContract.assumptions ?? [],
           risks: featureContract.risk_notes ?? [],
+          functionalRequirements: featureContract.functional_requirements ?? [],
+          nonFunctionalRequirements: featureContract.non_functional_requirements ?? [],
           engagementType:
             officialMissionTypeFromRepoChoice(
               featureContract.engagement_type ||
@@ -614,7 +616,7 @@ export default function ChatPage() {
           ? buildClarificationPrompt(pendingClarifyingQuestions, generatedContract)
           : null,
       );
-      setContract(blocksLaunchForClarification ? null : generatedContract);
+      setContract(generatedContract);
       setInput("");
     } catch (requestError) {
       const rawMessage =

@@ -76,22 +76,78 @@ export function ChatSowSection({
               </div>
               <div>
                 <dt>In scope</dt>
-                <dd>{contract.scope}</dd>
+                <dd style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{contract.scope}</dd>
               </div>
               <div>
                 <dt>Out of scope</dt>
-                <dd>
+                <dd style={{ fontFamily: "inherit" }}>
                   {contract.outOfScope.length ? contract.outOfScope.join("; ") : "PM must name at least one exclusion"}
                 </dd>
               </div>
               <div>
                 <dt>Deliverables</dt>
-                <dd>{contract.deliverables.length ? contract.deliverables.join("; ") : "—"}</dd>
+                <dd style={{ fontFamily: "inherit" }}>
+                  {contract.deliverables.length > 1 ? (
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.deliverables.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    contract.deliverables[0] || "—"
+                  )}
+                </dd>
               </div>
+              {contract.functionalRequirements && contract.functionalRequirements.length > 0 && (
+                <div>
+                  <dt>Functional Requirements</dt>
+                  <dd style={{ fontFamily: "inherit" }}>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.functionalRequirements.map((req, i) => (
+                        <li key={i}>{req}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )}
               <div>
-                <dt>Acceptance</dt>
-                <dd>{contract.acceptance.length ? contract.acceptance.join("; ") : "—"}</dd>
+                <dt>Acceptance Criteria</dt>
+                <dd style={{ fontFamily: "inherit" }}>
+                  {contract.acceptance.length > 1 ? (
+                    <ol style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.acceptance.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    contract.acceptance[0] || "—"
+                  )}
+                </dd>
               </div>
+              {contract.assumptions && contract.assumptions.length > 0 && (
+                <div>
+                  <dt>Assumptions</dt>
+                  <dd style={{ fontFamily: "inherit" }}>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.assumptions.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )}
+              {contract.risks && contract.risks.length > 0 && (
+                <div>
+                  <dt>Risks & Constraints</dt>
+                  <dd style={{ fontFamily: "inherit" }}>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.risks.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Factory estimate</dt>
                 <dd>
@@ -109,9 +165,17 @@ export function ChatSowSection({
               <button
                 type="button"
                 onClick={() => void confirmAndLaunch()}
-                disabled={launching || (contract.outOfScope.length === 0 && !contract.degraded)}
+                disabled={
+                  launching ||
+                  hasClarificationPrompt ||
+                  (contract.outOfScope.length === 0 && !contract.degraded)
+                }
               >
-                {launching ? "Launching..." : "Accept SOW and start"}
+                {launching
+                  ? "Launching..."
+                  : hasClarificationPrompt
+                  ? "Clarification required above before launch"
+                  : "Accept SOW and start"}
               </button>
               <button
                 type="button"

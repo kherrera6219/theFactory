@@ -11,7 +11,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
+sys.path.insert(0, str(ROOT / "services" / "common"))
 
+import orchestrator.main  # noqa: F401
 from orchestrator.models import MissionClarifyRequest, MissionRecord, MissionState
 from orchestrator.routes import missions as mission_routes
 

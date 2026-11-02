@@ -39,19 +39,19 @@ def _normalize_deliverables(raw: Any, fallback_requirements: list[str]) -> list[
     source = raw if isinstance(raw, list) else []
     for item in source[:8]:
         if isinstance(item, dict):
-            name = _clean_text(str(item.get("name") or ""), max_length=120)
-            hint = _clean_text(str(item.get("artifact_hint") or ""), max_length=160)
+            name = _clean_text(str(item.get("name") or ""), max_length=300)
+            hint = _clean_text(str(item.get("artifact_hint") or ""), max_length=300)
         else:
-            name = _clean_text(str(item), max_length=120)
+            name = _clean_text(str(item), max_length=300)
             hint = ""
         if name:
             items.append({"name": name, "artifact_hint": hint})
     if items:
         return items
     return [
-        {"name": _clean_text(req, max_length=120), "artifact_hint": ""}
-        for req in fallback_requirements[:4]
-        if _clean_text(req, max_length=120)
+        {"name": _clean_text(req, max_length=300), "artifact_hint": ""}
+        for req in fallback_requirements[:6]
+        if _clean_text(req, max_length=300)
     ]
 
 
@@ -79,16 +79,16 @@ def _normalize_pm_feature_contract(
     target_languages = _string_list(raw.get("target_languages"), limit=4, max_length=32)
     if not target_languages and requested_target_language:
         target_languages = [_clean_text(requested_target_language, max_length=32).lower()]
-    functional_requirements = _string_list(raw.get("functional_requirements"), limit=8)
+    functional_requirements = _string_list(raw.get("functional_requirements"), limit=8, max_length=1000)
     if not functional_requirements:
-        functional_requirements = [_clean_text(prompt, max_length=160) or "Complete mission"]
-    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
+        functional_requirements = [_clean_text(prompt, max_length=1000, preserve_newlines=True) or "Complete mission"]
+    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6, max_length=1000)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission completes without error."]
     risk_assessment = {
         "complexity": complexity,
         "risk_score": 0.0,
-        "risk_factors": _string_list(raw.get("risk_notes"), limit=5),
+        "risk_factors": _string_list(raw.get("risk_notes"), limit=8, max_length=1000),
     }
     if complexity == "very_high":
         risk_assessment["risk_score"] = 0.9
@@ -101,25 +101,25 @@ def _normalize_pm_feature_contract(
 
     contract = {
         "schema_version": "feature_contract.v1",
-        "title": _clean_text(raw.get("title", "Mission"), max_length=80) or "Mission",
-        "summary": _clean_text(raw.get("summary", prompt), max_length=500),
+        "title": _clean_text(raw.get("title", "Mission"), max_length=120) or "Mission",
+        "summary": _clean_text(raw.get("summary", prompt), max_length=4000, preserve_newlines=True),
         "functional_requirements": functional_requirements,
         "non_functional_requirements": _string_list(
-            raw.get("non_functional_requirements"), limit=4
+            raw.get("non_functional_requirements"), limit=8, max_length=1000
         ),
         "acceptance_criteria": acceptance_criteria,
         "target_languages": target_languages,
         "estimated_complexity": complexity,
         "risk_assessment": risk_assessment,
         "human_approval_required": human_approval,
-        "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
+        "risk_notes": _string_list(raw.get("risk_notes"), limit=8, max_length=1000),
         "clarifying_questions": _string_list(
             raw.get("clarifying_questions"),
             limit=5,
-            max_length=800,
+            max_length=1000,
         ),
-        "assumptions": _string_list(raw.get("assumptions"), limit=6),
-        "out_of_scope": _string_list(raw.get("out_of_scope"), limit=6),
+        "assumptions": _string_list(raw.get("assumptions"), limit=10, max_length=1000),
+        "out_of_scope": _string_list(raw.get("out_of_scope"), limit=10, max_length=1000),
         "deliverables": _normalize_deliverables(raw.get("deliverables"), functional_requirements),
         "engagement_type": _clean_text(raw.get("engagement_type", ""), max_length=32).upper()
         or None,
