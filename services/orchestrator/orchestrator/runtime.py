@@ -21,6 +21,7 @@ from .mission_flow import (
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
+from .mission_vault import load_vault, split_vault, store_vault
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -606,13 +607,17 @@ async def consume_intake_stream(app: FastAPI) -> None:
                                 start_lifecycle_task(app, existing.mission_id)
                             acknowledge = True
                         else:
+                            intake_metadata, intake_vault = split_vault(
+                                _normalize_metadata(payload_json.get("metadata"))
+                            )
+                            await store_vault(redis_client, payload_json["mission_id"], intake_vault)
                             mission = MissionRecord(
                                 mission_id=payload_json["mission_id"],
                                 prompt=payload_json["prompt"],
                                 requested_target_language=payload_json.get(
                                     "requested_target_language"
                                 ),
-                                metadata=_normalize_metadata(payload_json.get("metadata")),
+                                metadata=intake_metadata,
                                 state=MissionState.queued,
                                 created_at=payload_json.get("created_at")
                                 or datetime.now(UTC).isoformat(),
@@ -723,9 +728,12 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
 
     vault_secrets = {}
     try:
-        mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
-        if mission and mission.metadata and isinstance(mission.metadata.get("vault"), dict):
-            vault_secrets = mission.metadata["vault"]
+        vault_secrets = await load_vault(getattr(app.state, "redis", None), mission_id)
+        if not vault_secrets:
+            # Rows written before the vault store existed; migrated at startup.
+            mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+            if mission and mission.metadata and isinstance(mission.metadata.get("vault"), dict):
+                vault_secrets = mission.metadata["vault"]
     except Exception as exc:
         LOGGER.warning("Failed to fetch mission vault secrets for %s: %s", mission_id, exc)
 
@@ -737,6 +745,24 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
         current_mission_id.reset(token_mid)
         current_settings.reset(token_set)
         current_vault_secrets.reset(token_vault)
+
+
+async def migrate_legacy_vaults(settings: Settings, redis_client: Any) -> int:
+    """Move provider keys out of Postgres into the Redis vault store, then scrub the rows.
+
+    A row is scrubbed only after its keys are safely in Redis, so an in-flight mission
+    never loses its credentials.
+    """
+    legacy = await asyncio.to_thread(storage.list_legacy_vaults, settings)
+    moved: list[str] = []
+    for mission_id, vault in legacy:
+        _, secrets = split_vault({"vault": vault})
+        if not secrets or await store_vault(redis_client, mission_id, secrets):
+            moved.append(mission_id)
+    scrubbed = await asyncio.to_thread(storage.scrub_mission_vaults, settings, moved)
+    if scrubbed:
+        LOGGER.info("scrubbed provider keys from %d mission row(s)", scrubbed)
+    return scrubbed
 
 
 async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:
@@ -797,6 +823,10 @@ async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:
                     await reap_stale_consumers(settings, redis_client)
                 except Exception:
                     LOGGER.exception("startup stale-consumer reap failed")
+                try:
+                    await migrate_legacy_vaults(settings, redis_client)
+                except Exception:
+                    LOGGER.exception("legacy mission vault migration failed")
                 app.state.consumer_task = asyncio.create_task(consume_intake_stream(app))
             except Exception:
                 app.state.consumer_task = None

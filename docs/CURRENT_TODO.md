@@ -13,6 +13,16 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-02: PM clarification loop fix, ambiguity scoring, and provider-key vault.**
+Found from a live mission (`mission-4ff982c4`, "Military Madness" web RPG) parked in `CLARIFYING` after the operator had already approved the SOW; the operator was bounced back to PM chat to answer the same questions.
+- **Root cause (`mission_flow_v2/phases_intake.py`):** an approved SOW's stored contract still carried the PM's pre-approval `ambiguity_score` (1.0, `needs_clarification`), and intake re-gated on it. An operator-approved SOW now resolves ambiguity: the original score is kept as `prior_ambiguity_score`, the working score is 0 and `intake_status` is `ready`.
+- **Circuit breaker:** when every open question carries a `Recommended default` and the operator already chose `finalize_plan` (or the mission has parked twice — `clarification_loop_count`), intake accepts the defaults (`pm_auto_accepted_defaults`) instead of parking again. A question with no default still parks.
+- **Scoring (`llm_delegation/text.py::_pm_ambiguity_score`):** only questions *without* a recommended default count; risk notes and `human_approval_required` no longer inflate the score (every earlier mission scored 0.95–1.0).
+- **Contradictory defaults:** the packaging default no longer hard-codes "Angular CLI" for every TypeScript mission. It names the framework the plan chose (React/Vue/Svelte/Next.js/Angular, else Vite), and the policy no longer re-asks packaging/acceptance topics the PM already asked.
+- **Provider keys out of Postgres (`mission_vault.py`):** the gateway-injected `metadata.vault` (Gemini/OpenAI/Anthropic keys) used to be stored in plaintext in `missions.metadata_json` and returned by mission reads. Keys now live in Redis (`mission-vault:<id>`, 72 h TTL refreshed on each advance). Every metadata write path strips `vault`; at startup `migrate_legacy_vaults` moves existing rows' keys to Redis and then scrubs them (a row is scrubbed only after its keys are stored). **Operator action: rotate any provider key that was used before this change — it was stored in plaintext.**
+- **Tests:** `tests/services/test_mission_vault.py` (new), plus intake, scoring, framework-default and circuit-breaker tests in `test_mission_flow_v2.py` / `test_llm_delegation_unit.py`.
+- **Known limitation:** the gateway still places the keys in the Redis intake-stream payload (same Redis, not Postgres). Passing them out-of-band per request is a follow-up.
+
 **COMPLETE — 2026-11-01: PM Agent Delegation Fixes, SOW Clarity, Dependency Hardening & Desktop Packaging.**
 - **PM Agent Prompt & Response Truncation Resolution (`generators.py`, `normalizers.py`, `text.py`, `prompts.py`):** Eliminated artificial input truncation (raised from 1,200 to 12,000 chars) and output caps (expanded summary to 4,000 chars, individual requirements, acceptance criteria, assumptions, and risks from 120 to 1,000 chars), and preserved formatting newlines via `preserve_newlines=True`.
 - **False-Positive Prompt Injection Guard Tuning (`prompt_guard.py`):** Refined the `ROLE_OVERRIDE` regex pattern to exclusively detect adversarial jailbreaks while allowing legitimate functional prompts such as 'Act as the PM' or game logic descriptions.

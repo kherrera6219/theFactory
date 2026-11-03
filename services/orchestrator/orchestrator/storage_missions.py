@@ -14,6 +14,7 @@ from .agent_scaling import (
 from .agent_scaling import (
     record_partition_result as embed_partition_result,
 )
+from .mission_vault import strip_vault
 from .models import (
     DataClassification,
     DepthMode,
@@ -266,7 +267,8 @@ def _mission_upsert_params(
     record: MissionRecord,
     source_stream_id: str | None,
 ) -> tuple[Any, ...]:
-    metadata = with_project_identity(record.metadata, mission_id=record.mission_id)
+    # Provider keys never reach Postgres -- see mission_vault.py.
+    metadata = strip_vault(with_project_identity(record.metadata, mission_id=record.mission_id))
     metadata = _embed_charter_fields(metadata, record)
     project_id = str(
         record.project_id or resolve_project_id(metadata, mission_id=record.mission_id)
@@ -368,7 +370,7 @@ def update_mission_metadata(
     metadata: dict[str, Any],
 ) -> MissionRecord | None:
     """Replace persisted mission metadata while preserving project identity."""
-    normalized_metadata = with_project_identity(metadata, mission_id=mission_id)
+    normalized_metadata = strip_vault(with_project_identity(metadata, mission_id=mission_id))
     project_id = resolve_project_id(normalized_metadata, mission_id=mission_id)
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -381,6 +383,36 @@ def update_mission_metadata(
     if not row:
         return None
     return row_to_mission(row)
+
+
+def list_legacy_vaults(settings: Settings) -> list[tuple[str, dict[str, Any]]]:
+    """Missions that still hold provider keys in ``metadata_json`` (pre-vault-store rows)."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT mission_id, metadata_json -> 'vault' FROM missions "
+                "WHERE metadata_json ? 'vault'"
+            )
+            rows = cur.fetchall()
+    result: list[tuple[str, dict[str, Any]]] = []
+    for mission_id, vault in rows:
+        parsed = _json_to_dict(vault)
+        result.append((str(mission_id), parsed))
+    return result
+
+
+def scrub_mission_vaults(settings: Settings, mission_ids: list[str]) -> int:
+    """Remove ``vault`` from the given missions' metadata. Returns rows changed."""
+    if not mission_ids:
+        return 0
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE missions SET metadata_json = metadata_json - 'vault' "
+                "WHERE mission_id = ANY(%s) AND metadata_json ? 'vault'",
+                (mission_ids,),
+            )
+            return int(cur.rowcount or 0)
 
 
 def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:

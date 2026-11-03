@@ -4102,6 +4102,54 @@ class TestIntakeAutoAcceptsPmDefaults:
         assert mission.state != MissionState.clarifying
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("metadata", "question", "should_park"),
+        [
+            ({"user_intent": "finalize_plan"}, "Stack? Recommended default: React.", False),
+            ({"clarification_loop_count": 2}, "Stack? Recommended default: React.", False),
+            # A question with no recommended default is a real gap: still parks.
+            ({"clarification_loop_count": 2}, "Which art style do you want?", True),
+        ],
+    )
+    async def test_circuit_breaker_accepts_defaults_instead_of_looping(
+        self, metadata: dict[str, Any], question: str, should_park: bool
+    ) -> None:
+        app = _make_app_state()
+        settings = _make_settings()
+        settings.pm_auto_accept_defaults_enabled = True
+        mission = _make_mission()
+        mission.metadata = dict(metadata)
+        _state, fetch_mission, update_metadata, _t, insert_event = _make_stateful_storage(mission)
+
+        async def _contract(**kwargs: Any) -> dict[str, Any]:
+            # Stays "ambiguous" even when re-asked, so only the breaker can unstick it.
+            return {
+                "schema_version": "feature_contract.v1",
+                "intake_status": "needs_clarification",
+                "ambiguity_score": 1.0,
+                "clarifying_questions": [question],
+            }
+
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage, patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract", _contract
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()), patch(
+            "orchestrator.mission_flow_v2.generate_aim", AsyncMock(return_value={})
+        ):
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_event
+            await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+                app=app, settings=settings, validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(), mission_id=mission.mission_id,
+            )
+            parked = mock_storage.transition_mission_state.called
+
+        assert parked is should_park
+        if not should_park:
+            assert "pm_auto_accepted_defaults" in mission.metadata
+            assert mission.metadata["feature_contract"]["prior_ambiguity_score"] == 1.0
+
+    @pytest.mark.asyncio
     async def test_flag_off_still_parks_the_mission(self) -> None:
         """The old behaviour must remain reachable."""
         settings = _make_settings()

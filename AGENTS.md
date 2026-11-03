@@ -165,6 +165,12 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 
 > runtime.py coverage floor raised to 80% (actual: 100% line / 99% branch) via 12 new branch-coverage tests (#192).
 
+## 6a. Mission intake clarification (2026-11-02)
+
+- An **operator-approved SOW resolves ambiguity.** Intake must never re-gate an approved SOW on its stored `ambiguity_score` (`phases_intake.py`); doing so parks the mission in `CLARIFYING` and loops the operator back to PM chat.
+- `_pm_ambiguity_score` counts only clarifying questions **without** a `Recommended default`. A circuit breaker accepts defaults after `finalize_plan` or two parks (`clarification_loop_count`).
+- **Provider API keys never go in `missions.metadata_json`.** They live in Redis (`mission_vault.py`, `mission-vault:<id>`); every metadata write path calls `strip_vault`, and `test_mission_vault.py` fails if that regresses.
+
 ## 7. Definition of Done (per task)
 
 - [ ] No existing tests broken (`make test` + `make test-ui`)

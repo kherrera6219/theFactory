@@ -421,6 +421,15 @@ async def _prepare_pm_intake(
             if str(item).strip()
         ]
         feature_contract["assumptions"] = extra_assumptions
+        # An operator-approved SOW is the resolution of any open questions. The stored
+        # contract still carries the PM's pre-approval score (generated with
+        # intake_status=needs_clarification), so re-gating on it parks every
+        # chat-confirmed mission in CLARIFYING and bounces the operator back to PM chat.
+        prior_score = feature_contract.get("ambiguity_score", 0.0)
+        if isinstance(prior_score, (int, float)) and prior_score >= 0.7:
+            feature_contract["prior_ambiguity_score"] = prior_score
+            feature_contract["ambiguity_score"] = 0.0
+            feature_contract["intake_status"] = "ready"
         metadata["approved_sow_id"] = sow_id
         metadata["approved_sow_digest"] = approved_sow.get("digest")
     else:
@@ -501,9 +510,39 @@ async def _prepare_pm_intake(
         )
         ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
 
+    # Circuit breaker. The operator already said "finalize" (or has been parked twice for
+    # the same mission) and every open question carries a recommended default, so another
+    # round trip to PM chat cannot add information -- accept the defaults instead of looping.
+    loop_count = int(metadata.get("clarification_loop_count") or 0)
+    remaining = feature_contract.get("clarifying_questions") or []
+    all_have_defaults = isinstance(remaining, list) and all(
+        "recommended default" in str(q).lower() for q in remaining
+    )
+    if (
+        ambiguity_score >= 0.7
+        and auto_accept
+        and all_have_defaults
+        and (loop_count >= 2 or str(metadata.get("user_intent") or "").strip().lower() == "finalize_plan")
+    ):
+        LOGGER.info(
+            "Accepting PM defaults for mission %s without re-asking (loops=%d)", mission_id, loop_count
+        )
+        feature_contract = dict(feature_contract)
+        feature_contract["prior_ambiguity_score"] = ambiguity_score
+        feature_contract["ambiguity_score"] = 0.0
+        feature_contract["intake_status"] = "ready"
+        metadata["pm_auto_accepted_defaults"] = {
+            "questions": [str(q) for q in remaining],
+            "ambiguity_score": ambiguity_score,
+            "applied_at": datetime.now(UTC).isoformat(),
+            "reason": "circuit breaker: finalize intent or repeated clarification",
+        }
+        ambiguity_score = 0.0
+
     if ambiguity_score >= 0.7:
         LOGGER.warning("High ambiguity detected for mission %s; pausing for clarification", mission_id)
         metadata["last_ambiguity_score"] = ambiguity_score
+        metadata["clarification_loop_count"] = loop_count + 1
         metadata["clarifying_questions"] = feature_contract.get("clarifying_questions")
         await asyncio.to_thread(_pkg().storage.update_mission_metadata, settings, mission_id, metadata)
         # The preparer runs while the mission is still in QUEUED state —

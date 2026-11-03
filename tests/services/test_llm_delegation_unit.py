@@ -434,7 +434,7 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert app_fallback["source"] == "fallback"
     assert app_fallback["intake_status"] == "needs_clarification"
     assert app_fallback["clarifying_questions"]
-    assert app_fallback["ambiguity_score"] >= 0.7
+    assert app_fallback["ambiguity_score"] < 0.7  # every question carries a recommended default
 
     normalized = llm_delegation._normalize_pm_feature_contract(
         {
@@ -508,7 +508,7 @@ def test_pm_feature_contract_clarifies_interactive_angular_game_scope() -> None:
     )
 
     assert normalized["intake_status"] == "needs_clarification"
-    assert normalized["ambiguity_score"] >= 0.7
+    assert normalized["ambiguity_score"] < 0.7  # every question carries a recommended default
     questions = " ".join(normalized["clarifying_questions"]).lower()
     assert "visual" in questions
     assert "gameplay" in questions or "done" in questions
@@ -1685,7 +1685,58 @@ def test_pm_ambiguity_score_tracks_questions_and_short_prompt() -> None:
         },
         "short prompt",
     )
-    assert score >= 0.8
+    # Risk notes and the approval flag describe the work, not the request's clarity.
+    assert score >= 0.7
+
+
+def test_pm_ambiguity_score_ignores_questions_that_carry_a_default() -> None:
+    contract = {
+        "intake_status": "needs_clarification",
+        "clarifying_questions": [
+            "Which stack? Recommended default: React + TypeScript.",
+            "How packaged? Recommended default: Vite project.",
+            "What is done? Recommended default: it builds and runs.",
+        ],
+        "risk_notes": ["a", "b"],
+        "human_approval_required": True,
+    }
+    prompt = "Build a modern web version of a classic hex tactics game with hero units and RPG."
+    assert llm_delegation._pm_ambiguity_score(contract, prompt) < 0.7
+    # One genuinely open question plus the PM's own flag is enough to park.
+    contract["clarifying_questions"].append("Which art style do you want?")
+    assert llm_delegation._pm_ambiguity_score(contract, prompt) >= 0.7
+
+
+def test_packaging_default_follows_the_stack_the_plan_chose() -> None:
+    contract = {
+        "summary": "hex tactics game",
+        "functional_requirements": [],
+        "target_languages": ["typescript"],
+        "clarifying_questions": [
+            "Which stack? (Recommended default: React + TypeScript with a Canvas renderer)."
+        ],
+    }
+    questions = llm_delegation._pm_product_clarifying_questions(
+        prompt="Create a modern web app game with hero units",
+        contract=contract,
+        requested_target_language="typescript",
+    )
+    packaging = [q for q in questions if "packaged for handoff" in q]
+    assert packaging and "React" in packaging[0] and "Angular" not in packaging[0]
+
+
+def test_policy_does_not_duplicate_a_packaging_question() -> None:
+    contract = {
+        "summary": "web game",
+        "functional_requirements": [],
+        "clarifying_questions": [
+            "How should it be packaged for handoff? Recommended default: zip."
+        ],
+    }
+    questions = llm_delegation._pm_product_clarifying_questions(
+        prompt="Create a modern web app game", contract=contract
+    )
+    assert not any("packaged for handoff" in q for q in questions)
 
 
 def test_pm_ambiguity_score_treats_intake_status_as_authoritative() -> None:

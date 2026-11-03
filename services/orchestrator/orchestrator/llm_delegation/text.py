@@ -376,12 +376,16 @@ def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
     intake_status = str(contract.get("intake_status") or "").strip().lower()
     if intake_status == "needs_clarification":
         score += 0.55
+    # Only questions the PM could not answer itself make a request ambiguous. A question
+    # that carries a "Recommended default" is a confirmation, not a gap, and risk notes /
+    # approval flags describe the work, not the clarity of the request. Counting them made
+    # every mission score 0.95-1.0 and park for an operator.
     questions = contract.get("clarifying_questions")
     if isinstance(questions, list):
-        score += min(len(questions) * 0.15, 0.45)
-    risks = contract.get("risk_notes")
-    if isinstance(risks, list):
-        score += min(len(risks) * 0.10, 0.20)
+        open_questions = [
+            q for q in questions if "recommended default" not in str(q).lower()
+        ]
+        score += min(len(open_questions) * 0.15, 0.45)
     if len(str(prompt or "").strip()) < 60:
         score += 0.20
     complexity = str(contract.get("estimated_complexity") or "medium").strip().lower()
@@ -389,9 +393,45 @@ def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
     if complexity in {"high", "very_high"} and isinstance(requirements, list):
         if len(requirements) <= 2:
             score += 0.20
-    if bool(contract.get("human_approval_required")):
-        score += 0.10
     return round(min(score, 1.0), 3)
+
+
+_FRAMEWORK_LABELS: tuple[tuple[str, str], ...] = (
+    ("next.js", "Next.js"),
+    ("react", "React (Vite)"),
+    ("vue", "Vue (Vite)"),
+    ("svelte", "Svelte (Vite)"),
+    ("angular", "Angular CLI"),
+)
+
+
+def _pm_framework_default(text: str, language_text: str) -> str:
+    """Name the framework the plan already chose, rather than assuming one.
+
+    ``text`` should include the contract's existing clarifying questions so a
+    stack the PM recommended (e.g. React) is not contradicted by a packaging default.
+    """
+    lowered = text.lower()
+    for token, label in _FRAMEWORK_LABELS:
+        if re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", lowered):
+            return label
+    if "typescript" in language_text or "javascript" in language_text:
+        return "Vite"
+    return "the framework default"
+
+
+_QUESTION_TOPICS: dict[str, tuple[str, ...]] = {
+    "packaging": ("packaged for handoff", "package", "handoff"),
+    "acceptance": ("count as done", "acceptance"),
+}
+
+
+def _question_topic(question: str) -> str | None:
+    lowered = question.lower()
+    for topic, markers in _QUESTION_TOPICS.items():
+        if any(marker in lowered for marker in markers):
+            return topic
+    return None
 
 
 def _pm_product_clarifying_questions(
@@ -463,8 +503,15 @@ def _pm_product_clarifying_questions(
     }
     questions: list[str] = []
 
+    existing_topics = {
+        topic for topic in (_question_topic(q) for q in existing_questions) if topic
+    }
+
     def add(question: str) -> None:
         normalized = question.strip().lower()
+        topic = _question_topic(question)
+        if topic and topic in existing_topics:
+            return
         if normalized not in existing_questions and question not in questions:
             questions.append(question)
 
@@ -510,7 +557,9 @@ def _pm_product_clarifying_questions(
         "production build",
     )
     if not specified_single_file and not specified_stdlib and not has_token(*packaging_tokens):
-        framework_default = "Angular CLI" if "angular" in text or "typescript" in language_text else "the framework default"
+        framework_default = _pm_framework_default(
+            " ".join([text, *existing_questions]), language_text
+        )
         add(f"How should the project be packaged for handoff? Recommended default: complete {framework_default} project with install/start script and run instructions.")
 
     # "build" deliberately excluded: it appears in almost every prompt on this
