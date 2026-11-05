@@ -4,7 +4,6 @@
       "AlertStateUpdate": {
         "properties": {
           "state": {
-            "pattern": "^(acknowledged|resolved)$",
             "title": "State",
             "type": "string"
           }
@@ -161,6 +160,28 @@
             "title": "Attachments",
             "type": "array"
           },
+          "data_classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Classification"
+          },
+          "depth_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Mode"
+          },
           "global_style_directives": {
             "items": {
               "type": "string"
@@ -172,6 +193,28 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
+          },
+          "mission_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mission Type"
+          },
+          "output_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Mode"
           },
           "prompt": {
             "minLength": 3,
@@ -1000,11 +1043,43 @@
           },
           {
             "in": "query",
+            "name": "artifact_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "artifact_type",
             "required": false,
             "schema": {
-              "default": "generated_code",
-              "title": "Artifact Type",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "title": "Format",
               "type": "string"
             }
           },
@@ -1045,7 +1120,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "title": "Response Download Mission Artifact V1 Missions  Mission Id  Artifact Get"
+                }
               }
             },
             "description": "Successful Response"
@@ -1097,7 +1174,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 500,
+              "maximum": 200,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1199,7 +1276,7 @@
             "required": false,
             "schema": {
               "default": 100,
-              "maximum": 1000,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1301,7 +1378,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 500,
+              "maximum": 200,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1403,7 +1480,7 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 500,
+              "maximum": 200,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1789,7 +1866,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
+              "default": 100,
               "maximum": 500,
               "minimum": 1,
               "title": "Limit",
@@ -1891,8 +1968,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 500,
+              "default": 200,
+              "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1936,12 +2013,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
+                  "additionalProperties": true,
                   "title": "Response Get Mission Knowledge Graph V1 Missions  Mission Id  Knowledge Graph Get",
-                  "type": "array"
+                  "type": "object"
                 }
               }
             },
@@ -1993,8 +2067,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 500,
+              "default": 200,
+              "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -2312,7 +2386,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Get Mission Token Usage V1 Missions  Mission Id  Token Usage Get"
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Token Usage V1 Missions  Mission Id  Token Usage Get",
+                  "type": "object"
                 }
               }
             },
@@ -3524,6 +3600,183 @@
         "summary": "Create Pm Feature Contract",
         "tags": [
           "builder"
+        ]
+      }
+    },
+    "/v1/sows": {
+      "post": {
+        "operationId": "create_sow_v1_sows_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Sow V1 Sows Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create Sow",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/v1/sows/{sow_id}": {
+      "get": {
+        "operationId": "get_sow_v1_sows__sow_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sow_id",
+            "required": true,
+            "schema": {
+              "title": "Sow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Sow V1 Sows  Sow Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Sow",
+        "tags": [
+          "missions"
         ]
       }
     },

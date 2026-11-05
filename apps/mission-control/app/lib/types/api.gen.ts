@@ -600,6 +600,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Sow */
+        post: operations["create_sow_v1_sows_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sows/{sow_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sow */
+        get: operations["get_sow_v1_sows__sow_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stream/state": {
         parameters: {
             query?: never;
@@ -671,12 +705,20 @@ export interface components {
         MissionCreate: {
             /** Attachments */
             attachments?: components["schemas"]["MissionAttachment"][];
+            /** Data Classification */
+            data_classification?: string | null;
+            /** Depth Mode */
+            depth_mode?: string | null;
             /** Global Style Directives */
             global_style_directives?: string[];
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
+            /** Mission Type */
+            mission_type?: string | null;
+            /** Output Mode */
+            output_mode?: string | null;
             /** Prompt */
             prompt: string;
             /** Requested Target Language */
@@ -1124,7 +1166,9 @@ export interface operations {
     download_mission_artifact_v1_missions__mission_id__artifact_get: {
         parameters: {
             query?: {
-                artifact_type?: string;
+                artifact_id?: string | null;
+                artifact_type?: string | null;
+                format?: string;
             };
             header?: {
                 "x-api-key"?: string | null;
@@ -1608,7 +1652,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    }[];
+                    };
                 };
             };
             /** @description Missing or invalid X-API-Key header. */
@@ -1812,7 +1856,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Missing or invalid X-API-Key header. */
@@ -2415,6 +2461,110 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Missing or invalid X-API-Key header. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API key lacks the required role for this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_sow_v1_sows_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Missing or invalid X-API-Key header. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API key lacks the required role for this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sow_v1_sows__sow_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                sow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

@@ -2375,6 +2375,76 @@
         "summary": "Get Pod Assignment"
       }
     },
+    "/internal/missions/{mission_id}/refined-ir": {
+      "post": {
+        "description": "Record the mission's Refined-IR so delivery-phase gates can read it.\n\npod-worker builds the RIR module in memory and, when `REFINED_IR_STORE_PATH`\nis configured, writes it to its own container's filesystem. The orchestrator\nnever saw it, so behavioural equivalence (Phase 5) always reported\n`skipped: no Refined-IR module in mission metadata` \u2014 Phase 4 produced the\nvectors and Phase 5 could not reach them. Observed live 2026-08-04.\n\nOnly what the gate actually executes is stored: `ast_v1` functions and their\nequivalence vectors. Persisting the full module would put unbounded\nextractor output into mission metadata, which is the same mistake that made\nchat launches fail against the gateway's metadata size limit.",
+        "operationId": "record_refined_ir_module_internal_missions__mission_id__refined_ir_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Record Refined Ir Module Internal Missions  Mission Id  Refined Ir Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Refined Ir Module"
+      }
+    },
     "/internal/missions/{mission_id}/repo-import-index": {
       "post": {
         "description": "Repo ZIP Import Phase 6 \u2014 ingest Mission-Control-built repo manifest/\nsummary/chunk records into ``mission_knowledge`` and resume the queued\nmission (Phase 5's ``_prepare_pm_intake`` guard was blocking on\n``index_status``). See docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md.",
@@ -3601,6 +3671,123 @@
           }
         },
         "summary": "Get Review Approval"
+      }
+    },
+    "/internal/sows": {
+      "post": {
+        "operationId": "create_approved_sow_internal_sows_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Approved Sow Internal Sows Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Approved Sow"
+      }
+    },
+    "/internal/sows/{sow_id}": {
+      "get": {
+        "operationId": "get_approved_sow_internal_sows__sow_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sow_id",
+            "required": true,
+            "schema": {
+              "title": "Sow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Approved Sow Internal Sows  Sow Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Approved Sow"
       }
     },
     "/livez": {
