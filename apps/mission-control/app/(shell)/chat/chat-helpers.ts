@@ -8,6 +8,7 @@ import {
   type ContinuationContext,
   type DisplayFeatureContract,
   type PmConversationContext,
+  type StructuredClarificationItem,
   MAX_CONTEXT_MESSAGES,
   RASTER_IMAGE_EXTENSIONS,
   RASTER_IMAGE_MIME_TYPES,
@@ -326,12 +327,44 @@ export function recommendedDefaultFromQuestion(question: string, index: number):
 export function buildClarificationPrompt(
   questions: string[],
   contract: DisplayFeatureContract,
+  structured?: StructuredClarificationItem[],
 ): ClarificationPrompt {
+  const defaults = questions.map(recommendedDefaultFromQuestion);
+  const resolvedStructured: StructuredClarificationItem[] = questions.map((question, index) => {
+    const match = structured?.[index];
+    const recDefault = match?.recommended_default || defaults[index] || `Use PM recommended default ${index + 1}.`;
+    const rawOptions = match?.options && match.options.length > 0
+      ? match.options
+      : [recDefault, "Keep MVP scope minimal", "Include full production polish"];
+    const dedupedOptions = Array.from(new Set([recDefault, ...rawOptions])).slice(0, 4);
+    return {
+      id: match?.id || `q${index + 1}`,
+      question: match?.question || question.replace(/\s*\(?\s*Recommended default:[\s\S]*$/i, "").trim() || question,
+      recommended_default: recDefault,
+      options: dedupedOptions,
+      impact: match?.impact || "Shapes Statement of Work scope and acceptance criteria.",
+    };
+  });
   return {
     questions,
-    defaults: questions.map(recommendedDefaultFromQuestion),
+    defaults,
+    structured: resolvedStructured,
     contract,
   };
+}
+
+export function buildSelectedClarificationAnswersText(
+  prompt: ClarificationPrompt,
+  selectedAnswers: Record<number, string>,
+): string {
+  return [
+    "Here are my decisions for the PM clarification questions:",
+    ...prompt.questions.map((question, index) => {
+      const chosen = (selectedAnswers[index] ?? prompt.defaults[index] ?? "Use PM recommended default.").trim();
+      return `${index + 1}. ${question}\nAnswer: ${chosen}`;
+    }),
+    "Finalize the feature contract with these decisions and prepare the Statement of Work for launch.",
+  ].join("\n\n");
 }
 
 export function clarificationAnswersText(prompt: ClarificationPrompt): string {

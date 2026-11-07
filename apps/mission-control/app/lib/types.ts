@@ -122,10 +122,19 @@ export type MissionContract = {
   created_at: string;
 };
 
+export type StructuredClarifyingQuestion = {
+  id: string;
+  question: string;
+  recommended_default: string;
+  options: string[];
+  impact?: string;
+};
+
 export type FeatureContract = {
   schema_version: "feature_contract.v1";
   title: string;
   summary: string;
+  conversational_reply?: string;
   functional_requirements: string[];
   non_functional_requirements: string[];
   acceptance_criteria: string[];
@@ -134,6 +143,7 @@ export type FeatureContract = {
   human_approval_required: boolean;
   risk_notes: string[];
   clarifying_questions: string[];
+  clarifying_questions_structured?: StructuredClarifyingQuestion[];
   assumptions?: string[];
   out_of_scope?: string[];
   deliverables?: Array<string | { name: string; artifact_hint?: string }>;

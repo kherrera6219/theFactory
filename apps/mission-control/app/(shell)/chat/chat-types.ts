@@ -39,9 +39,18 @@ export type DisplayFeatureContract = {
   userIntent?: PmConversationContext["user_intent"];
 };
 
+export type StructuredClarificationItem = {
+  id: string;
+  question: string;
+  recommended_default: string;
+  options: string[];
+  impact?: string;
+};
+
 export type ClarificationPrompt = {
   questions: string[];
   defaults: string[];
+  structured?: StructuredClarificationItem[];
   contract: DisplayFeatureContract;
 };
 

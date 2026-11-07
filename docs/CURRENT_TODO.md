@@ -13,6 +13,12 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-06: Phase 5 (Master Review Plan) — Split-Screen PM Studio, Interactive Clarification & Full SOW Editor.**
+- **Split-Screen PM Studio (`chat/page.tsx`, `globals.css`):** Upgraded the PM Chat workspace into a responsive 2-column desktop studio (`.chat-studio-grid`: Conversation & Clarification on the left; sticky live SOW Document Inspector on the right) and wired `featureContract.conversational_reply` into the PM assistant message bubble.
+- **Interactive Clarification Option Pills (`ChatClarificationPanel.tsx`, `chat-helpers.ts`, `chat-types.ts`, `types.ts`):** Added clickable option pills (highlighting the `★ ... (Recommended)` default), per-question custom answer inputs, impact badges, and a 1-click **"Submit Answers & Update SOW"** action alongside **"Proceed with Defaults"** and **"Edit Answers"**.
+- **Full SOW Editor (`ChatSowSection.tsx`) & Dependency Hardening (`package.json`):** Expanded the SOW Edit Modal to edit `Functional Requirements`, `Acceptance Criteria`, `Deliverables`, `Out of Scope`, and `Assumptions` (synchronizing edits into both `DisplayFeatureContract` and `rawContract` before `createApprovedSow`), and pinned `minimatch: ^11.0.1` in `overrides` (`0 vulnerabilities`).
+- **Next Up:** Phase 6 (Multi-File IDE Workspace & File-Tab Diff Viewer), followed by Phases 7–8.
+
 **COMPLETE — 2026-11-06: Phase 4 (Master Review Plan) — Surgical File-Level Self-Repair & Multi-Turn Runtime QC.**
 - **Surgical File-Level Repair Engine (`services/orchestrator/orchestrator/rqca_repair.py`):** Implemented `extract_failing_files`, `build_surgical_repair_context` (prioritizing failing files first up to 32,000 chars and attaching `file_tree_manifest` + `failing_files`), `merge_repaired_files` (in-place multi-file tree replacement preserving untouched files), and `is_duplicate_error_signature` (normalizing memory addresses and `/tmp` paths).
 - **Multi-Turn Runtime QC Loop (`mission_flow_v2/phases_runtime.py`, `llm_delegation/prompts.py`):** Upgraded `_prepare_runtime_qc` to execute bounded multi-turn self-repair (`runtime_qc_max_repair_attempts`, default 2), breaking early on `PASS`, `duplicate_error_signature`, or `llm_unavailable`.

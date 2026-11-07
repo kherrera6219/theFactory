@@ -48,6 +48,7 @@ import {
   buildClarificationPrompt,
   buildFullLaunchPrompt,
   buildPmConversationContext,
+  buildSelectedClarificationAnswersText,
   buildSession,
   clarificationAnswersText,
   clarificationEditTemplate,
@@ -488,6 +489,7 @@ export default function ChatPage() {
       let generatedContract: DisplayFeatureContract;
       let blocksLaunchForClarification = false;
       let pendingClarifyingQuestions: string[] = [];
+      let pendingStructuredQuestions: NonNullable<ClarificationPrompt["structured"]> = [];
       let pmPreviewError: unknown = null;
       try {
         const pmPreview = await createPmFeatureContract({
@@ -503,27 +505,34 @@ export default function ChatPage() {
         const featureContract = pmPreview.feature_contract;
         const clarifyingQuestions = featureContract.clarifying_questions ?? [];
         pendingClarifyingQuestions = clarifyingQuestions;
+        pendingStructuredQuestions = featureContract.clarifying_questions_structured ?? [];
         const needsClarification =
           featureContract.intake_status === "needs_clarification" ||
           (typeof featureContract.ambiguity_score === "number" &&
             featureContract.ambiguity_score >= 0.7);
         blocksLaunchForClarification = needsClarification && clarifyingQuestions.length > 0;
+        const conversationalReply =
+          typeof featureContract.conversational_reply === "string"
+            ? featureContract.conversational_reply.trim()
+            : "";
         if (needsClarification && clarifyingQuestions.length > 0) {
           acknowledgement = [
-            `I drafted an initial feature contract for "${featureContract.title || "New Mission"}".`,
-            featureContract.summary ? `\n${featureContract.summary}\n` : "",
+            conversationalReply ||
+              `I drafted an initial feature contract for "${featureContract.title || "New Mission"}".`,
+            !conversationalReply && featureContract.summary ? `\n${featureContract.summary}\n` : "",
             "Before launching the factory, please review these key product decisions:",
             ...clarifyingQuestions.map((question, index) => `${index + 1}. ${question}`),
-            "\nYou can answer these in the chat, proceed with the recommended defaults, or inspect the full SOW below.",
+            "\nYou can select options in the PM Clarification panel, proceed with the recommended defaults, or inspect the full SOW in the studio pane.",
           ].filter(Boolean).join("\n");
         } else {
           acknowledgement = [
-            `I drafted a feature contract for review: **${featureContract.title || "New Mission"}**`,
-            featureContract.summary,
+            conversationalReply ||
+              `I drafted a feature contract for review: **${featureContract.title || "New Mission"}**`,
+            !conversationalReply ? featureContract.summary : "",
             featureContract.acceptance_criteria && featureContract.acceptance_criteria.length > 0
               ? `Key Acceptance Criteria:\n${featureContract.acceptance_criteria.slice(0, 4).map((c, i) => `${i + 1}. ${c}`).join("\n")}`
               : "",
-            "Please review the full Statement of Work below. Click 'Accept SOW and start' to begin execution.",
+            "Please review the full Statement of Work in the studio pane. Click 'Accept SOW and start' to begin execution.",
           ].filter(Boolean).join("\n\n");
         }
         generatedContract = {
@@ -613,7 +622,11 @@ export default function ChatPage() {
       ]);
       setClarificationPrompt(
         blocksLaunchForClarification
-          ? buildClarificationPrompt(pendingClarifyingQuestions, generatedContract)
+          ? buildClarificationPrompt(
+              pendingClarifyingQuestions,
+              generatedContract,
+              pendingStructuredQuestions,
+            )
           : null,
       );
       setContract(generatedContract);
@@ -645,6 +658,11 @@ export default function ChatPage() {
   async function handleProceedWithClarificationDefaults() {
     if (!clarificationPrompt) return;
     await sendMessage(clarificationAnswersText(clarificationPrompt));
+  }
+
+  async function handleSubmitClarificationAnswers(selectedAnswers: Record<number, string>) {
+    if (!clarificationPrompt) return;
+    await sendMessage(buildSelectedClarificationAnswersText(clarificationPrompt, selectedAnswers));
   }
 
   async function readFilesAsText(fileList: File[]): Promise<string> {
@@ -839,42 +857,47 @@ export default function ChatPage() {
           loadSession={loadSession}
         />
 
-        <div className="chat-main">
-          <ChatConversationList messages={messages} thinking={thinking} />
+        <div className="chat-main chat-studio-grid">
+          <div className="chat-conversation-column">
+            <ChatConversationList messages={messages} thinking={thinking} />
 
-          <ChatInputArea
-            input={input}
-            setInput={setInput}
-            files={files}
-            addFiles={addFiles}
-            repoImporting={repoImporting}
-            repoImport={repoImport}
-            preferredOfficialType={preferredOfficialType}
-            importAttachedZip={importAttachedZip}
-            sendMessage={sendMessage}
-            thinking={thinking}
-            launching={launching}
-            error={error}
-          />
-
-          {clarificationPrompt && (
-            <ChatClarificationPanel
-              clarificationPrompt={clarificationPrompt}
-              handleProceedWithClarificationDefaults={handleProceedWithClarificationDefaults}
-              handleEditClarificationAnswers={handleEditClarificationAnswers}
+            <ChatInputArea
+              input={input}
+              setInput={setInput}
+              files={files}
+              addFiles={addFiles}
+              repoImporting={repoImporting}
+              repoImport={repoImport}
+              preferredOfficialType={preferredOfficialType}
+              importAttachedZip={importAttachedZip}
+              sendMessage={sendMessage}
               thinking={thinking}
               launching={launching}
+              error={error}
             />
-          )}
 
-          <ChatSowSection
-            contract={contract}
-            hasClarificationPrompt={Boolean(clarificationPrompt)}
-            continuationContext={continuationContext}
-            launching={launching}
-            confirmAndLaunch={confirmAndLaunch}
-            setContract={setContract}
-          />
+            {clarificationPrompt && (
+              <ChatClarificationPanel
+                clarificationPrompt={clarificationPrompt}
+                handleProceedWithClarificationDefaults={handleProceedWithClarificationDefaults}
+                handleSubmitClarificationAnswers={handleSubmitClarificationAnswers}
+                handleEditClarificationAnswers={handleEditClarificationAnswers}
+                thinking={thinking}
+                launching={launching}
+              />
+            )}
+          </div>
+
+          <div className="chat-sow-column">
+            <ChatSowSection
+              contract={contract}
+              hasClarificationPrompt={Boolean(clarificationPrompt)}
+              continuationContext={continuationContext}
+              launching={launching}
+              confirmAndLaunch={confirmAndLaunch}
+              setContract={setContract}
+            />
+          </div>
         </div>
       </div>
     </div>

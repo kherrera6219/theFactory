@@ -10,6 +10,13 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 5 (8-Phase Master Review & Upgrade Plan) — Split-Screen PM Studio, Interactive Clarification & Full SOW Editor.**
+- **Split-Screen PM Studio (`apps/mission-control/app/(shell)/chat/page.tsx`, `apps/mission-control/app/globals.css`):** Refactored the PM Chat workspace into a responsive 2-column desktop studio (`.chat-studio-grid`) with a sticky right-hand SOW Inspector (`.chat-sow-column`) and wired `featureContract.conversational_reply` into the PM assistant message bubble.
+- **Interactive Clarification Cards (`ChatClarificationPanel.tsx`, `chat-helpers.ts`, `chat-types.ts`, `types.ts`):** Added clickable option pills (`clarifying_questions_structured`), per-question custom answer inputs, and **"Submit Answers & Update SOW"** (`buildSelectedClarificationAnswersText`).
+- **Full SOW Editor (`ChatSowSection.tsx`) & Security Override (`apps/mission-control/package.json`):** Expanded the SOW Edit Modal to edit `Functional Requirements`, `Acceptance Criteria`, `Deliverables`, `Out of Scope`, and `Assumptions` (updating `rawContract` for `createApprovedSow`), and added `"minimatch": "^11.0.1"` override (`0 vulnerabilities`).
+- **Verification:** `npm run lint` (`tsc --noEmit`) clean, Vitest unit suite (`36 test files, 210 passed`), `scripts/validate_documentation.py` passed.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 6: Multi-File IDE Workspace & File-Tab Diff Viewer**.
+
 **COMPLETE — 2026-11-06: Phase 4 (8-Phase Master Review & Upgrade Plan) — Surgical File-Level Self-Repair & Multi-Turn Runtime QC.**
 - **Surgical File-Level Repair (`services/orchestrator/orchestrator/rqca_repair.py`):** Created `extract_failing_files`, `build_surgical_repair_context` (preserving up to 32,000 chars with failing files prioritized first + `file_tree_manifest`), `merge_repaired_files` (merging partial or full `## FILE` repairs into the original tree without dropping untouched files), and `is_duplicate_error_signature`.
 - **Multi-Turn Runtime QC (`services/orchestrator/orchestrator/mission_flow_v2/phases_runtime.py`, `llm_delegation/prompts.py`):** Upgraded `_prepare_runtime_qc` to run bounded multi-turn self-repair (`runtime_qc_max_repair_attempts`, default 2) with duplicate error signature circuit breaking.

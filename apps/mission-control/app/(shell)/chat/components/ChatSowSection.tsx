@@ -28,6 +28,11 @@ export function ChatSowSection({
   const [editTitle, setEditTitle] = useState("");
   const [editLanguages, setEditLanguages] = useState("");
   const [editScope, setEditScope] = useState("");
+  const [editFunctionalReqs, setEditFunctionalReqs] = useState("");
+  const [editAcceptance, setEditAcceptance] = useState("");
+  const [editDeliverables, setEditDeliverables] = useState("");
+  const [editOutOfScope, setEditOutOfScope] = useState("");
+  const [editAssumptions, setEditAssumptions] = useState("");
 
   if (!contract && !hasClarificationPrompt) {
     return (
@@ -184,6 +189,11 @@ export function ChatSowSection({
                   setEditTitle(contract.title);
                   setEditLanguages(contract.languages || "Auto-detect");
                   setEditScope(contract.scope);
+                  setEditFunctionalReqs((contract.functionalRequirements ?? []).join("\n"));
+                  setEditAcceptance((contract.acceptance ?? []).join("\n"));
+                  setEditDeliverables((contract.deliverables ?? []).join("\n"));
+                  setEditOutOfScope((contract.outOfScope ?? []).join("\n"));
+                  setEditAssumptions((contract.assumptions ?? []).join("\n"));
                   setEditingContract(true);
                 }}
               >
@@ -229,16 +239,42 @@ export function ChatSowSection({
                 const newTitle = sanitizeUserText(editTitle);
                 const newLangs = sanitizeUserText(editLanguages) || "Auto-detect";
                 const newScope = editScope.trim();
-                setContract((c) =>
-                  c
-                    ? {
-                        ...c,
-                        title: newTitle || c.title,
-                        languages: newLangs,
-                        scope: newScope || c.scope,
-                      }
-                    : c,
-                );
+                const parseLines = (raw: string) =>
+                  raw
+                    .split(/\r?\n/)
+                    .map((line) => sanitizeUserText(line).trim())
+                    .filter(Boolean);
+                const nextFuncReqs = parseLines(editFunctionalReqs);
+                const nextAcceptance = parseLines(editAcceptance);
+                const nextDeliverables = parseLines(editDeliverables);
+                const nextOutOfScope = parseLines(editOutOfScope);
+                const nextAssumptions = parseLines(editAssumptions);
+
+                setContract((c) => {
+                  if (!c) return c;
+                  const nextRaw = c.rawContract ? { ...c.rawContract } : undefined;
+                  if (nextRaw) {
+                    nextRaw.title = newTitle || c.title;
+                    nextRaw.summary = newScope || c.scope;
+                    nextRaw.functional_requirements = nextFuncReqs;
+                    nextRaw.acceptance_criteria = nextAcceptance;
+                    nextRaw.deliverables = nextDeliverables.map((name) => ({ name }));
+                    nextRaw.out_of_scope = nextOutOfScope;
+                    nextRaw.assumptions = nextAssumptions;
+                  }
+                  return {
+                    ...c,
+                    title: newTitle || c.title,
+                    languages: newLangs,
+                    scope: newScope || c.scope,
+                    functionalRequirements: nextFuncReqs,
+                    acceptance: nextAcceptance,
+                    deliverables: nextDeliverables,
+                    outOfScope: nextOutOfScope,
+                    assumptions: nextAssumptions,
+                    rawContract: nextRaw,
+                  };
+                });
                 setEditingContract(false);
               }}
             >
@@ -280,6 +316,76 @@ export function ChatSowSection({
                   value={editScope}
                   onChange={(e) => setEditScope(e.target.value)}
                   placeholder="Describe the full requirements, constraints, and goals for this mission…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-func-reqs" className="contract-edit-label">
+                  Functional Requirements
+                  <span className="contract-edit-label-hint">One requirement per line</span>
+                </label>
+                <textarea
+                  id="modal-contract-func-reqs"
+                  className="contract-edit-textarea"
+                  rows={4}
+                  value={editFunctionalReqs}
+                  onChange={(e) => setEditFunctionalReqs(e.target.value)}
+                  placeholder="One functional requirement per line…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-acceptance" className="contract-edit-label">
+                  Acceptance Criteria
+                  <span className="contract-edit-label-hint">One verifiable criterion per line</span>
+                </label>
+                <textarea
+                  id="modal-contract-acceptance"
+                  className="contract-edit-textarea"
+                  rows={4}
+                  value={editAcceptance}
+                  onChange={(e) => setEditAcceptance(e.target.value)}
+                  placeholder="One acceptance criterion per line…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-deliverables" className="contract-edit-label">
+                  Deliverables
+                  <span className="contract-edit-label-hint">One deliverable or file path per line</span>
+                </label>
+                <textarea
+                  id="modal-contract-deliverables"
+                  className="contract-edit-textarea"
+                  rows={3}
+                  value={editDeliverables}
+                  onChange={(e) => setEditDeliverables(e.target.value)}
+                  placeholder="One deliverable per line…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-out-of-scope" className="contract-edit-label">
+                  Out of Scope
+                  <span className="contract-edit-label-hint">One exclusion per line (at least 1 required for launch)</span>
+                </label>
+                <textarea
+                  id="modal-contract-out-of-scope"
+                  className="contract-edit-textarea"
+                  rows={3}
+                  value={editOutOfScope}
+                  onChange={(e) => setEditOutOfScope(e.target.value)}
+                  placeholder="One out-of-scope item per line…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-assumptions" className="contract-edit-label">
+                  Assumptions
+                  <span className="contract-edit-label-hint">One assumption per line</span>
+                </label>
+                <textarea
+                  id="modal-contract-assumptions"
+                  className="contract-edit-textarea"
+                  rows={3}
+                  value={editAssumptions}
+                  onChange={(e) => setEditAssumptions(e.target.value)}
+                  placeholder="One assumption per line…"
                 />
               </div>
               <div className="contract-edit-modal-footer">
