@@ -14,6 +14,7 @@ import {
   type MissionOutputFolderStatus,
 } from '../../../../../lib/api-client';
 import { requestedLanguageFromPath } from '../../../../../lib/language';
+import { parseMultiFileBundle } from '../../../../../lib/file-tree';
 import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
 import { copyToClipboard } from '../../../../../lib/clipboard';
 
@@ -48,6 +49,7 @@ export function GeneratedOutputPanel({
   generatedCodeArtifact,
 }: GeneratedOutputPanelProps) {
   const [copied, setCopied] = useState(false);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [artifactDetail, setArtifactDetail] = useState<MissionBuildArtifactRecord | null>(null);
   const [artifactDetailError, setArtifactDetailError] = useState<string | null>(null);
   const [openFolderStatus, setOpenFolderStatus] = useState<string | null>(null);
@@ -96,26 +98,37 @@ export function GeneratedOutputPanel({
   }, [missionId, generatedCodeArtifact?.updated_at]);
 
   const effectiveArtifact = artifactDetail ?? generatedCodeArtifact;
-  const filename = String(
+  const baseFilename = String(
     (effectiveArtifact?.manifest as { filename?: string } | undefined)?.filename ??
       effectiveArtifact?.artifact_id ??
       'output',
   );
-
-  const language = useMemo(() => {
+  const baseLanguage = useMemo(() => {
     const routingKey = (effectiveArtifact?.manifest as { language?: string } | undefined)?.language;
     if (routingKey) return routingKey;
-    return requestedLanguageFromPath(filename) ?? 'text';
-  }, [effectiveArtifact, filename]);
+    return requestedLanguageFromPath(baseFilename) ?? 'text';
+  }, [effectiveArtifact, baseFilename]);
 
-  const lineCount = effectiveArtifact?.artifact_text
-    ? countLines(effectiveArtifact.artifact_text)
+  const virtualFiles = useMemo(() => {
+    if (!effectiveArtifact?.artifact_text) return [];
+    return parseMultiFileBundle(effectiveArtifact.artifact_text, baseFilename, baseLanguage);
+  }, [effectiveArtifact?.artifact_text, baseFilename, baseLanguage]);
+
+  const activeVirtualFile =
+    virtualFiles.find((f) => f.path === selectedFilePath) ?? virtualFiles[0] ?? null;
+
+  const filename = activeVirtualFile?.path ?? baseFilename;
+  const language = activeVirtualFile?.language ?? baseLanguage;
+  const activeCodeText = activeVirtualFile?.content ?? effectiveArtifact?.artifact_text ?? '';
+
+  const lineCount = activeCodeText
+    ? countLines(activeCodeText.trimEnd())
     : null;
   const displaySizeBytes = artifactSizeBytes(generatedCodeArtifact);
 
   async function handleCopy() {
-    if (!effectiveArtifact?.artifact_text) return;
-    const success = await copyToClipboard(effectiveArtifact.artifact_text);
+    if (!activeCodeText) return;
+    const success = await copyToClipboard(activeCodeText);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -193,15 +206,26 @@ export function GeneratedOutputPanel({
         </button>
       )}
       {generatedCodeArtifact && (
-        <a
-          className="secondary-button shell-link-button"
-          href={missionApiUrl(
-            `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
-          )}
-          aria-label="Download generated code"
-        >
-          Download
-        </a>
+        <>
+          <a
+            className="secondary-button shell-link-button"
+            href={missionApiUrl(
+              `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code&format=zip`,
+            )}
+            aria-label="Download generated code as ZIP"
+          >
+            Download ZIP
+          </a>
+          <a
+            className="secondary-button shell-link-button"
+            href={missionApiUrl(
+              `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code&format=raw`,
+            )}
+            aria-label="Download generated code"
+          >
+            Download
+          </a>
+        </>
       )}
       <Link
         href={`/missions/output?id=${encodeURIComponent(missionId)}`}
@@ -283,6 +307,36 @@ export function GeneratedOutputPanel({
               </p>
             </div>
 
+            {virtualFiles.length > 1 && (
+              <div
+                role="tablist"
+                aria-label="Generated files"
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.35rem',
+                  marginTop: '0.25rem',
+                }}
+              >
+                {virtualFiles.map((file) => {
+                  const isActive = file.path === activeVirtualFile?.path;
+                  return (
+                    <button
+                      key={file.path}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      className={isActive ? 'primary-button' : 'secondary-button'}
+                      style={{ padding: '4px 10px', fontSize: '0.76rem', minHeight: '28px' }}
+                      onClick={() => setSelectedFilePath(file.path)}
+                    >
+                      {file.path}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',
@@ -326,7 +380,7 @@ export function GeneratedOutputPanel({
               </span>
             </div>
 
-            {effectiveArtifact?.artifact_text ? (
+            {activeCodeText ? (
               <SyntaxHighlighter
                 language={language}
                 style={vscDarkPlus}
@@ -347,7 +401,7 @@ export function GeneratedOutputPanel({
                   userSelect: 'none',
                 }}
               >
-                {effectiveArtifact.artifact_text}
+                {activeCodeText}
               </SyntaxHighlighter>
             ) : (
               <p

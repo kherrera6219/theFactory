@@ -10,6 +10,12 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 6 (8-Phase Master Review & Upgrade Plan) — Multi-File IDE Workspace & File-Tab Diff Viewer.**
+- **Multi-File Bundle Parser & LCS Diff (`apps/mission-control/app/lib/file-tree.ts`, `file-tree.test.ts`):** Implemented `parseMultiFileBundle`, `sanitizeVirtualPath`, and `computeLineDiff` (4/4 Vitest unit tests passing).
+- **IDE Output Workspace (`useArtifactData.ts`, `FileTreePane.tsx`, `CodeViewerPane.tsx`, `OutputHeader.tsx`, `output/page.tsx`, `GeneratedOutputPanel.tsx`):** Hydrated full `artifact_text` when omitted from summary list, added multi-file sidebar tree and file-tab navigation, added **Code / Diff vs Source** toggle for brownfield missions, added **Download ZIP** (`?format=zip`), and replaced `window.alert` with `SystemMessage`.
+- **Verification:** `npm run lint` (`tsc --noEmit`) clean, `file-tree.test.ts` (4/4 passed), `scripts/validate_documentation.py` passed.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 7: Mission Detail Taming, Terminal-State Stream Stop & Navigation Cleanup**.
+
 **COMPLETE — 2026-11-06: Phase 5 (8-Phase Master Review & Upgrade Plan) — Split-Screen PM Studio, Interactive Clarification & Full SOW Editor.**
 - **Split-Screen PM Studio (`apps/mission-control/app/(shell)/chat/page.tsx`, `apps/mission-control/app/globals.css`):** Refactored the PM Chat workspace into a responsive 2-column desktop studio (`.chat-studio-grid`) with a sticky right-hand SOW Inspector (`.chat-sow-column`) and wired `featureContract.conversational_reply` into the PM assistant message bubble.
 - **Interactive Clarification Cards (`ChatClarificationPanel.tsx`, `chat-helpers.ts`, `chat-types.ts`, `types.ts`):** Added clickable option pills (`clarifying_questions_structured`), per-question custom answer inputs, and **"Submit Answers & Update SOW"** (`buildSelectedClarificationAnswersText`).

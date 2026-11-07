@@ -1,12 +1,16 @@
 'use client';
 
 import React from 'react';
+import type { VirtualFileEntry } from '../../../../lib/file-tree';
 import type { MissionBuildArtifactRecord } from '../../../../lib/types';
 
 interface FileTreePaneProps {
   artifacts: MissionBuildArtifactRecord[];
   selectedArtifactId: string | null;
   onSelect: (id: string) => void;
+  virtualFiles?: VirtualFileEntry[];
+  selectedFilePath?: string | null;
+  onSelectFile?: (path: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -17,11 +21,20 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * Sticky left sidebar listing all build artifacts when there is more than one.
- * Clicking a row sets it as the active file in the CodeViewerPane.
+ * Sticky left sidebar listing unpacked multi-file bundle entries (`## FILE`)
+ * or multiple build artifacts. Clicking a row sets it as the active file in CodeViewerPane.
  */
-export function FileTreePane({ artifacts, selectedArtifactId, onSelect }: FileTreePaneProps) {
-  if (artifacts.length === 0) return null;
+export function FileTreePane({
+  artifacts,
+  selectedArtifactId,
+  onSelect,
+  virtualFiles = [],
+  selectedFilePath,
+  onSelectFile,
+}: FileTreePaneProps) {
+  const useVirtualTree = virtualFiles.length > 1 && Boolean(onSelectFile);
+
+  if (!useVirtualTree && artifacts.length === 0) return null;
 
   return (
     <nav
@@ -45,56 +58,100 @@ export function FileTreePane({ artifacts, selectedArtifactId, onSelect }: FileTr
           color: 'var(--color-text-muted)',
         }}
       >
-        Files ({artifacts.length})
+        Files ({useVirtualTree ? virtualFiles.length : artifacts.length})
       </div>
       <ul role="list" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-        {artifacts.map((artifact) => {
-          const filename = String(
-            (artifact.manifest as { filename?: string } | undefined)?.filename ??
-              artifact.artifact_id,
-          );
-          const isSelected = artifact.artifact_id === selectedArtifactId;
-          return (
-            <li key={artifact.artifact_id}>
-              <button
-                type="button"
-                onClick={() => onSelect(artifact.artifact_id)}
-                aria-current={isSelected ? 'true' : undefined}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.15rem',
-                  padding: '0.5rem 0.75rem',
-                  background: isSelected ? 'var(--color-primary-highlight)' : 'transparent',
-                  color: isSelected ? 'var(--color-primary)' : 'var(--color-text)',
-                  textAlign: 'left',
-                  border: 'none',
-                  borderBottom: '1px solid var(--color-divider)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-sm)',
-                  transition: 'background var(--transition-interactive)',
-                }}
-              >
-                <span
-                  className="mono-id"
-                  style={{
-                    fontSize: '0.82em',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title={filename}
-                >
-                  {filename}
-                </span>
-                <span style={{ fontSize: '0.75em', color: 'var(--color-text-muted)' }}>
-                  {formatBytes(artifact.size_bytes)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {useVirtualTree
+          ? virtualFiles.map((file) => {
+              const isSelected = file.path === selectedFilePath;
+              return (
+                <li key={file.path}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectFile?.(file.path)}
+                    aria-current={isSelected ? 'true' : undefined}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.15rem',
+                      padding: '0.5rem 0.75rem',
+                      background: isSelected ? 'var(--color-primary-highlight)' : 'transparent',
+                      color: isSelected ? 'var(--color-primary)' : 'var(--color-text)',
+                      textAlign: 'left',
+                      border: 'none',
+                      borderBottom: '1px solid var(--color-divider)',
+                      cursor: 'pointer',
+                      fontSize: 'var(--text-sm)',
+                      transition: 'background var(--transition-interactive)',
+                    }}
+                  >
+                    <span
+                      className="mono-id"
+                      style={{
+                        fontSize: '0.82em',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={file.path}
+                    >
+                      {file.path}
+                    </span>
+                    <span style={{ fontSize: '0.75em', color: 'var(--color-text-muted)' }}>
+                      {file.lineCount} lines · {formatBytes(file.sizeBytes)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })
+          : artifacts.map((artifact) => {
+              const filename = String(
+                (artifact.manifest as { filename?: string } | undefined)?.filename ??
+                  artifact.artifact_id,
+              );
+              const isSelected = artifact.artifact_id === selectedArtifactId;
+              return (
+                <li key={artifact.artifact_id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(artifact.artifact_id)}
+                    aria-current={isSelected ? 'true' : undefined}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.15rem',
+                      padding: '0.5rem 0.75rem',
+                      background: isSelected ? 'var(--color-primary-highlight)' : 'transparent',
+                      color: isSelected ? 'var(--color-primary)' : 'var(--color-text)',
+                      textAlign: 'left',
+                      border: 'none',
+                      borderBottom: '1px solid var(--color-divider)',
+                      cursor: 'pointer',
+                      fontSize: 'var(--text-sm)',
+                      transition: 'background var(--transition-interactive)',
+                    }}
+                  >
+                    <span
+                      className="mono-id"
+                      style={{
+                        fontSize: '0.82em',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={filename}
+                    >
+                      {filename}
+                    </span>
+                    <span style={{ fontSize: '0.75em', color: 'var(--color-text-muted)' }}>
+                      {formatBytes(artifact.size_bytes)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
       </ul>
     </nav>
   );

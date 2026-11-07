@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import { missionApiUrl } from '../../../../lib/api-client';
@@ -21,7 +19,7 @@ interface OutputHeaderProps {
 
 /**
  * Top bar for the Output page.
- * Shows: Back link | Mission name + state badge | Download anchor | Copy button.
+ * Shows: Back link | Mission name + state badge | Download Raw & Download ZIP anchors | Copy button.
  */
 export function OutputHeader({
   missionId,
@@ -130,15 +128,26 @@ export function OutputHeader({
           </button>
         )}
         {generatedCodeArtifact && (
-          <a
-            className="secondary-button shell-link-button"
-            href={missionApiUrl(
-              `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
-            )}
-            aria-label="Download generated code"
-          >
-            Download
-          </a>
+          <>
+            <a
+              className="secondary-button shell-link-button"
+              href={missionApiUrl(
+                `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code&format=zip`,
+              )}
+              aria-label="Download generated project as ZIP archive"
+            >
+              Download ZIP
+            </a>
+            <a
+              className="secondary-button shell-link-button"
+              href={missionApiUrl(
+                `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code&format=raw`,
+              )}
+              aria-label="Download generated code"
+            >
+              Download
+            </a>
+          </>
         )}
         {generatedCodeArtifact?.artifact_text && (
           <button

@@ -7,35 +7,38 @@ import { OutputHeader } from './components/OutputHeader';
 import { FileTreePane } from './components/FileTreePane';
 import { CodeViewerPane } from './components/CodeViewerPane';
 import { ArtifactMetaPane } from './components/ArtifactMetaPane';
+import { SystemMessage } from '../../../components/status';
 import { approveReviewArtifact } from '../../../lib/api-client';
 import { copyToClipboard } from '../../../lib/clipboard';
 
 /**
- * Full-page Output viewer — the dedicated destination for "show me what you built".
+ * Full-page Output viewer — the dedicated IDE workspace for "show me what you built".
  *
  * Route: /missions/output?id={missionId}
- * (Flat query-param pattern matching /missions/detail — no [id] dynamic segment.)
- *
- * Layout:
- *   Desktop: [FileTree (if >1 file)] | [CodeViewer] | [ArtifactMeta]
- *   Mobile:  stacked single column
- *
- * No new API endpoints. All data comes from getMissionChainTrace which already
- * returns build_artifacts, generated_output, and delivery_summary.
  */
 function OutputPageContent() {
   const searchParams = useSearchParams();
   const missionId = searchParams.get('id') ?? '';
 
-  const { mission, chainTrace, generatedCodeArtifact, allArtifacts, loading, error } =
-    useArtifactData(missionId);
+  const {
+    mission,
+    chainTrace,
+    generatedCodeArtifact,
+    allArtifacts,
+    virtualFiles,
+    sourceFilesByPath,
+    loading,
+    error,
+  } = useArtifactData(missionId);
 
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
 
   const [accepted, setAccepted] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!missionId) return;
@@ -47,6 +50,7 @@ function OutputPageContent() {
   const handleAccept = useCallback(async () => {
     if (!missionId) return;
     setAccepting(true);
+    setAcceptError(null);
     try {
       const receipt = await approveReviewArtifact({
         scope: 'delivery',
@@ -61,28 +65,36 @@ function OutputPageContent() {
       localStorage.setItem(key, JSON.stringify(receipt));
       setAccepted(true);
     } catch (err) {
-      console.error('Failed to accept code delivery:', err);
-      alert(err instanceof Error ? err.message : 'Unable to accept delivery.');
+      setAcceptError(err instanceof Error ? err.message : 'Unable to accept delivery.');
     } finally {
       setAccepting(false);
     }
   }, [missionId]);
 
-  // Active artifact: explicit selection → generated_code → first artifact → null
   const activeArtifact =
     allArtifacts.find((a) => a.artifact_id === selectedArtifactId) ??
     generatedCodeArtifact ??
     allArtifacts[0] ??
     null;
 
+  const activeVirtualFile =
+    virtualFiles.find((f) => f.path === selectedFilePath) ??
+    virtualFiles[0] ??
+    null;
+
+  const originalFileContent = activeVirtualFile
+    ? sourceFilesByPath[activeVirtualFile.path] ?? sourceFilesByPath[activeVirtualFile.name] ?? null
+    : null;
+
   const handleCopy = useCallback(async () => {
-    if (!activeArtifact?.artifact_text) return;
-    const success = await copyToClipboard(activeArtifact.artifact_text);
+    const textToCopy = activeVirtualFile?.content ?? activeArtifact?.artifact_text;
+    if (!textToCopy) return;
+    const success = await copyToClipboard(textToCopy);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }
-  }, [activeArtifact]);
+  }, [activeVirtualFile, activeArtifact]);
 
   const handleCopyPath = useCallback(async () => {
     const success = await copyToClipboard(`output/${missionId}/`);
@@ -100,7 +112,7 @@ function OutputPageContent() {
     );
   }
 
-  const showFileTree = allArtifacts.length > 1;
+  const showFileTree = virtualFiles.length > 1 || allArtifacts.length > 1;
 
   return (
     <div
@@ -118,8 +130,16 @@ function OutputPageContent() {
         copied={copied}
         accepted={accepted}
         accepting={accepting}
-        onAccept={handleAccept}
+        onAccept={() => void handleAccept()}
       />
+
+      {acceptError && (
+        <div style={{ marginBottom: 'var(--space-4)' }}>
+          <SystemMessage tone="critical" title="Delivery acceptance failed">
+            <p>{acceptError}</p>
+          </SystemMessage>
+        </div>
+      )}
 
       {/* File System Path Card */}
       <button
@@ -162,7 +182,7 @@ function OutputPageContent() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: showFileTree ? '200px 1fr 260px' : '1fr 260px',
+          gridTemplateColumns: showFileTree ? '220px 1fr 260px' : '1fr 260px',
           gap: 'var(--space-4)',
           alignItems: 'start',
         }}
@@ -172,10 +192,18 @@ function OutputPageContent() {
             artifacts={allArtifacts}
             selectedArtifactId={selectedArtifactId ?? activeArtifact?.artifact_id ?? null}
             onSelect={setSelectedArtifactId}
+            virtualFiles={virtualFiles}
+            selectedFilePath={activeVirtualFile?.path ?? null}
+            onSelectFile={setSelectedFilePath}
           />
         )}
 
-        <CodeViewerPane artifact={activeArtifact} loading={loading} />
+        <CodeViewerPane
+          artifact={activeArtifact}
+          loading={loading}
+          activeFile={activeVirtualFile}
+          originalFileContent={originalFileContent}
+        />
 
         <ArtifactMetaPane artifact={activeArtifact} chainTrace={chainTrace} />
       </div>

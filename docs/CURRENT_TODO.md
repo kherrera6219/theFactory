@@ -13,6 +13,11 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-06: Phase 6 (Master Review Plan) — Multi-File IDE Workspace & File-Tab Diff Viewer.**
+- **Multi-File Bundle Parser & LCS Diff Engine (`apps/mission-control/app/lib/file-tree.ts`, `file-tree.test.ts`):** Created `parseMultiFileBundle` (unpacking `## FILE` and `## FILE:` bundles into `VirtualFileEntry` objects with per-file language, line count, and byte size) and `computeLineDiff` for brownfield source comparisons.
+- **IDE Output Workspace & Diff Toggle (`useArtifactData.ts`, `FileTreePane.tsx`, `CodeViewerPane.tsx`, `OutputHeader.tsx`, `output/page.tsx`, `GeneratedOutputPanel.tsx`):** Automatic hydration of `artifact_text` via `getMissionBuildArtifact`, clickable multi-file tree navigation in `FileTreePane` and file tabs in `GeneratedOutputPanel`, **Code / Diff vs Source** toggle in `CodeViewerPane`, **Download ZIP** (`/v1/missions/{id}/artifact?format=zip`) in `OutputHeader` and `GeneratedOutputPanel`, and replacement of `window.alert` with `SystemMessage`.
+- **Next Up:** Phase 7 (Mission Detail Taming, Terminal-State Stream Stop & Navigation Cleanup), followed by Phase 8.
+
 **COMPLETE — 2026-11-06: Phase 5 (Master Review Plan) — Split-Screen PM Studio, Interactive Clarification & Full SOW Editor.**
 - **Split-Screen PM Studio (`chat/page.tsx`, `globals.css`):** Upgraded the PM Chat workspace into a responsive 2-column desktop studio (`.chat-studio-grid`: Conversation & Clarification on the left; sticky live SOW Document Inspector on the right) and wired `featureContract.conversational_reply` into the PM assistant message bubble.
 - **Interactive Clarification Option Pills (`ChatClarificationPanel.tsx`, `chat-helpers.ts`, `chat-types.ts`, `types.ts`):** Added clickable option pills (highlighting the `★ ... (Recommended)` default), per-question custom answer inputs, impact badges, and a 1-click **"Submit Answers & Update SOW"** action alongside **"Proceed with Defaults"** and **"Edit Answers"**.
