@@ -151,5 +151,5 @@ behaviour: it keeps the mode of an existing machine-wide install it finds under
 `HKLM\Software\<app GUID>`. On a clean machine the default is *Only for me*
 (verified: `/currentuser` installs need no UAC).
 
-Model: all agents default to **`gemini-3.8-flash`** (2026-09-27). A vault slot
-still pinned to 3.5 / 3.6 / 3.7 migrates to 3.8 on read.
+Model: all agents default to **`gemini-4-argon`** (2026-11-07). A vault slot
+still pinned to 3.5 / 3.6 / 3.7 / 3.8 migrates to 4-argon on read.

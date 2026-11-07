@@ -62,30 +62,30 @@ APPROVAL_HMAC_SECRET=<any 32-char hex>
 
 ### 3b — Set LLM provider
 
-**Default test path — Gemini 3.8 Flash (all agents)**
+**Default test path — Gemini 4 Argon (all agents)**
 ```
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=AIza...your key...
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-4-argon
 GEMINI_THINKING_LEVEL=high
 ```
 
 Mission Control Settings still lets you select one of three vault-slot model routes:
 ```
-OPENAI_MODEL=gpt-5.6
+OPENAI_MODEL=gpt-6.1-terrea
 OPENAI_REASONING_EFFORT=high
-ANTHROPIC_MODEL=claude-opus-4-8
-GEMINI_MODEL=gemini-3.8-flash
+ANTHROPIC_MODEL=claude-ops-5.5
+GEMINI_MODEL=gemini-4-argon
 GEMINI_THINKING_LEVEL=high
 ```
 
-All 41 agents default to Gemini 3.8 Flash (`gemini-3.8-flash`) with high thinking.
+All 41 agents default to Gemini 4 Argon (`gemini-4-argon`) with high thinking.
 
 ### 3c — Verify model strings are valid
 
 The current model assignments in `agent_integrations.py` are:
-- All agents: `gemini-3.8-flash` (Gemini, high thinking)
-- Settings dropdown choices: `gpt-5.6`, `claude-opus-4-8`, `gemini-3.8-flash`
+- All agents: `gemini-4-argon` (Gemini, high thinking)
+- Settings dropdown choices: `gpt-6.1-terrea`, `claude-ops-5.5`, `gemini-4-argon`
 
 If any of these model strings are invalid for your account, the agent falls back
 to deterministic routing — the mission will complete but output will be a stub.
