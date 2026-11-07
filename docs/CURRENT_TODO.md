@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.10.29
-Last updated: 2026-10-29
+Document version: 2026.11.07
+Last updated: 2026-11-07
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 

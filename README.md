@@ -25,11 +25,11 @@
 ---
 
 > **Key Architecture & Operational Highlights:**
-> - **20 Language Toolchains**: Automated syntax parsing, AST extraction, and isolated test execution across 20 languages.
-> - **41 Specialist Agents**: Role-based multi-agent architecture spanning executive planning, paradigm pods, language specialists, and quality control.
-> - **Hardened Container Sandbox**: Untrusted code executes in an unprivileged, non-networked Docker container (`--user=65534`, `--network=none`, `--read-only`).
-> - **Native Desktop & Web UI**: Mission Control operator console available as both a web application and a native Windows desktop app.
-> - **Flexible Model Support**: First-class support for Google Gemini 3.8 Flash, Anthropic Claude, OpenAI, and fully offline local LLMs via Ollama.
+> - **20 Language Toolchains**: Automated syntax parsing, comment-stripped structural & AST extraction (`ast`, `esprima`, `javalang`, `go`, `haskell`, `ocaml`, `julia`, `treesitter_extractor`), and isolated test execution across 20 languages.
+> - **41 Specialist Agents**: Role-based multi-agent architecture spanning conversational PM Studio (`AGENT-01-PM`), fast-path SOW routing, paradigm pods, language specialists, and contract-driven quality control.
+> - **Hardened Container Sandbox & Multi-Turn Surgical Self-Repair**: Untrusted code executes in an unprivileged, non-networked Docker container (`--user=65534`, `--network=none`, `--read-only`) with surgical file-level self-repair (`rqca_repair.py`) and polyglot behavioral equivalence (`Python`, `JavaScript`, `TypeScript`, plus CLI contract oracles across all 20 languages).
+> - **Native Desktop & Web UI**: Mission Control operator console with a Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, and 1-click `.zip`, `.patch`, and signed CycloneDX `1.5` SBOM exports.
+> - **Out-of-Band Credential Vault & Zero-Trust Identity**: Ephemeral Redis vault (`mission-vault:<id>`) keeps provider API keys out of Postgres and Redis intake/DLQ streams; strict multi-tenant OIDC & mutual TLS (`mTLS`) secure service boundaries.
 > - **Dynamic Deployment Topologies**: One-command scaling between lightweight condensed mode and a 41-container dedicated fleet.
 
 ---
@@ -62,14 +62,14 @@ theFactory is not an inline autocomplete widget, chat tab, or "vibe coding" assi
 | Dimension | Ordinary AI Code Assistants / Vibe Coding | theFactory Enterprise AI Software Refinery |
 |---|---|---|
 | **Execution Flow** | Single prompt-to-code loop without state guarantees | Formal 11-phase state machine (Mission Flow v2) with idempotent recovery |
-| **Contract Governance** | Vague chat prompts with no boundary agreements | Binding Statement of Work (SOW) feature contracts and budget limits |
-| **Agent Architecture** | 1 general-purpose model attempting everything | 41 certified specialists organized into 4 paradigm pods and support rings |
+| **Contract Governance** | Vague chat prompts with no boundary agreements | Split-screen PM Studio with structured clarification option pills, full SOW editor, and loss-free SOW-to-codegen pipeline |
+| **Agent Architecture** | 1 general-purpose model attempting everything | 41 certified specialists organized into 4 paradigm pods and support rings with fast-path SOW routing |
 | **Sandbox Isolation** | Code executes directly on user host or privileged VM | Non-root sandbox (`--user=65534`, `--pids-limit=256`, `--network=none`) |
-| **Quality Verification** | Assumes code is functional if LLM generates it | Runtime QC with offline vendored test runners and contract oracles |
-| **Inter-Service Bus** | Unstructured REST calls or tight couplings | 6 typed Redis protocol streams with W3C distributed tracing context |
+| **Quality Verification** | Assumes code is functional if LLM generates it | Multi-turn surgical file-level self-repair, contract-driven boundary/adversarial testdata, and polyglot behavioral equivalence |
+| **Inter-Service Bus** | Unstructured REST calls or tight couplings | 6 typed Redis protocol streams with W3C distributed tracing context and out-of-band vault transit |
 | **Data Integrity** | Vector-only semantic search prone to hallucinations | Reciprocal Rank Fusion (RRF) combining dense vectors and sparse lexical search |
 | **Security & Identity** | Static API keys or developer-mode defaults | Strict multi-tenant OIDC claim validation and inter-service mutual TLS |
-| **Audit Readiness** | Missing or ephemeral chat histories | Digitally signed cryptographic audit ledgers and SHA-256 evidence bundles |
+| **Audit Readiness** | Missing or ephemeral chat histories | Digitally signed cryptographic audit ledgers, SHA-256 `.zip` bundles, unified `.patch` diffs, and signed CycloneDX 1.5 SBOMs |
 | **Deployment Modes** | Monolithic local dev only | Dynamic switching between lightweight condensed and 41-container dedicated stacks |
 
 ---
@@ -507,15 +507,11 @@ Manage encrypted API keys locally without cloud leakage, configure model provide
 theFactory is engineered to solve the fundamental failure modes of generative AI coding assistants: hallucinated APIs, broken multi-file refactors, missing test suites, and unverified code execution. Below is a detailed technical walkthrough of how the system executes a mission from initial user prompt to tested, verified delivery.
 
 ### 1. Requirements Negotiation & The Statement of Work (SOW)
-Unlike inline autocomplete plugins that generate code from incomplete single-line prompts, theFactory begins every project with an interactive intake session led by the **Product Manager Agent (`AGENT-01-PM`)**:
+Unlike inline autocomplete plugins that generate code from incomplete single-line prompts, theFactory begins every project with an interactive intake session in the **Split-Screen PM Studio** led by the **Product Manager Agent (`AGENT-01-PM`)**:
 
-- **Ambiguity Detection**: The PM Agent analyzes the prompt against domain-specific requirements matrices, asking targeted clarifying questions when requirements are underspecified.
-- **Contract Formulation**: Once requirements are clear, the PM Agent compiles an immutable **Statement of Work (SOW)**. The SOW explicitly enumerates:
-  - System boundary constraints and non-functional requirements.
-  - Required public API signatures, data schemas, and CLI commands.
-  - Acceptance criteria and automated test specifications.
-  - Computational resource budgets and execution timeouts.
-- **Operator Sign-Off**: Work cannot transition into code synthesis until the operator reviews and approves the SOW, ensuring strict alignment on scope and deliverables.
+- **Conversational Consultation & Structured Option Pills**: The PM Agent replies with a natural conversational explanation alongside structured clarification cards (`{id, question, recommended_default, options, impact}`). Operators can click 1-click option pills (with the `★ Recommended` default highlighted), enter custom answers, or proceed with defaults.
+- **Full Statement of Work (SOW) Editor**: The right-hand SOW Document Inspector stays pinned in real time and allows operators to directly edit **Functional Requirements**, **Acceptance Criteria**, **Deliverables**, **Out of Scope**, and **Assumptions** before locking the contract.
+- **Loss-Free SOW-to-Codegen Pipeline**: Once approved, the complete SOW (`functional_requirements`, `non_functional_requirements`, `deliverables`, `out_of_scope`, `acceptance_criteria`, and `specialist_plan`) flows untruncated into specialist codegen, `AGENT-40-TESTDATA` boundary synthesis, `AGENT-10-TESTER` integration tests, and Pod Audit deliverable completeness verification.
 
 ### 2. Knowledge Retrieval via Reciprocal Rank Fusion (RRF)
 During the **FETCH** phase, the factory enriches agent prompts with relevant domain context from its persistent **Knowledge Lake**:
@@ -552,12 +548,12 @@ Generated software cannot be certified as working simply because an LLM claims i
 - **Contract-Oracle Behavioral Equivalence**: Tests evaluate not only that the code runs, but that its behavior strictly matches the acceptance criteria defined in the initial SOW contract.
 - **Pre-Warmed Warm Pool**: A background container pool keeps sandbox execution latency under 200ms, enabling fast feedback cycles.
 
-### 6. Code Review, Diffs & Human Approval
-All generated files, documentation, and test suites are presented in Mission Control's **Builder & Diff Inspector**:
+### 6. Multi-File IDE Workspace, Brownfield Diffs & Signed Exports
+All generated files, documentation, and test suites are presented in Mission Control's **Multi-File IDE Workspace** (`/missions/output` and `GeneratedOutputPanel`):
 
-- **Side-by-Side Review**: Operators can inspect unified diffs across every modified and generated file in the project workspace.
-- **Verification Reports**: Full test execution logs, compiler warnings, and runtime metrics are displayed alongside the code.
-- **Approval Gate**: The operator can approve delivery, request targeted revisions from specific specialist agents, or reject the mission.
+- **Multi-File Tree & File Tabs**: Multi-file `## FILE` bundles are unpacked into a VS Code-style file tree with per-file language badges, line counts, byte sizes, and syntax highlighting.
+- **Side-by-Side & Unified LCS Diffs**: For brownfield/refactor missions, operators can toggle **Code / Diff vs Source** to inspect line-by-line additions and removals against `source_code`, or export a `git apply`-ready unified patch (`/v1/missions/{id}/export/patch`).
+- **Signed CycloneDX 1.5 SBOM & ZIP Archive**: Download the complete multi-file `.zip` bundle with `manifest.json` (`/v1/missions/{id}/artifact?format=zip`) or export a cryptographically signed CycloneDX 1.5 Software Bill of Materials (`/v1/missions/{id}/export/sbom`).
 
 ### 7. Delivery, Archival & Audit Ledger
 Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finalizes the mission:

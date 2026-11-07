@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-10-26. Enterprise-hardening + full-repo audit remediation pass: MinIO -> SeaweedFS (`object-store`), WQ7 contract-oracle equivalence, vendored offline test runners for every language incl. C#, prod/staging compose lifecycle alignment (`LANGGRAPH_ENABLED=false`), dedicated-pod language/AST parity, `electron:dev` preload bundling (`--electron-only`), `release.yml` image-before-installer dependency, and CI/doc/coverage gates restored to green. See `docs/CURRENT_TODO.md` (2026-10-26).
+> Last validated: 2026-11-07. Completed the 8-Phase Master Review & Upgrade Plan: out-of-band vault transit (`shared_runtime/mission_vault.py`), gateway evidence & `.zip`/`.patch`/CycloneDX SBOM export routes, conversational PM Studio (`AGENT-01-PM`) with structured option pills and loss-free SOW-to-codegen pipeline, fast-path SOW routing, contract-driven `AGENT-40-TESTDATA` & adversarial `AGENT-10-TESTER`, surgical file-level multi-turn self-repair (`rqca_repair.py`), Multi-File IDE Workspace & LCS diff viewer, terminal-state stream auto-stop, polyglot behavioral equivalence (`Python`, `JavaScript`, `TypeScript`), and comment-stripped structural/tree-sitter AST extraction (`treesitter_extractor.py`). See `docs/CURRENT_TODO.md` (2026-11-07).
 
 ---
 
@@ -165,11 +165,12 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 
 > runtime.py coverage floor raised to 80% (actual: 100% line / 99% branch) via 12 new branch-coverage tests (#192).
 
-## 6a. Mission intake clarification (2026-11-02)
+## 6a. Mission intake clarification & 8-Phase Master Review Upgrades (2026-11-07)
 
 - An **operator-approved SOW resolves ambiguity.** Intake must never re-gate an approved SOW on its stored `ambiguity_score` (`phases_intake.py`); doing so parks the mission in `CLARIFYING` and loops the operator back to PM chat.
 - `_pm_ambiguity_score` counts only clarifying questions **without** a `Recommended default`. A circuit breaker accepts defaults after `finalize_plan` or two parks (`clarification_loop_count`).
-- **Provider API keys never go in `missions.metadata_json`.** They live in Redis (`mission_vault.py`, `mission-vault:<id>`); every metadata write path calls `strip_vault`, and `test_mission_vault.py` fails if that regresses.
+- **Provider API keys never go in `missions.metadata_json` or Redis `INTAKE_STREAM` / `intake_dlq_stream`.** They live in Redis (`shared_runtime/mission_vault.py`, `mission-vault:<id>`); `api-gateway` extracts and stores `metadata.vault` out-of-band before idempotency, upstream persistence, or stream publishing, and `test_mission_vault.py` fails if that regresses.
+- **Loss-Free SOW-to-Codegen & Surgical Self-Repair:** `_normalize_mission_contract` and `_build_codegen_prompt` preserve full `functional_requirements`, `non_functional_requirements`, `deliverables`, `out_of_scope`, `acceptance_criteria`, and `specialist_plan`. Runtime QC (`_prepare_runtime_qc`) uses `rqca_repair.py` for multi-turn file-level surgical repair with duplicate error signature circuit breaking.
 
 ## 7. Definition of Done (per task)
 

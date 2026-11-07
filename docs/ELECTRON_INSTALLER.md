@@ -1,8 +1,8 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.10.29
-Last updated: 2026-10-29
-Status: Implemented and validated end to end on Windows (WQ #9); first public release pending
+Document version: 2026.11.07
+Last updated: 2026-11-07
+Status: Implemented and validated end to end on Windows (WQ #9); rebuilt with 8-Phase Master Review upgrades (2026-11-07)
 Audience: Maintainers, release managers, operators
 
 `theFactory-MissionControl-Setup-<version>.exe` installs Mission Control as a

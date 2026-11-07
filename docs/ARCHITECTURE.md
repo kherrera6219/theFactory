@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.11.07  
+Last updated: 2026-11-07  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 

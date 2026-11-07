@@ -1,13 +1,13 @@
 # theFactory Documentation Index
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.11.07
+Last updated: 2026-11-07
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.10.26
+**Version:** 2026.11.07
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-10-26
+**Last reviewed:** 2026-11-07
 
 This index maps the active theFactory documentation set. Historical source
 material, superseded phase plans, run-specific evidence, and archived review
