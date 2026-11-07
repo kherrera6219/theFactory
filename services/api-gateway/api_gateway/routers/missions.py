@@ -218,4 +218,25 @@ def build_missions_router() -> APIRouter:
         gateway_main._require_operator_access(x_api_key=x_api_key, authorization=authorization)
         return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/token-usage")
 
+    @router.get("/v1/missions/{mission_id}/export/patch")
+    async def export_mission_patch(
+        mission_id: str,
+        format: str = Query(default="raw"),
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> Any:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        return await gateway_main._proxy_get_internal(
+            f"/missions/{mission_id}/export/patch", params={"format": format}
+        )
+
+    @router.get("/v1/missions/{mission_id}/export/sbom")
+    async def export_mission_sbom(
+        mission_id: str,
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, Any]:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/export/sbom")
+
     return router

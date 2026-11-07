@@ -540,3 +540,121 @@ async def download_mission_artifact(
 
     return MissionBuildArtifactRecord(**record)
 
+
+@router.get("/missions/{mission_id}/export/patch")
+async def export_mission_patch(
+    mission_id: str,
+    request: Request,
+    format: str = Query(default="raw"),
+) -> Any:
+    """Export a unified Git diff patch comparing source_code and generated_output."""
+    import orchestrator.main as _main
+
+    from ..deploy_exporter import generate_unified_patch_bundle
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+
+    raw_meta = mission.get("metadata")
+    metadata = raw_meta if isinstance(raw_meta, dict) else {}
+    source_code = metadata.get("source_code") if isinstance(metadata.get("source_code"), str) else None
+    gen_raw = metadata.get("generated_output")
+    generated_output = dict(gen_raw) if isinstance(gen_raw, dict) else {}
+    if not generated_output.get("code"):
+        records = await asyncio.to_thread(
+            storage.list_build_artifacts,
+            app.state.settings,
+            mission_id,
+            25,
+        )
+        code_record = next(
+            (
+                r
+                for r in records
+                if str(r.get("artifact_type") or "").strip().lower() == "generated_code"
+                and r.get("artifact_text")
+            ),
+            records[0] if records else None,
+        )
+        if code_record:
+            generated_output = {
+                **generated_output,
+                "code": str(code_record.get("artifact_text") or ""),
+                "filename": str(code_record.get("file_path") or "main.py"),
+            }
+
+    patch_text = generate_unified_patch_bundle(
+        mission_id=mission_id,
+        source_code=source_code,
+        generated_output=generated_output,
+    )
+    if str(format or "raw").strip().lower() == "json":
+        return {"mission_id": mission_id, "patch": patch_text}
+
+    sanitized_id = "".join(c for c in mission_id if c.isalnum() or c in {"-", "_"}) or "mission"
+    return Response(
+        content=patch_text,
+        media_type="text/x-diff; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{sanitized_id}.patch"',
+        },
+    )
+
+
+@router.get("/missions/{mission_id}/export/sbom")
+async def export_mission_sbom(
+    mission_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Export a signed CycloneDX 1.5 JSON SBOM for a mission."""
+    import orchestrator.main as _main
+
+    from ..deploy_exporter import generate_cyclonedx_sbom
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+
+    raw_meta = mission.get("metadata")
+    metadata = raw_meta if isinstance(raw_meta, dict) else {}
+    gen_raw = metadata.get("generated_output")
+    generated_output = dict(gen_raw) if isinstance(gen_raw, dict) else {}
+    if not generated_output.get("code"):
+        records = await asyncio.to_thread(
+            storage.list_build_artifacts,
+            app.state.settings,
+            mission_id,
+            25,
+        )
+        code_record = next(
+            (
+                r
+                for r in records
+                if str(r.get("artifact_type") or "").strip().lower() == "generated_code"
+                and r.get("artifact_text")
+            ),
+            records[0] if records else None,
+        )
+        if code_record:
+            generated_output = {
+                **generated_output,
+                "code": str(code_record.get("artifact_text") or ""),
+                "language": str(
+                    code_record.get("language")
+                    or mission.get("requested_target_language")
+                    or "python"
+                ),
+                "filename": str(code_record.get("file_path") or "main.py"),
+            }
+
+    dep_inv = metadata.get("dependency_inventory")
+    sbom_delta = metadata.get("sbom_delta")
+    return generate_cyclonedx_sbom(
+        mission_id=mission_id,
+        generated_output=generated_output,
+        dependency_inventory=dep_inv if isinstance(dep_inv, dict) else None,
+        sbom_delta=sbom_delta if isinstance(sbom_delta, dict) else None,
+    )
+
+

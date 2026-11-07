@@ -688,16 +688,31 @@ class _TypedLanguageExtractor(LanguageExtractor):
     """LanguageExtractor subclass that enriches detected functions with declared types and ops."""
 
     def _detect_functions(self, source: str, lines: list[str]) -> list[FunctionInfo]:
-        base_fns = super()._detect_functions(source, lines)
+        scan_source = source
+        scan_lines = lines
+        try:
+            from .treesitter_extractor import (
+                is_treesitter_enabled,
+                strip_comments_preserving_lines,
+            )
+
+            if is_treesitter_enabled():
+                scan_source = strip_comments_preserving_lines(source, self.language)
+                scan_lines = scan_source.splitlines()
+        except ImportError:
+            pass
+
+        base_fns = super()._detect_functions(scan_source, scan_lines)
         enriched: list[FunctionInfo] = []
         for fn in base_fns:
-            arg_types, return_type = _parse_typed_signature(self.language, fn.signature)
-            side_effects, purity, ops = _analyse_typed_body(source, fn.line)
+            raw_sig = lines[fn.line - 1].strip() if 1 <= fn.line <= len(lines) else fn.signature
+            arg_types, return_type = _parse_typed_signature(self.language, raw_sig)
+            side_effects, purity, ops = _analyse_typed_body(scan_source, fn.line)
             enriched.append(
                 FunctionInfo(
                     name=fn.name,
                     line=fn.line,
-                    signature=fn.signature,
+                    signature=raw_sig,
                     arg_types=arg_types,
                     return_type=return_type,
                     side_effects=side_effects,

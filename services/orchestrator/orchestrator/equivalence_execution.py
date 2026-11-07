@@ -46,10 +46,8 @@ LOGGER = logging.getLogger(__name__)
 
 BEHAVIOURAL_SCHEMA_VERSION = "1.0.0"
 
-# Python only for now, per UPG-51. Extending across the sandbox's other
-# executable languages is a follow-up, not a rewrite: only _build_driver is
-# language-specific.
-SUPPORTED_LANGUAGES = frozenset({"python"})
+# Polyglot direct-call behavioural equivalence across Python, JavaScript, and TypeScript.
+SUPPORTED_LANGUAGES = frozenset({"python", "javascript", "typescript"})
 
 _DEFAULT_IMAGE = "python:3.11-slim"
 _PER_VECTOR_TIMEOUT_SECONDS = 15
@@ -113,10 +111,77 @@ def collect_executable_vectors(
     return collected
 
 
-def _build_driver(
+def _build_js_ts_driver(
     *, artifact_filename: str, fn_name: str, args: dict[str, Any] | list[Any]
 ) -> str:
-    """Return a Python driver that imports the artifact and calls one function.
+    """Return a JavaScript/TypeScript driver that imports the artifact and calls one function."""
+    payload = json.dumps(json.dumps(args))
+    target_path = json.dumps(f"/workspace/{artifact_filename}")
+    fn_literal = json.dumps(fn_name)
+    return f"""\
+const _ARGS = JSON.parse({payload});
+const _TARGET_PATH = {target_path};
+const _FN_NAME = {fn_literal};
+
+async function _main() {{
+  let mod;
+  try {{
+    mod = await import("file://" + _TARGET_PATH);
+  }} catch (err) {{
+    return {{ status: "import_error", error: String(err && err.message ? err.message : err) }};
+  }}
+  const target = (mod && mod[_FN_NAME]) || (mod && mod.default && mod.default[_FN_NAME]);
+  if (typeof target !== "function") {{
+    return {{ status: "missing_function", error: _FN_NAME }};
+  }}
+  const argList = Array.isArray(_ARGS) ? _ARGS : Object.values(_ARGS || {{}});
+  try {{
+    const result = await target(...argList);
+    return {{ status: "ok", result: result, result_type: typeof result }};
+  }} catch (err) {{
+    return {{
+      status: "raised",
+      error: String(err && err.message ? err.message : err),
+      traceback: String(err && err.stack ? err.stack : "").slice(-800),
+    }};
+  }}
+}}
+
+_main().then((verdict) => {{
+  console.log("__EQV__" + JSON.stringify(verdict));
+}});
+"""
+
+
+def _driver_spec_for_language(language: str) -> tuple[str, str, str]:
+    """Return (driver_filename, base_image, command) for direct-call equivalence."""
+    normalized = _normalise_language(language)
+    if normalized in {"javascript", "typescript"}:
+        from .rqca_agent import _LANGUAGE_RUNTIMES
+
+        runtime = _LANGUAGE_RUNTIMES.get(normalized, {})
+        base_image = str(runtime.get("base_image") or "node:20-slim")
+        driver_filename = (
+            "__equivalence_driver__.ts"
+            if normalized == "typescript"
+            else "__equivalence_driver__.mjs"
+        )
+        run_cmd = str(runtime.get("run_command") or "node /workspace/{filename}").format(
+            filename=driver_filename,
+            stem=Path(driver_filename).stem,
+        )
+        return driver_filename, base_image, run_cmd
+    return _DRIVER_FILENAME, _DEFAULT_IMAGE, f"python /workspace/{_DRIVER_FILENAME}"
+
+
+def _build_driver(
+    *,
+    artifact_filename: str,
+    fn_name: str,
+    args: dict[str, Any] | list[Any],
+    language: str = "python",
+) -> str:
+    """Return a language driver that imports the artifact and calls one function.
 
     The driver is written into the read-only workspace alongside the artifact
     and prints a single JSON line, so the harness never has to parse arbitrary
@@ -126,6 +191,10 @@ def _build_driver(
     rather than interpolated as source, so a hostile value cannot escape into
     executable code inside the sandbox.
     """
+    if _normalise_language(language) in {"javascript", "typescript"}:
+        return _build_js_ts_driver(
+            artifact_filename=artifact_filename, fn_name=fn_name, args=args
+        )
     module_name = Path(artifact_filename).stem
     payload = json.dumps(json.dumps(args))  # double-encoded: a safe str literal
     return f'''\
@@ -272,6 +341,8 @@ async def run_behavioural_equivalence(
     findings: list[str] = []
     results: list[dict[str, Any]] = []
 
+    driver_filename, driver_image, driver_command = _driver_spec_for_language(normalized)
+
     for vector in vectors:
         try:
             with tempfile.TemporaryDirectory(
@@ -279,19 +350,20 @@ async def run_behavioural_equivalence(
             ) as tmpdir:
                 workspace = Path(tmpdir)
                 (workspace / artifact_filename).write_text(artifact_code, encoding="utf-8")
-                (workspace / _DRIVER_FILENAME).write_text(
+                (workspace / driver_filename).write_text(
                     _build_driver(
                         artifact_filename=artifact_filename,
                         fn_name=vector["fn_name"],
                         args=vector["args"],
+                        language=normalized,
                     ),
                     encoding="utf-8",
                 )
                 sandbox_result = await run_in_sandbox(
                     docker_bin=docker_bin,
                     workspace_dir=tmpdir,
-                    base_image=_DEFAULT_IMAGE,
-                    command=f"python /workspace/{_DRIVER_FILENAME}",
+                    base_image=driver_image,
+                    command=driver_command,
                     timeout_seconds=_PER_VECTOR_TIMEOUT_SECONDS,
                     memory_mb=_PER_VECTOR_MEMORY_MB,
                 )
@@ -449,10 +521,12 @@ async def _run_one_contract_vector(
     run_command: str,
     runtime_image: str,
     docker_bin: str,
+    language: str = "python",
 ) -> tuple[str, str]:
     from .contract_oracle import cli_command
 
     kind = vector.get("kind")
+    driver_filename, driver_image, driver_command = _driver_spec_for_language(language)
     with tempfile.TemporaryDirectory(
         prefix=f"hgr-cqv-{mission_id[:8]}-", dir=workspace_root()
     ) as tmpdir:
@@ -460,19 +534,25 @@ async def _run_one_contract_vector(
         (workspace / artifact_filename).write_text(primary, encoding="utf-8")
         for name, body in siblings.items():
             safe = Path(name).name
-            if safe and safe not in {artifact_filename, _DRIVER_FILENAME, _STDIN_FILENAME}:
+            if safe and safe not in {
+                artifact_filename,
+                _DRIVER_FILENAME,
+                driver_filename,
+                _STDIN_FILENAME,
+            }:
                 (workspace / safe).write_text(body, encoding="utf-8")
         if kind == "call":
-            (workspace / _DRIVER_FILENAME).write_text(
+            (workspace / driver_filename).write_text(
                 _build_driver(
                     artifact_filename=artifact_filename,
                     fn_name=str(vector["function"]),
                     args=list(vector["args"]),
+                    language=language,
                 ),
                 encoding="utf-8",
             )
-            command = f"python /workspace/{_DRIVER_FILENAME}"
-            image, timeout, memory = _DEFAULT_IMAGE, _PER_VECTOR_TIMEOUT_SECONDS, _PER_VECTOR_MEMORY_MB
+            command = driver_command
+            image, timeout, memory = driver_image, _PER_VECTOR_TIMEOUT_SECONDS, _PER_VECTOR_MEMORY_MB
         else:
             stdin_path = None
             if vector.get("stdin"):
@@ -577,6 +657,7 @@ async def run_contract_equivalence(
                     run_command=run_command,
                     runtime_image=str(runtime["base_image"]),
                     docker_bin=docker_bin,
+                    language=normalized,
                 )
             except Exception as exc:  # noqa: BLE001 - harness must never raise
                 LOGGER.warning("contract vector execution error: %s", type(exc).__name__)

@@ -42,7 +42,7 @@ VECTOR_KINDS = frozenset({"call", "cli"})
 STDOUT_MATCH_MODES = frozenset({"exact", "contains", "json"})
 
 #: Languages whose functions the call driver can import and invoke directly.
-CALL_LANGUAGES = frozenset({"python"})
+CALL_LANGUAGES = frozenset({"python", "javascript", "typescript"})
 
 
 def _dict(value: Any) -> dict[str, Any]:
@@ -115,12 +115,81 @@ def _python_functions(code: str) -> list[dict[str, Any]]:
     return functions[:20]
 
 
+_JS_TS_FUNC_RE = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:default\s+)?function\s+([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;\n]+))?",
+    re.MULTILINE,
+)
+_JS_TS_ARROW_RE = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^=;\n]+))?\s*=>",
+    re.MULTILINE,
+)
+
+
+def _js_ts_functions(code: str) -> list[dict[str, Any]]:
+    """Extract top-level JS/TS function signatures without exposing function bodies."""
+    if not isinstance(code, str) or not code.strip():
+        return []
+    functions: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+
+    for pattern in (_JS_TS_FUNC_RE, _JS_TS_ARROW_RE):
+        for match in pattern.finditer(code):
+            prefix_slice = code[max(0, match.start() - 32) : match.end()]
+            if re.search(r"\basync\b", prefix_slice):
+                continue
+            name = match.group(1).strip()
+            if not name or name.startswith("_") or name == "main" or name in seen_names:
+                continue
+            raw_params = match.group(2).strip()
+            raw_returns = (match.group(3) or "").strip() or None
+            params: list[dict[str, Any]] = []
+            unsupported = False
+            if raw_params:
+                for part in raw_params.split(","):
+                    token = part.strip()
+                    if not token:
+                        continue
+                    if token.startswith("...") or "=" in token or "{" in token or "[" in token:
+                        unsupported = True
+                        break
+                    if ":" in token:
+                        p_name, p_type = token.split(":", 1)
+                        p_name = p_name.strip().rstrip("?")
+                        p_type_clean = p_type.strip() or None
+                    else:
+                        p_name = token.rstrip("?")
+                        p_type_clean = None
+                    if not re.match(r"^[A-Za-z_$][\w$]*$", p_name):
+                        unsupported = True
+                        break
+                    params.append({"name": p_name, "annotation": p_type_clean})
+            if unsupported:
+                continue
+            seen_names.add(name)
+            functions.append(
+                {
+                    "name": name,
+                    "params": params,
+                    "returns": raw_returns,
+                    "summary": "",
+                }
+            )
+            if len(functions) >= 20:
+                return functions
+    return functions
+
+
 def interface_for_oracle(
     *, language: str, code: str, generated_output: dict[str, Any], artifact_kind: str
 ) -> dict[str, Any]:
     """Describe how the artifact can be exercised without revealing how it works."""
     normalized = str(language or "").strip().lower()
-    functions = _python_functions(code) if normalized in CALL_LANGUAGES else []
+    if normalized == "python":
+        functions = _python_functions(code)
+    elif normalized in {"javascript", "typescript"}:
+        functions = _js_ts_functions(code)
+    else:
+        functions = []
     usage = str(generated_output.get("usage_example") or "").strip()[:300]
     return {
         "language": normalized,

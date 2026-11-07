@@ -4342,6 +4342,98 @@
         "summary": "Export Mission Helm Chart"
       }
     },
+    "/missions/{mission_id}/export/patch": {
+      "get": {
+        "description": "Export a unified Git diff patch comparing source_code and generated_output.",
+        "operationId": "export_mission_patch_missions__mission_id__export_patch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "raw",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Export Mission Patch Missions  Mission Id  Export Patch Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Mission Patch"
+      }
+    },
+    "/missions/{mission_id}/export/sbom": {
+      "get": {
+        "description": "Export a signed CycloneDX 1.5 JSON SBOM for a mission.",
+        "operationId": "export_mission_sbom_missions__mission_id__export_sbom_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Mission Sbom Missions  Mission Id  Export Sbom Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Mission Sbom"
+      }
+    },
     "/missions/{mission_id}/runtime-qc": {
       "get": {
         "operationId": "get_public_runtime_qc_missions__mission_id__runtime_qc_get",
