@@ -3,17 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { NAV_GROUPS } from "../lib/navigation";
+import { NAV_GROUPS, isNavItemActive } from "../lib/navigation";
 
 export function ShellNav() {
   const pathname = usePathname();
-
-  function isActive(href: string): boolean {
-    if (href === "/") return pathname === "/";
-    // Match the nav item when we're on the item's page or any sub-page
-    // (e.g. /missions/[id] should highlight the Missions nav item).
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
 
   return (
     <nav aria-label="Primary">
@@ -27,7 +20,7 @@ export function ShellNav() {
           </span>
           <ul className="shell-nav-list">
             {group.items.map((item) => {
-              const active = isActive(item.href);
+              const active = isNavItemActive(pathname, item.href);
               return (
                 <li key={item.href}>
                   <Link

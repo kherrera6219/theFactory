@@ -25,7 +25,7 @@ import {
 } from "../../../lib/api-client";
 import { Tooltip } from "../../../components/tooltip";
 import { GLOSSARY } from "../../../lib/glossary";
-import { humanizeState, normalizeState } from "../../../lib/format";
+import { humanizeState, isTerminalState, normalizeState } from "../../../lib/format";
 import { operatorRecoveryMessage } from "../../../lib/operator-auth-error";
 import {
   deriveMissionPhaseDescriptor,
@@ -180,11 +180,13 @@ function MissionDetailPageContent() {
     void loadDetails();
   }, [missionId, loadDetails]);
 
+  const isTerminal = isTerminalState(mission?.state);
+
   useEffect(() => {
     if (!missionId) {
       return;
     }
-    if (pausedMonitor) {
+    if (pausedMonitor || isTerminal) {
       setTransportMode("paused");
       return;
     }
@@ -259,7 +261,7 @@ function MissionDetailPageContent() {
         closeFallback();
       }
     };
-  }, [missionId, pausedMonitor, loadDetails]);
+  }, [missionId, pausedMonitor, isTerminal, loadDetails]);
 
   const verifiedCount = useMemo(
     () =>
@@ -423,21 +425,36 @@ function MissionDetailPageContent() {
     }
   }
 
-  async function pauseMonitor() {
-    if (pausedMonitor) {
-      setPausedMonitor(false);
-      return;
-    }
-    const confirmed = await confirm({
-      title: "Pause Monitoring?",
-      message: "Pause monitoring? The current backend does not support mission PAUSED state yet. This will freeze UI refresh until resumed.",
-      confirmText: "Pause",
-      cancelText: "Cancel",
-    });
-    if (confirmed) {
-      setPausedMonitor(true);
-    }
+  function pauseMonitor() {
+    setPausedMonitor((prev) => !prev);
   }
+
+  const activePhaseElapsedLabel = useMemo(() => {
+    if (isTerminal) return null;
+    const latestTs =
+      (chainTrace?.events && chainTrace.events.length > 0
+        ? chainTrace.events[chainTrace.events.length - 1]?.ts
+        : null) ??
+      (events.length > 0 ? events[0]?.ts : null) ??
+      mission?.created_at ??
+      null;
+    if (!latestTs) return null;
+    const parsed = new Date(latestTs).getTime();
+    if (Number.isNaN(parsed)) return null;
+    const seconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${seconds % 60}s`;
+  }, [chainTrace?.events, events, isTerminal, mission?.created_at]);
+
+  const hasDependencyArtifacts = Boolean(
+    dependencyInventory || dependencyClassificationReport || dependencyAbsorptionReport,
+  );
+  const hasAimArtifact = Boolean(applicationIntelligenceMap);
+  const hasFusionArtifact = Boolean(masterLogicStream);
+  const hasKnowledgeArtifact = Boolean(fetchResult);
+  const hasSkippedOptionalStages =
+    !hasAimArtifact || !hasDependencyArtifacts || !hasFusionArtifact || !hasKnowledgeArtifact;
 
   return (
     <div className="page shell-page">
@@ -538,10 +555,29 @@ function MissionDetailPageContent() {
                 Continue with PM
               </Link>
             )}
-            <button type="button" className="secondary-button" onClick={pauseMonitor}>
-              {pausedMonitor ? "Resume Monitor" : "Pause Monitor"}
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={isTerminal}
+              title={
+                isTerminal
+                  ? "Live stream automatically stopped in terminal state"
+                  : "Toggle live refresh without affecting backend execution"
+              }
+              onClick={pauseMonitor}
+            >
+              {isTerminal
+                ? "Stream Closed"
+                : pausedMonitor
+                  ? "Resume Monitor"
+                  : "Pause Monitor"}
             </button>
-            <button type="button" className="danger-button" onClick={() => void cancelMission()}>
+            <button
+              type="button"
+              className="danger-button"
+              disabled={isTerminal}
+              onClick={() => void cancelMission()}
+            >
               Cancel Mission
             </button>
           </div>
@@ -647,6 +683,11 @@ function MissionDetailPageContent() {
                 ) : (
                   <span className="phase-name">{phase}</span>
                 )}
+                {active && activePhaseElapsedLabel && (
+                  <span className="phase-elapsed-badge" title="Elapsed time in current phase">
+                    {activePhaseElapsedLabel}
+                  </span>
+                )}
               </li>
             );
           })}
@@ -699,7 +740,7 @@ function MissionDetailPageContent() {
         </ErrorBoundary>
       </div>
 
-      {/* Artifacts tab — generated output, build artifacts, audit evidence, quality reports */}
+      {/* Artifacts tab — generated output, build artifacts, quality gates, and optional/brownfield stages */}
       <div
         id="tab-panel-artifacts"
         role="tabpanel"
@@ -709,14 +750,43 @@ function MissionDetailPageContent() {
       >
         <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
         <ErrorBoundary><DeliveryPanel missionId={missionId} buildArtifacts={buildArtifacts} /></ErrorBoundary>
-        <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
-        <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap} /></ErrorBoundary>
-        <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
-        <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
+        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} deltaAuditGate={(mission?.metadata as Record<string, unknown> | undefined)?.delta_audit_gate ?? null} /></ErrorBoundary>
         <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
         <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport} /></ErrorBoundary>
-        <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
-        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} deltaAuditGate={(mission?.metadata as Record<string, unknown> | undefined)?.delta_audit_gate ?? null} /></ErrorBoundary>
+        <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
+        {hasDependencyArtifacts && (
+          <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
+        )}
+        {hasAimArtifact && (
+          <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap} /></ErrorBoundary>
+        )}
+        {hasFusionArtifact && (
+          <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
+        )}
+        {hasKnowledgeArtifact && (
+          <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
+        )}
+        {hasSkippedOptionalStages && (
+          <details className="skipped-stages-drawer">
+            <summary className="skipped-stages-summary">
+              Optional / Skipped Pipeline Stages (Brownfield AIM, Dependency Absorption, Multi-Pod Fusion, Knowledge Lake)
+            </summary>
+            <div className="skipped-stages-grid">
+              {!hasAimArtifact && (
+                <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap} /></ErrorBoundary>
+              )}
+              {!hasDependencyArtifacts && (
+                <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
+              )}
+              {!hasFusionArtifact && (
+                <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
+              )}
+              {!hasKnowledgeArtifact && (
+                <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
+              )}
+            </div>
+          </details>
+        )}
       </div>
 
       {/* Contracts tab — planning artifacts and specifications */}

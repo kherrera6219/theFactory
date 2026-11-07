@@ -10,6 +10,12 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 7 (8-Phase Master Review & Upgrade Plan) — Mission Detail Taming, Terminal-State Stream Stop & Navigation Cleanup.**
+- **Mission Detail Stream Lifecycle & Prioritized Panels (`apps/mission-control/app/(shell)/missions/detail/page.tsx`, `globals.css`):** Closed SSE `EventSource` and polling intervals automatically when `isTerminalState(mission?.state)` is true, replaced the blocking confirmation modal on `Pause Monitor` with a direct toggle, added `.phase-elapsed-badge` on the active Phase Stepper item, promoted `RuntimeQcPanel`, `EquivalenceReportPanel`, and `SecurityCompliancePanel` to the top of the Artifacts tab, and collapsed unpopulated optional/brownfield panels into `.skipped-stages-drawer`.
+- **Navigation Longest-Prefix Matching (`apps/mission-control/app/lib/navigation.ts`, `navigation.test.ts`, `shell-nav.tsx`):** Added `isNavItemActive` so `/missions/history` highlights only `Mission History` while `/missions/detail` and `/missions/output` highlight `Missions`.
+- **Verification:** `npm run lint` (`tsc --noEmit`) clean, `navigation.test.ts` (2/2 passed), `scripts/validate_documentation.py` passed.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 8: Polyglot Behavioral Equivalence, `tree-sitter` AST & Signed SBOM/Patch Export**.
+
 **COMPLETE — 2026-11-06: Phase 6 (8-Phase Master Review & Upgrade Plan) — Multi-File IDE Workspace & File-Tab Diff Viewer.**
 - **Multi-File Bundle Parser & LCS Diff (`apps/mission-control/app/lib/file-tree.ts`, `file-tree.test.ts`):** Implemented `parseMultiFileBundle`, `sanitizeVirtualPath`, and `computeLineDiff` (4/4 Vitest unit tests passing).
 - **IDE Output Workspace (`useArtifactData.ts`, `FileTreePane.tsx`, `CodeViewerPane.tsx`, `OutputHeader.tsx`, `output/page.tsx`, `GeneratedOutputPanel.tsx`):** Hydrated full `artifact_text` when omitted from summary list, added multi-file sidebar tree and file-tab navigation, added **Code / Diff vs Source** toggle for brownfield missions, added **Download ZIP** (`?format=zip`), and replaced `window.alert` with `SystemMessage`.

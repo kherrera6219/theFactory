@@ -3473,3 +3473,41 @@ dd {
   }
 }
 
+/* Phase 7 — Active Phase Elapsed Badge & Collapsible Skipped Stages Drawer */
+.phase-elapsed-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--accent, #6366f1);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.skipped-stages-drawer {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.02));
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.skipped-stages-summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  user-select: none;
+}
+
+.skipped-stages-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+

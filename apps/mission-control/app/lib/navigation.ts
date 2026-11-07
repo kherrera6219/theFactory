@@ -50,3 +50,34 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Flat list derived from NAV_GROUPS — use for active-path matching and any
  *  code that iterates all nav items without needing group context. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
+
+/**
+ * Determine whether a navigation item should be highlighted for the given
+ * pathname using longest-prefix matching across all nav items so nested routes
+ * like `/missions/history` do not simultaneously highlight `/missions`.
+ */
+export function isNavItemActive(
+  pathname: string,
+  href: string,
+  items: NavItem[] = NAV_ITEMS,
+): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  const matches = (candidateHref: string) =>
+    candidateHref !== "/" &&
+    (pathname === candidateHref || pathname.startsWith(`${candidateHref}/`));
+
+  if (!matches(href)) {
+    return false;
+  }
+
+  let longestMatchLength = href.length;
+  for (const item of items) {
+    if (matches(item.href) && item.href.length > longestMatchLength) {
+      longestMatchLength = item.href.length;
+    }
+  }
+  return href.length === longestMatchLength;
+}
+
