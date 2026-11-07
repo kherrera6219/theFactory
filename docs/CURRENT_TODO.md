@@ -13,6 +13,11 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-06: Phase 4 (Master Review Plan) — Surgical File-Level Self-Repair & Multi-Turn Runtime QC.**
+- **Surgical File-Level Repair Engine (`services/orchestrator/orchestrator/rqca_repair.py`):** Implemented `extract_failing_files`, `build_surgical_repair_context` (prioritizing failing files first up to 32,000 chars and attaching `file_tree_manifest` + `failing_files`), `merge_repaired_files` (in-place multi-file tree replacement preserving untouched files), and `is_duplicate_error_signature` (normalizing memory addresses and `/tmp` paths).
+- **Multi-Turn Runtime QC Loop (`mission_flow_v2/phases_runtime.py`, `llm_delegation/prompts.py`):** Upgraded `_prepare_runtime_qc` to execute bounded multi-turn self-repair (`runtime_qc_max_repair_attempts`, default 2), breaking early on `PASS`, `duplicate_error_signature`, or `llm_unavailable`.
+- **Next Up:** Phase 5 (Split-Screen PM Studio, Interactive Clarification & Full SOW Editor), followed by Phases 6–8.
+
 **COMPLETE — 2026-11-06: Phase 3 (Master Review Plan) — Fast-Path Agent Routing & Verification/Support Ring Upgrades.**
 - **Fast-Path Single-Language SOW Routing (`generators.py`, `phases_build.py`):** Added `_can_use_sow_fast_path` to short-circuit `generate_pod_manager_delegation` (`source="sow_locked"`, `llm_route="fast_path_sow"`) when an operator-approved SOW locks a single known target language on `BUILD_NEW`, eliminating redundant LLM routing latency unless `FORCE_LLM_DELEGATION_ROUTING=true`.
 - **Contract-Driven `AGENT-40-TESTDATA` (`testdata_agent.py`):** Upgraded `generate_testdata_manifest` with `_synthesize_contract_inputs` to extract domain formats (CSV, JSON, generic), numeric bounds, and CLI flags from `mission_contract` and synthesize 4 structured test categories (`nominal`, `boundary`, `empty_null`, `malformed_adversarial`).

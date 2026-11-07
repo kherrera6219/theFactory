@@ -595,16 +595,30 @@ def _build_codegen_prompt(
     repair_ctx = mission_context.get("runtime_qc_repair_context")
     repair_block = ""
     if isinstance(repair_ctx, dict) and repair_ctx:
-        repair_stderr = str(repair_ctx.get("stderr_preview") or "")[:2000]
-        repair_stdout = str(repair_ctx.get("stdout_preview") or "")[:1000]
+        repair_stderr = str(repair_ctx.get("stderr_preview") or "")[:4000]
+        repair_stdout = str(repair_ctx.get("stdout_preview") or "")[:2000]
         repair_cmd = str(repair_ctx.get("command") or "")
         repair_exit = repair_ctx.get("exit_code")
-        repair_prev = str(repair_ctx.get("previous_code") or "")[:8000]
+        repair_prev = str(repair_ctx.get("previous_code") or "")[:32000]
+        repair_attempt = repair_ctx.get("attempt", 1)
+        repair_max = repair_ctx.get("max_attempts", 2)
+        failing_files = repair_ctx.get("failing_files") or []
+        tree_manifest = repair_ctx.get("file_tree_manifest") or []
+        prev_errors = repair_ctx.get("previous_errors") or []
+        extra_meta = ""
+        if failing_files:
+            extra_meta += f"- Failing files identified in traceback: {', '.join(str(f) for f in failing_files)}\n"
+        if tree_manifest:
+            extra_meta += f"- Project file tree manifest: {', '.join(str(f) for f in tree_manifest)}\n"
+        if prev_errors:
+            extra_meta += f"- Prior attempt error summary: {'; '.join(str(e)[:240] for e in prev_errors)}\n"
         repair_block = (
-            "\nRuntime QC Self-Repair Context (your previous generated code failed sandbox execution; "
-            "fix the compiler/test/runtime failure while preserving all working functionality):\n"
+            f"\nRuntime QC Self-Repair Context (Attempt {repair_attempt}/{repair_max} — your previous "
+            "generated code failed sandbox execution; fix the compiler/test/runtime failure while "
+            "preserving all working functionality and untouched files):\n"
             f"- Command: {repair_cmd}\n"
             f"- Exit code: {repair_exit}\n"
+            f"{extra_meta}"
             f"- Stderr: {repair_stderr}\n"
             f"- Stdout: {repair_stdout}\n"
             f"- Previous code:\n{repair_prev}\n\n"

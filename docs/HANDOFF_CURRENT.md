@@ -10,6 +10,12 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 4 (8-Phase Master Review & Upgrade Plan) — Surgical File-Level Self-Repair & Multi-Turn Runtime QC.**
+- **Surgical File-Level Repair (`services/orchestrator/orchestrator/rqca_repair.py`):** Created `extract_failing_files`, `build_surgical_repair_context` (preserving up to 32,000 chars with failing files prioritized first + `file_tree_manifest`), `merge_repaired_files` (merging partial or full `## FILE` repairs into the original tree without dropping untouched files), and `is_duplicate_error_signature`.
+- **Multi-Turn Runtime QC (`services/orchestrator/orchestrator/mission_flow_v2/phases_runtime.py`, `llm_delegation/prompts.py`):** Upgraded `_prepare_runtime_qc` to run bounded multi-turn self-repair (`runtime_qc_max_repair_attempts`, default 2) with duplicate error signature circuit breaking.
+- **Verification:** `tests/services/test_rqca_repair_unit.py` + `tests/services/test_runtime_qc_unit.py` (91/91 passed), `scripts/validate_documentation.py` passed, `ruff` clean.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 5: Split-Screen PM Studio, Interactive Clarification & Full SOW Editor**.
+
 **COMPLETE — 2026-11-06: Phase 3 (8-Phase Master Review & Upgrade Plan) — Fast-Path Agent Routing & Verification/Support Ring Upgrades.**
 - **Fast-Path Single-Language SOW Routing (`services/orchestrator/orchestrator/llm_delegation/generators.py`, `mission_flow_v2/phases_build.py`):** Added `_can_use_sow_fast_path` to short-circuit `generate_pod_manager_delegation` (`source="sow_locked"`, `llm_route="fast_path_sow"`) when an approved SOW locks a single known target language on `BUILD_NEW`.
 - **Contract-Driven `AGENT-40-TESTDATA` (`services/orchestrator/orchestrator/testdata_agent.py`):** Implemented `_synthesize_contract_inputs` generating 4 structured test categories (`nominal`, `boundary`, `empty_null`, `malformed_adversarial`) with extracted CLI flags and numeric bounds.

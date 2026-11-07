@@ -562,44 +562,88 @@ async def _prepare_runtime_qc(
         and isinstance(generated_output, dict)
         and str(generated_output.get("generated_code") or "").strip()
     ):
+        from ..file_tree import parse_file_tree
+        from ..rqca_repair import (
+            build_surgical_repair_context,
+            is_duplicate_error_signature,
+            merge_repaired_files,
+        )
+
         metadata["runtime_qc_repair_attempted"] = True
         specialist_agent_id = _validate_agent_id(
             metadata.get("assigned_specialist_agent_id"),
             fallback=resolve_specialist_agent_id(target_language),
         )
-        repair_context = {
-            "exit_code": execution.get("exit_code"),
-            "stderr_preview": str(execution.get("stderr_preview") or "")[:2000],
-            "stdout_preview": str(execution.get("stdout_preview") or "")[:1000],
-            "command": execution.get("command"),
-            "previous_code": str(generated_output.get("generated_code") or "")[:8000],
-        }
-        try:
-            repaired_output = await _pkg().generate_code_from_contract(
-                mission_context={
-                    **_mission_context(mission, metadata),
-                    "feature_contract": metadata.get("feature_contract"),
-                    "specialist_plan": metadata.get("specialist_plan"),
-                    "runtime_qc_repair_context": repair_context,
-                },
-                specialist_agent_id=specialist_agent_id,
-                mission_contract=metadata.get("mission_contract")
-                if isinstance(metadata.get("mission_contract"), dict)
-                else {},
-                logicnodes=[],
-                target_language=target_language,
-            )
-        except Exception as exc:
-            LOGGER.warning("runtime QC self-repair failed for %s: %s", mission.mission_id, exc)
-            repaired_output = None
+        max_attempts = max(1, int(getattr(settings, "runtime_qc_max_repair_attempts", 2) or 2))
+        seen_signatures: list[str] = []
+        previous_errors: list[str] = []
+        repair_attempts_run = 0
+        repair_stop_reason = ""
 
-        if (
-            isinstance(repaired_output, dict)
-            and str(repaired_output.get("generated_code") or "").strip()
-            and repaired_output.get("source") == "llm"
-        ):
+        _, initial_sig = is_duplicate_error_signature(
+            str(execution.get("stderr_preview") or ""),
+            str(execution.get("stdout_preview") or ""),
+            seen_signatures,
+            exit_code=execution.get("exit_code"),
+        )
+        seen_signatures.append(initial_sig)
+
+        for attempt in range(1, max_attempts + 1):
+            current_code = str(generated_output.get("generated_code") or "")
+            repair_context = build_surgical_repair_context(
+                execution=execution,
+                generated_code=current_code,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                previous_errors=previous_errors,
+            )
+            previous_errors.append(str(execution.get("stderr_preview") or "")[:300])
+            try:
+                repaired_output = await _pkg().generate_code_from_contract(
+                    mission_context={
+                        **_mission_context(mission, metadata),
+                        "feature_contract": metadata.get("feature_contract"),
+                        "specialist_plan": metadata.get("specialist_plan"),
+                        "runtime_qc_repair_context": repair_context,
+                    },
+                    specialist_agent_id=specialist_agent_id,
+                    mission_contract=metadata.get("mission_contract")
+                    if isinstance(metadata.get("mission_contract"), dict)
+                    else {},
+                    logicnodes=[],
+                    target_language=target_language,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "runtime QC self-repair attempt %d failed for %s: %s",
+                    attempt,
+                    mission.mission_id,
+                    exc,
+                )
+                repaired_output = None
+
+            if not (
+                isinstance(repaired_output, dict)
+                and str(repaired_output.get("generated_code") or "").strip()
+                and repaired_output.get("source") == "llm"
+            ):
+                repair_stop_reason = "llm_unavailable"
+                break
+
+            repair_attempts_run = attempt
+            merged_code = merge_repaired_files(
+                current_code,
+                str(repaired_output.get("generated_code") or ""),
+            )
+            repaired_output = dict(repaired_output)
+            repaired_output["generated_code"] = merged_code
+            parsed_tree = parse_file_tree(merged_code)
+            if parsed_tree:
+                repaired_output["files"] = [{"path": item["path"]} for item in parsed_tree]
+                repaired_output["file_count"] = len(parsed_tree)
             generated_output = repaired_output
             metadata["generated_output"] = repaired_output
+
             execution = await run_runtime_qc(
                 mission_id=mission.mission_id,
                 generated_output=generated_output,
@@ -610,10 +654,32 @@ async def _prepare_runtime_qc(
                 language=target_language,
                 settings=settings,
             )
+            if execution.get("verdict") == "PASS":
+                repair_stop_reason = "passed"
+                break
+            if execution.get("verdict") != "FAIL":
+                repair_stop_reason = str(execution.get("verdict") or "non_fail").lower()
+                break
+
+            is_dup, next_sig = is_duplicate_error_signature(
+                str(execution.get("stderr_preview") or ""),
+                str(execution.get("stdout_preview") or ""),
+                seen_signatures,
+                exit_code=execution.get("exit_code"),
+            )
+            seen_signatures.append(next_sig)
+            if is_dup:
+                repair_stop_reason = "duplicate_error_signature"
+                break
+
+        metadata["runtime_qc_repair_attempts"] = repair_attempts_run
+        if repair_attempts_run > 0:
             execution = {
                 **execution,
                 "repair_attempted": True,
+                "repair_attempts": repair_attempts_run,
                 "repair_succeeded": execution.get("verdict") == "PASS",
+                "repair_stop_reason": repair_stop_reason or "max_attempts_reached",
             }
             append_chain_event(
                 metadata,
@@ -621,6 +687,8 @@ async def _prepare_runtime_qc(
                 agent_id=specialist_agent_id,
                 details={
                     "repair_succeeded": execution.get("verdict") == "PASS",
+                    "repair_attempts": repair_attempts_run,
+                    "repair_stop_reason": execution.get("repair_stop_reason"),
                     "execution_verdict": execution.get("verdict"),
                 },
             )
@@ -628,7 +696,9 @@ async def _prepare_runtime_qc(
             execution = {
                 **execution,
                 "repair_attempted": True,
+                "repair_attempts": 0,
                 "repair_succeeded": False,
+                "repair_stop_reason": repair_stop_reason or "llm_unavailable",
             }
 
     qc_assessment = await generate_rqca_assessment(
