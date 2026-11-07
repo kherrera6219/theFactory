@@ -19,30 +19,37 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 type ModelOption = {
   label: string;
   provider: "openai" | "anthropic" | "gemini";
-  model: "gpt-5.6" | "claude-opus-4-8" | "gemini-3.8-flash";
+  model:
+    | "gpt-6.1-terrea"
+    | "gpt-5.6"
+    | "claude-ops-5.5"
+    | "claude-opus-5.5"
+    | "claude-opus-4-8"
+    | "gemini-4-argon"
+    | "gemini-3.8-flash";
   endpoint: string;
   effort: "high";
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
   {
-    label: "Gemini 3.8 Flash",
+    label: "Gemini 4 Argon",
     provider: "gemini",
-    model: "gemini-3.8-flash",
-    endpoint: "POST /v1beta/models/gemini-3.8-flash:generateContent",
+    model: "gemini-4-argon",
+    endpoint: "POST /v1beta/models/gemini-4-argon:generateContent",
     effort: "high",
   },
   {
-    label: "ChatGPT 5.6",
+    label: "ChatGPT 6.1 Terrea",
     provider: "openai",
-    model: "gpt-5.6",
+    model: "gpt-6.1-terrea",
     endpoint: "POST /v1/responses",
     effort: "high",
   },
   {
-    label: "Claude Opus 4.8",
+    label: "Claude Ops 5.5",
     provider: "anthropic",
-    model: "claude-opus-4-8",
+    model: "claude-ops-5.5",
     endpoint: "POST /v1/messages",
     effort: "high",
   },

@@ -180,7 +180,7 @@ def test_integration_protocol_topic_store_and_llm_fallback_paths(monkeypatch) ->
     llm = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-XX-UNKNOWN"))
     assert llm["profile"] == "gemini_flash_high"
     assert llm["provider"] == "gemini"
-    assert llm["model"] == "gemini-3.8-flash"
+    assert llm["model"] == "gemini-4-argon"
     assert llm["thinking_level"] == "high"
 
     records = [
@@ -237,11 +237,11 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     # LLM_PROVIDER=gemini keeps the Gemini path; gemini_ops_fast carries an OpenAI
     # fallback, which picks up the configured OPENAI_MODEL.
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.6")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-6.1-terrea")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_ops_fast"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "gemini"
-    assert rec["fallback_model"] == "gpt-5.6"
+    assert rec["fallback_model"] == "gpt-6.1-terrea"
 
     # OPENAI_MODEL is honoured rather than second-guessed. This previously
     # forced gpt-4o whenever the resolved model matched the profile default, so
@@ -254,17 +254,17 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     # An unset OPENAI_MODEL leaves the profile's own model in place.
     monkeypatch.setenv("OPENAI_MODEL", "")
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
-    assert rec["fallback_model"] == "gpt-5.6"
+    assert rec["fallback_model"] == "gpt-6.1-terrea"
 
     # No LLM_PROVIDER + an OpenAI key but no Gemini key auto-selects OpenAI.
     monkeypatch.setenv("LLM_PROVIDER", "")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.6")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-6.1-terrea")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "openai"
-    assert rec["model"] == "gpt-5.6"
+    assert rec["model"] == "gpt-6.1-terrea"
 
     # Auto-detect with a Gemini key present (and no OpenAI key) stays on Gemini.
     monkeypatch.setenv("LLM_PROVIDER", "")
@@ -285,11 +285,11 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     assert rec["provider"] == "gemini"
 
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.8-flash")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-4-argon")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "gemini"
-    assert rec["model"] == "gemini-3.8-flash"
+    assert rec["model"] == "gemini-4-argon"
 
     # Fallback rewrite leaves a non-placeholder OPENAI_MODEL untouched.
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
@@ -323,7 +323,7 @@ def test_llm_recommendation_vault_override_takes_priority_over_env(monkeypatch) 
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
 
     token = cfg.current_vault_secrets.set(
-        {"llm_provider": "anthropic", "llm_model": "claude-opus-4-8"}
+        {"llm_provider": "anthropic", "llm_model": "claude-ops-5.5"}
     )
     try:
         rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
@@ -331,7 +331,7 @@ def test_llm_recommendation_vault_override_takes_priority_over_env(monkeypatch) 
         cfg.current_vault_secrets.reset(token)
 
     assert rec["provider"] == "anthropic"
-    assert rec["model"] == "claude-opus-4-8"
+    assert rec["model"] == "claude-ops-5.5"
     assert rec["profile"] == "vault_override"
     assert "fallback_provider" not in rec
 

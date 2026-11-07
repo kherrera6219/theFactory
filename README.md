@@ -294,9 +294,9 @@ python scripts/manage_topology.py --mode dedicated --dry-run
 theFactory provides seamless provider flexibility with strict data leakage guards:
 
 - **Cloud Multi-Provider**:
-  - **Google Gemini**: Default provider (`gemini-3.8-flash`) with 180s deep synthesis timeout.
-  - **Anthropic Claude**: Full support for `claude-opus-4-8` and `claude-3-7-sonnet`.
-  - **OpenAI GPT**: Support for `gpt-5.6` and `gpt-4o`.
+  - **Google Gemini**: Default provider (`gemini-4-argon`) with 180s deep synthesis timeout.
+  - **Anthropic Claude**: Full support for `claude-ops-5.5` (and legacy `claude-opus-4-8`).
+  - **OpenAI GPT**: Support for `gpt-6.1-terrea` and `gpt-5.6`.
 - **100% Air-Gapped Local LLMs**:
   - Native **Ollama** and **vLLM** integration via `LLM_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://localhost:11434`.
   - Tested with `deepseek-coder:33b`, `qwen2.5-coder:32b`, and `llama3.3:70b`.

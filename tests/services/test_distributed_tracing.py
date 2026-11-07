@@ -48,10 +48,12 @@ SCHEMA_PATH = ROOT / "schemas" / "event.envelope.schema.json"
 
 
 @pytest.fixture(autouse=True)
-def setup_clean_tracer():
+def setup_clean_tracer(monkeypatch):
+    monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(InMemorySpanExporter()))
-    trace.set_tracer_provider(provider)
+    trace._TRACER_PROVIDER = provider
     yield trace.get_tracer("test-distributed-tracer")
     provider.shutdown()
 

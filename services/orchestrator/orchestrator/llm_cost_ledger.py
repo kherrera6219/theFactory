@@ -25,6 +25,7 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
         # PLACEHOLDER RATE — mirrors gpt-5.5 so cost estimates stay populated
         # rather than counting as unknown_pricing. Replace with the published
         # gpt-5.6 rate before running spend against the OpenAI route.
+        "gpt-6.1-terrea": (0.005, 0.015),
         "gpt-5.6": (0.005, 0.015),
         "gpt-5.5": (0.005, 0.015),
         "gpt-5.3-codex": (0.010, 0.030),
@@ -36,6 +37,9 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
         "text-embedding-3-small": (0.00002, 0.0),
     },
     "anthropic": {
+        "claude-ops-5.5": (0.015, 0.075),
+        "claude-opus-5.5": (0.015, 0.075),
+        "claude-opus-4-8": (0.015, 0.075),
         "claude-opus-4-7": (0.015, 0.075),
         "claude-sonnet-4-6": (0.003, 0.015),
         "claude-haiku-4-5": (0.00025, 0.00125),
@@ -43,6 +47,7 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
     "gemini": {
         # Gemini 3.8 Flash: $0.75/$3.75 per 1M through 2026-12-31, then $1.50/$7.50
         # (ai.google.dev/gemini-api/docs/pricing, checked 2026-09-27).
+        "gemini-4-argon": (0.00075, 0.00375),
         "gemini-3.8-flash": (0.00075, 0.00375),
         "gemini-3.7-flash": (0.00075, 0.00375),        # superseded 2026-09-27; kept for recorded events
         "gemini-3.6-flash": (0.00075, 0.00375),        # intro price aligned with 3.7 through 2026-12-31

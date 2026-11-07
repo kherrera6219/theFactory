@@ -7,8 +7,12 @@ import { dirname, join } from "node:path";
 
 type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
 type VaultModel =
+  | "gpt-6.1-terrea"
   | "gpt-5.6"
+  | "claude-ops-5.5"
+  | "claude-opus-5.5"
   | "claude-opus-4-8"
+  | "gemini-4-argon"
   | "gemini-3.8-flash"
   | "gemini-embedding-001"
   | "text-embedding-3-large"
@@ -23,10 +27,13 @@ const SUPERSEDED_GEMINI_MODELS = new Set([
   "gemini-3.5-flash",
   "gemini-3.6-flash",
   "gemini-3.7-flash",
+  "gemini-3.8-flash",
 ]);
-const CURRENT_GEMINI_MODEL: VaultModel = "gemini-3.8-flash";
-const SUPERSEDED_OPENAI_MODELS = new Set(["gpt-5.5"]);
-const CURRENT_OPENAI_MODEL: VaultModel = "gpt-5.6";
+const CURRENT_GEMINI_MODEL: VaultModel = "gemini-4-argon";
+const SUPERSEDED_OPENAI_MODELS = new Set(["gpt-5.5", "gpt-5.6"]);
+const CURRENT_OPENAI_MODEL: VaultModel = "gpt-6.1-terrea";
+const SUPERSEDED_ANTHROPIC_MODELS = new Set(["claude-opus-4-8"]);
+const CURRENT_ANTHROPIC_MODEL: VaultModel = "claude-ops-5.5";
 
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
@@ -124,18 +131,21 @@ function normalizeProvider(value: string): VaultProvider {
 
 function normalizeModel(value: string | undefined, provider: VaultProvider): VaultModel | undefined {
   const candidate = (value ?? "").trim();
-  if (candidate === "gpt-5.6") return "gpt-5.6";
+  if (candidate === "gpt-6.1-terrea") return "gpt-6.1-terrea";
   if (SUPERSEDED_OPENAI_MODELS.has(candidate)) return CURRENT_OPENAI_MODEL;
+  if (candidate === "gpt-5.6") return "gpt-5.6";
+  if (candidate === "claude-ops-5.5") return "claude-ops-5.5";
+  if (candidate === "claude-opus-5.5") return "claude-ops-5.5";
+  if (SUPERSEDED_ANTHROPIC_MODELS.has(candidate)) return CURRENT_ANTHROPIC_MODEL;
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
-  if (candidate === "gemini-3.8-flash") return "gemini-3.8-flash";
-  // Migrate a pin saved against an older Flash revision rather than honouring
-  // it. Preserving it silently downgraded every agent on every mission.
+  if (candidate === "gemini-4-argon") return "gemini-4-argon";
   if (SUPERSEDED_GEMINI_MODELS.has(candidate)) return CURRENT_GEMINI_MODEL;
+  if (candidate === "gemini-3.8-flash") return "gemini-3.8-flash";
   if (candidate === "gemini-embedding-001") return "gemini-embedding-001";
   if (candidate === "text-embedding-3-large") return "text-embedding-3-large";
   if (candidate === "text-embedding-3-small") return "text-embedding-3-small";
-  if (provider === "openai") return "gpt-5.6";
-  if (provider === "anthropic") return "claude-opus-4-8";
+  if (provider === "openai") return CURRENT_OPENAI_MODEL;
+  if (provider === "anthropic") return CURRENT_ANTHROPIC_MODEL;
   if (provider === "gemini") return CURRENT_GEMINI_MODEL;
   return undefined;
 }
@@ -772,7 +782,7 @@ export async function preflightProviderCall(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: resolvedModel || "claude-opus-4-8",
+          model: resolvedModel || CURRENT_ANTHROPIC_MODEL,
           max_tokens: 1,
           messages: [{ role: "user", content: "ping" }],
         }),
@@ -788,7 +798,7 @@ export async function preflightProviderCall(
     }
 
     if (normalizedProvider === "gemini") {
-      const geminiModel = resolvedModel || "gemini-3.8-flash";
+      const geminiModel = resolvedModel || CURRENT_GEMINI_MODEL;
 
       const response = await fetchWithTimeout(
         `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent?key=${encodeURIComponent(candidate)}`,

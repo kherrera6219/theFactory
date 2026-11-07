@@ -61,9 +61,9 @@ served from `out/` rather than started with `next start`.
 - `MISSION_CONTROL_SESSION_SECURE` (`true` for HTTPS production deployments)
 - `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
 - Vault model metadata:
-  - Supported UI model routes: `gpt-5.6`, `claude-opus-4-8`,
-    `gemini-3.8-flash`
-  - Runtime default: all 41 agents use `gemini-3.8-flash` with high thinking
+  - Supported UI model routes: `gpt-6.1-terrea`, `claude-ops-5.5`,
+    `gemini-4-argon`
+  - Runtime default: all 41 agents use `gemini-4-argon` with high thinking
 
 - Required vault slots for local mission testing:
   - Agent API key slots (`AGENT-01-PM-API-KEY` through `AGENT-41-RQCA-API-KEY`)

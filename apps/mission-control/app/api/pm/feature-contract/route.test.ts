@@ -51,7 +51,7 @@ describe("pm feature-contract route", () => {
   });
 
   it("injects the operator's active LLM route into the forwarded vault payload", async () => {
-    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.8-flash");
+    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-4-argon");
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ feature_contract: {} }), { status: 200 }),
     );
@@ -64,7 +64,7 @@ describe("pm feature-contract route", () => {
       vault?: Record<string, unknown>;
     };
     expect(sentPayload.vault?.llm_provider).toBe("gemini");
-    expect(sentPayload.vault?.llm_model).toBe("gemini-3.8-flash");
+    expect(sentPayload.vault?.llm_model).toBe("gemini-4-argon");
   });
 
   it("forwards a superseded Gemini pin as the current model", async () => {
@@ -82,13 +82,13 @@ describe("pm feature-contract route", () => {
     const sentPayload = JSON.parse(init?.body as string) as {
       vault?: Record<string, unknown>;
     };
-    expect(sentPayload.vault?.llm_model).toBe("gemini-3.8-flash");
+    expect(sentPayload.vault?.llm_model).toBe("gemini-4-argon");
   });
 
   it("forwards a 3.7 pin as 3.8 after the 2026-09-27 upgrade", async () => {
     // The operator's own vault held gemini-3.7-flash when 3.8 shipped; the
     // installed app showed 3.7 because nothing migrated the pin forward.
-    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.7-flash");
+    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.8-flash");
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ feature_contract: {} }), { status: 200 }),
     );
@@ -99,7 +99,7 @@ describe("pm feature-contract route", () => {
     const sentPayload = JSON.parse(init?.body as string) as {
       vault?: Record<string, unknown>;
     };
-    expect(sentPayload.vault?.llm_model).toBe("gemini-3.8-flash");
+    expect(sentPayload.vault?.llm_model).toBe("gemini-4-argon");
   });
 
   it("omits llm_provider/llm_model when no active route is configured", async () => {

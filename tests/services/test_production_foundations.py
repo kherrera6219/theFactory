@@ -467,6 +467,8 @@ def test_gateway_builder_helpers_cover_branching() -> None:
     # model id, silently routing them to the legacy thinkingBudget config
     # instead of Gemini 3's thinkingLevel config.
     assert api_gateway_main._is_gemini_3_model("gemini-3.0-pro") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-4-argon") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-4.0-flash") is True
     assert api_gateway_main._is_gemini_3_model("gemini-3") is True
     assert api_gateway_main._is_gemini_3_model("gemini-30-ultra") is False
     assert api_gateway_main._to_gemini_thinking_level("minimal") == "low"

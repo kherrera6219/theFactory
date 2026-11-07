@@ -47,7 +47,7 @@ describe("vault backend", () => {
     expect(slots[0]).toMatchObject({
       slot_id: "AGENT-01-PM-API-KEY",
       provider: "anthropic",
-      model: "claude-opus-4-8",
+      model: "claude-ops-5.5",
       backend: "memory",
       status: "set",
       rotation_due: false,
@@ -83,11 +83,11 @@ describe("vault backend", () => {
   it("returns the operator's configured primary provider/model", async () => {
     const vault = await importVaultModule();
 
-    await vault.upsertVaultSlot("active-llm-route", "anthropic", "active-route", "claude-opus-4-8");
+    await vault.upsertVaultSlot("active-llm-route", "anthropic", "active-route", "claude-ops-5.5");
 
     expect(await vault.getActiveLlmRoute()).toEqual({
       provider: "anthropic",
-      model: "claude-opus-4-8",
+      model: "claude-ops-5.5",
     });
   });
 

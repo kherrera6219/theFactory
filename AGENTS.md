@@ -46,7 +46,7 @@ plan statement — rule 1 below is not a formality here.
   closed, object store is SeaweedFS, every language has sandbox execution.
 - Done 2026-09-27: local object-store migration; Windows installer (#9) built,
   installed and validated (`docs/ELECTRON_INSTALLER.md`); all agents on
-  `gemini-3.8-flash`.
+  `gemini-4-argon` (and `gpt-6.1-terrea` / `claude-ops-5.5`).
 - Next: stuck missions + coverage re-run; first `v*` release with public GHCR
   images. Electron preloads run sandboxed -- they must stay esbuild-bundled
   (build-electron.mjs fails otherwise).

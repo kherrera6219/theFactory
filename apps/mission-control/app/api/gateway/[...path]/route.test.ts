@@ -124,7 +124,7 @@ describe("gateway proxy route", () => {
     });
 
     it("injects the operator's active LLM route alongside provider keys on mission creation", async () => {
-      await upsertVaultSlot("ACTIVE-LLM-ROUTE", "anthropic", "active-route", "claude-opus-4-8");
+      await upsertVaultSlot("ACTIVE-LLM-ROUTE", "anthropic", "active-route", "claude-ops-5.5");
       fetchMock.mockResolvedValueOnce(
         new Response(JSON.stringify({ mission_id: "mission-1" }), { status: 201 }),
       );
@@ -143,7 +143,7 @@ describe("gateway proxy route", () => {
         metadata?: { vault?: Record<string, unknown> };
       };
       expect(sentPayload.metadata?.vault?.llm_provider).toBe("anthropic");
-      expect(sentPayload.metadata?.vault?.llm_model).toBe("claude-opus-4-8");
+      expect(sentPayload.metadata?.vault?.llm_model).toBe("claude-ops-5.5");
     });
 
     it("omits llm_provider/llm_model when no active route is configured", async () => {

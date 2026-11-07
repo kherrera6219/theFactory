@@ -192,12 +192,12 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-6.1-terrea")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "high").strip().lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8").strip()
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-ops-5.5").strip()
 ANTHROPIC_TIMEOUT_SECONDS = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "20"))
 ANTHROPIC_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01").strip()
 ANTHROPIC_THINKING_MODE = os.getenv("ANTHROPIC_THINKING_MODE", "enabled").strip().lower()
@@ -206,7 +206,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-4-argon").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower()
@@ -216,8 +216,12 @@ GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower
 # live missions to an older model. Historical missions are unaffected — this
 # gates new selections, not records already written.
 ALLOWED_LLM_MODELS: dict[str, str] = {
+    "gpt-6.1-terrea": "openai",
     "gpt-5.6": "openai",
+    "claude-ops-5.5": "anthropic",
+    "claude-opus-5.5": "anthropic",
     "claude-opus-4-8": "anthropic",
+    "gemini-4-argon": "gemini",
     "gemini-3.8-flash": "gemini",
     "gemini-3.7-flash": "gemini",
 }
@@ -1521,7 +1525,7 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
     return None
 
 
-_GEMINI_3_MODEL_PATTERN = re.compile(r"^gemini-3(\.\d+)?(-|$)")
+_GEMINI_3_MODEL_PATTERN = re.compile(r"^gemini-(?:3(?:\.\d+)?|4(?:\.\d+)?|4-argon)(?:-|$)")
 
 
 def _is_gemini_3_model(model: str) -> bool:
