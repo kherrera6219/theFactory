@@ -108,12 +108,6 @@ class TestApiGatewayInternalKeyHardening:
             k: v for k, v in os.environ.items() if k != "INTERNAL_SERVICE_API_KEY"
         }
         with patch.dict(os.environ, env_without_key, clear=True):
-            # Re-read the module-level constant by importing fresh
-            import sys
-
-            # Remove cached module to force re-evaluation of module-level constants
-            if "api_gateway.main" in sys.modules:
-                del sys.modules["api_gateway.main"]
             # Use os.getenv directly to simulate what the module does
             result = os.getenv("INTERNAL_SERVICE_API_KEY", "")
         assert result == "", (

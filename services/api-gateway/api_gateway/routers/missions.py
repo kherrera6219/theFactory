@@ -8,7 +8,9 @@ from fastapi import APIRouter, Header, HTTPException, Query
 
 
 def build_missions_router() -> APIRouter:
-    from api_gateway import main as gateway_main
+    import sys
+
+    gateway_main = sys.modules["api_gateway.main"]
 
     router = APIRouter(tags=["missions"])
 

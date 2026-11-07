@@ -13,7 +13,9 @@ class AlertStateUpdate(BaseModel):
 
 
 def build_operations_router() -> APIRouter:
-    from api_gateway import main as gateway_main
+    import sys
+
+    gateway_main = sys.modules["api_gateway.main"]
 
     router = APIRouter(tags=["operations"])
 
