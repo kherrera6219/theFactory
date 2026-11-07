@@ -10,7 +10,7 @@ from typing import Any
 from .file_tree import parse_file_tree, sanitize_rel_path, serialize_file_tree
 
 _HEX_ADDR_RE = re.compile(r"0x[0-9a-fA-F]+")
-_TEMP_PATH_RE = re.compile(r"/tmp/[A-Za-z0-9_./-]+")
+_TEMP_PATH_RE = re.compile(r"/(?:tmp|var/folders)/[A-Za-z0-9_./-]+")
 _MAX_SURGICAL_CODE_CHARS = 32_000
 
 
@@ -43,7 +43,7 @@ def compute_error_signature(stderr: str, stdout: str, exit_code: Any = None) -> 
     """Compute a stable hash signature for a runtime/compiler error output."""
     raw = (stderr or "").strip() or (stdout or "").strip()
     normalized = _HEX_ADDR_RE.sub("0xADDR", raw)
-    normalized = _TEMP_PATH_RE.sub("/tmp/ WORKSPACE", normalized)
+    normalized = _TEMP_PATH_RE.sub("<TMP_WORKSPACE>", normalized)
     lines = [line.strip() for line in normalized.splitlines() if line.strip()]
     tail = "\n".join(lines[-12:])[:1500]
     payload = f"exit={exit_code}|{tail}"

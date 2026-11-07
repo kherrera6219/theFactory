@@ -769,7 +769,7 @@ function MissionDetailPageContent() {
         {hasSkippedOptionalStages && (
           <details className="skipped-stages-drawer">
             <summary className="skipped-stages-summary">
-              Optional / Skipped Pipeline Stages (Brownfield AIM, Dependency Absorption, Multi-Pod Fusion, Knowledge Lake)
+              Optional / Skipped Pipeline Diagnostics
             </summary>
             <div className="skipped-stages-grid">
               {!hasAimArtifact && (
