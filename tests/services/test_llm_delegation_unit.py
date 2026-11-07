@@ -2427,3 +2427,123 @@ def test_mission_contract_and_codegen_prompt_preserve_full_sow_fidelity() -> Non
     assert long_criterion in prompt
     assert "Implement Decimal-backed ledger module" in prompt
 
+
+def test_generate_pod_manager_delegation_sow_fast_path_skips_llm(monkeypatch) -> None:
+    def _should_not_call(*_args, **_kwargs):
+        raise AssertionError("LLM should not be called on SOW-locked fast path")
+
+    monkeypatch.setattr(llm_delegation.generators, "_call_with_agent_system", _should_not_call)
+    result = asyncio.run(
+        llm_delegation.generate_pod_manager_delegation(
+            mission_context={
+                "mission_id": "m-fast",
+                "mission_type": "BUILD_NEW",
+                "sow_approved": True,
+                "feature_contract": {
+                    "sow_id": "sow-fast-1",
+                    "target_languages": ["python"],
+                },
+            },
+            requested_target_language="python",
+            pod_manager_agent_id="AGENT-12-PODA-MGR",
+            default_specialist_agent_id="AGENT-14-PYTHON",
+        )
+    )
+    assert result["source"] == "sow_locked"
+    assert result["llm_route"] == "fast_path_sow"
+    assert result["specialist_agent_id"] == "AGENT-14-PYTHON"
+
+
+def test_generate_integration_tests_detects_vacuous_and_real_assertions(monkeypatch) -> None:
+    from orchestrator.llm_delegation.generators_artifacts import _has_meaningful_assertions
+
+    assert _has_meaningful_assertions("def test_x():\n    assert True\n", "python") is False
+    assert _has_meaningful_assertions("def test_x():\n    assert add(2, 2) == 4\n", "python") is True
+
+    async def _fake_vacuous_call(**_kwargs):
+        return (
+            {
+                "test_filename": "test_out.py",
+                "test_code": "def test_stub():\n    assert True\n",
+                "test_cases": [{"name": "test_stub", "description": "stub", "expected_outcome": "pass"}],
+                "framework": "pytest",
+            },
+            "gemini",
+            "gemini-3.8-flash",
+            "primary",
+        )
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts,
+        "_call_with_agent_system",
+        _fake_vacuous_call,
+    )
+    res = asyncio.run(
+        llm_delegation.generate_integration_tests(
+            mission_id="m-vacuous",
+            mission_context={"requested_target_language": "python"},
+            generated_output={"filename": "out.py", "generated_code": "def add(a, b):\n    return a + b\n"},
+            mission_contract={"contract_summary": "Add numbers", "acceptance_criteria": ["add(2,2)==4"]},
+        )
+    )
+    assert res["non_vacuous"] is False
+    assert res.get("quality_warning") == "vacuous_or_missing_assertions"
+
+
+def test_testdata_manifest_synthesizes_four_contract_categories() -> None:
+    from orchestrator.testdata_agent import generate_testdata_manifest
+
+    manifest = asyncio.run(
+        generate_testdata_manifest(
+            mission_id="m-td",
+            generated_output={"filename": "parser.py", "language": "python"},
+            integration_tests=None,
+            mission_contract={
+                "contract_summary": "Parse CSV rows with --strict flag up to 500 records",
+                "functional_requirements": ["Support CSV header parsing and --strict mode"],
+                "acceptance_criteria": ["Reject rows exceeding 500 items"],
+            },
+            language="python",
+            settings=None,
+        )
+    )
+    assert manifest["source"] == "contract_derived"
+    assert manifest["contract_categories"] == [
+        "nominal",
+        "boundary",
+        "empty_null",
+        "malformed_adversarial",
+    ]
+    assert len(manifest["synthetic_inputs"]) == 4
+    assert "id,name,value" in manifest["synthetic_inputs"][0]["input_data"]
+    assert "--strict" in manifest["synthetic_inputs"][0]["args"]
+
+
+def test_security_compliance_checks_sow_deliverable_completeness_and_dangerous_apis() -> None:
+    from orchestrator.security_compliance import build_security_compliance_report
+
+    report = build_security_compliance_report(
+        mission_id="m-sec",
+        metadata={
+            "mission_contract": {
+                "deliverables": [
+                    {"name": "app.py", "artifact_hint": "src/app.py"},
+                    {"name": "cli.py", "artifact_hint": "src/cli.py"},
+                ]
+            },
+            "generated_output": {
+                "filename": "src/app.py",
+                "generated_code": "## FILE src/app.py\nimport pickle\npickle.loads(b'123')\n",
+                "files": [{"path": "src/app.py"}],
+            },
+            "equivalence_report": {"passed": True, "report_id": "eq-1"},
+        },
+        enforcement_enabled=False,
+    )
+    sec_checks = {c["check_id"]: c for c in report["security"]["checks"]}
+    comp_checks = {c["check_id"]: c for c in report["compliance"]["checks"]}
+    assert "unsafe_deserialization" in sec_checks["dangerous_api_scan"]["evidence"]["matched_patterns"]
+    assert comp_checks["sow_deliverable_completeness"]["status"] == "warn"
+    assert "src/cli.py" in comp_checks["sow_deliverable_completeness"]["evidence"]["missing_files"]
+
+

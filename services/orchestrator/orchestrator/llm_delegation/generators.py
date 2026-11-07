@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import importlib
 import logging
+import os
 from typing import Any
 
 from ..mission_flow import (
     CEO_AGENT_ID,
+    POD_MANAGER_BY_LANGUAGE,
+    normalize_language,
     resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
 )
@@ -524,6 +527,36 @@ async def generate_ceo_delegation(
     }
 
 
+def _can_use_sow_fast_path(
+    mission_context: dict[str, Any],
+    requested_target_language: str | None,
+) -> bool:
+    """Return True when an approved SOW locks a single known target language on BUILD_NEW."""
+    if os.getenv("FORCE_LLM_DELEGATION_ROUTING", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return False
+    if not isinstance(mission_context, dict):
+        return False
+    if not bool(mission_context.get("sow_approved")):
+        return False
+    fc = mission_context.get("feature_contract")
+    if not isinstance(fc, dict) or not fc.get("sow_id"):
+        return False
+    mission_type = str(mission_context.get("mission_type") or "BUILD_NEW").strip().upper()
+    if mission_type != "BUILD_NEW":
+        return False
+    norm_lang = normalize_language(requested_target_language)
+    if not norm_lang or norm_lang not in POD_MANAGER_BY_LANGUAGE:
+        return False
+    target_langs = fc.get("target_languages")
+    if isinstance(target_langs, list) and len(target_langs) > 1:
+        return False
+    return True
+
+
 async def generate_pod_manager_delegation(
     *,
     mission_context: dict[str, Any],
@@ -541,6 +574,21 @@ async def generate_pod_manager_delegation(
     recommendation = _pkg()._agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
     model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
+
+    if _can_use_sow_fast_path(mission_context, requested_target_language):
+        return {
+            "pod_manager_agent_id": normalized_pod_manager_agent_id,
+            "specialist_agent_id": fallback_specialist,
+            "rationale": (
+                f"SOW-locked fast-path routing to {fallback_specialist} "
+                f"for {requested_target_language}."
+            ),
+            "source": "sow_locked",
+            "llm_route": "fast_path_sow",
+            "model_provider": provider,
+            "model": model,
+            "mission_context": mission_context,
+        }
 
     prompt = _build_pod_manager_prompt(
         mission_context=mission_context,

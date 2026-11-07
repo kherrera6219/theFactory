@@ -10,6 +10,13 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 3 (8-Phase Master Review & Upgrade Plan) — Fast-Path Agent Routing & Verification/Support Ring Upgrades.**
+- **Fast-Path Single-Language SOW Routing (`services/orchestrator/orchestrator/llm_delegation/generators.py`, `mission_flow_v2/phases_build.py`):** Added `_can_use_sow_fast_path` to short-circuit `generate_pod_manager_delegation` (`source="sow_locked"`, `llm_route="fast_path_sow"`) when an approved SOW locks a single known target language on `BUILD_NEW`.
+- **Contract-Driven `AGENT-40-TESTDATA` (`services/orchestrator/orchestrator/testdata_agent.py`):** Implemented `_synthesize_contract_inputs` generating 4 structured test categories (`nominal`, `boundary`, `empty_null`, `malformed_adversarial`) with extracted CLI flags and numeric bounds.
+- **Adversarial `AGENT-10-TESTER` & Pod Audit (`services/orchestrator/orchestrator/llm_delegation/generators_artifacts.py`, `services/orchestrator/orchestrator/security_compliance.py`):** Preserved code formatting in Tester and Pod Audit prompts (`_clean_code`), injected full SOW `functional_requirements` and `acceptance_criteria`, added `_has_meaningful_assertions` vacuous-test detection, and added `_check_deliverable_completeness` + dangerous sink checks (`shell=True`, `pickle.loads`, `yaml.load`) in `security_compliance.py`.
+- **Verification:** `tests/services/test_llm_delegation_unit.py` + `tests/services/test_runtime_qc_unit.py` (192/192 passed), `scripts/validate_documentation.py` passed, `ruff` clean.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 4: Surgical File-Level Self-Repair & Multi-Turn Runtime QC**.
+
 **COMPLETE — 2026-11-06: Phase 2 (8-Phase Master Review & Upgrade Plan) — Conversational PM Agent (`AGENT-01-PM`) & Loss-Free SOW-to-Codegen Pipeline.**
 - **Conversational PM Agent (`services/orchestrator/orchestrator/llm_delegation/prompts.py`, `normalizers.py`, `text.py`, `generators.py`):** Added `conversational_reply` and `clarifying_questions_structured` (`{id, question, recommended_default, options, impact}`) to `feature_contract.v1`. Raised per-attachment context slice from 2,000 to 12,000 chars, expanded normalizer item caps, and restricted `_apply_pm_product_clarification_policy` regex injection to Turn-1 discovery.
 - **Loss-Free SOW-to-Codegen Pipeline (`normalizers.py`, `prompts.py`, `phases_build.py`, `phases_runtime.py`):** Carried `functional_requirements`, `non_functional_requirements`, `deliverables`, `out_of_scope`, and untruncated `acceptance_criteria` through `_normalize_mission_contract` and injected `feature_contract` + `specialist_plan` into `_build_codegen_prompt`.

@@ -15,6 +15,11 @@ _DANGEROUS_PATTERNS = (
     ("python_eval", re.compile(r"\beval\s*\(")),
     ("python_exec", re.compile(r"\bexec\s*\(")),
     ("shell_subprocess", re.compile(r"\bsubprocess\.(Popen|run|call)\s*\(")),
+    ("shell_injection_risk", re.compile(r"shell\s*=\s*True|\bos\.system\s*\(")),
+    (
+        "unsafe_deserialization",
+        re.compile(r"\bpickle\.loads?\s*\(|\byaml\.load\s*\([^)]*(?!SafeLoader)"),
+    ),
     ("node_child_process", re.compile(r"child_process")),
     ("unsafe_inner_html", re.compile(r"dangerouslySetInnerHTML|innerHTML\s*=")),
 )
@@ -53,6 +58,7 @@ def build_security_compliance_report(
         _check_equivalence_presence(metadata, equivalence_report),
         _check_data_classification(metadata, mission_charter),
         _check_provenance(generated_output, aim),
+        _check_deliverable_completeness(metadata, generated_output),
     ]
     all_checks = security_checks + compliance_checks
     failed_required = [
@@ -287,6 +293,83 @@ def _check_provenance(
         required=False,
         message="Mission output has limited provenance evidence.",
         recommendation="Attach source/AIM/build evidence for stronger compliance review.",
+    )
+
+
+_FILE_HINT_RE = re.compile(r"^[a-zA-Z0-9_./-]+\.[a-zA-Z0-9]{1,8}$")
+
+
+def _check_deliverable_completeness(
+    metadata: dict[str, Any],
+    generated_output: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify multi-file deliverable path hints from the SOW against generated output."""
+    mc = _dict_value(metadata.get("mission_contract"))
+    fc = _dict_value(metadata.get("feature_contract"))
+    raw_deliverables = mc.get("deliverables") or fc.get("deliverables") or []
+    expected_files: list[str] = []
+    if isinstance(raw_deliverables, list):
+        for item in raw_deliverables:
+            if isinstance(item, dict):
+                for key in ("artifact_hint", "name"):
+                    val = str(item.get(key) or "").strip()
+                    if _FILE_HINT_RE.match(val) and val not in expected_files:
+                        expected_files.append(val)
+                        break
+
+    if len(expected_files) <= 1 or not generated_output:
+        return _check(
+            check_id="sow_deliverable_completeness",
+            title="SOW deliverable completeness",
+            status="pass",
+            required=False,
+            message="Deliverable file structure satisfies SOW expectations.",
+            evidence={"expected_files": expected_files},
+        )
+
+    code = str(generated_output.get("generated_code") or "")
+    files_list = generated_output.get("files") if isinstance(generated_output.get("files"), list) else []
+    delivered_paths = {
+        str(f.get("path") or "").strip().lower()
+        for f in files_list
+        if isinstance(f, dict) and str(f.get("path") or "").strip()
+    }
+    for match in re.findall(r"^## FILE:?\s+(.+)$", code, flags=re.MULTILINE):
+        delivered_paths.add(match.strip().lower())
+    primary = str(generated_output.get("filename") or "").strip().lower()
+    if primary:
+        delivered_paths.add(primary)
+
+    missing = [
+        hint
+        for hint in expected_files
+        if hint.lower() not in delivered_paths
+        and not any(p.endswith("/" + hint.lower()) or hint.lower().endswith("/" + p) for p in delivered_paths)
+    ]
+    if missing:
+        return _check(
+            check_id="sow_deliverable_completeness",
+            title="SOW deliverable completeness",
+            status="warn",
+            required=False,
+            message="Some SOW file deliverables were not found in the generated multi-file bundle.",
+            evidence={
+                "expected_files": expected_files,
+                "delivered_paths": sorted(delivered_paths),
+                "missing_files": missing,
+            },
+            recommendation="Verify all multi-file SOW deliverables are emitted with ## FILE headers.",
+        )
+    return _check(
+        check_id="sow_deliverable_completeness",
+        title="SOW deliverable completeness",
+        status="pass",
+        required=False,
+        message="All SOW file deliverables are present in the generated bundle.",
+        evidence={
+            "expected_files": expected_files,
+            "delivered_paths": sorted(delivered_paths),
+        },
     )
 
 

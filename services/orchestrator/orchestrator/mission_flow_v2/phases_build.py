@@ -206,6 +206,9 @@ async def _prepare_pod_assignment(
     pod_manager_delegation = await _pkg().generate_pod_manager_delegation(
         mission_context={
             **_mission_context(mission, metadata),
+            "mission_type": metadata.get("mission_type"),
+            "sow_approved": bool(metadata.get("sow_approved")),
+            "feature_contract": metadata.get("feature_contract"),
             "ceo_delegation": ceo_delegation,
             "logic_clusters": metadata.get("logic_clusters"),
         },

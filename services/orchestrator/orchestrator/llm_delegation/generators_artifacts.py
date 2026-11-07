@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -754,6 +755,23 @@ async def generate_compliance_assessment(
     }
 
 
+_VACUOUS_ASSERT_RE = re.compile(
+    r"(?i)\b(assert\s+True\b|assert\s+1\s*==\s*1\b|expect\(\s*true\s*\)\.toBe\(\s*true\s*\)|expect\(\s*true\s*\)\.toBeTruthy\(\s*\))"
+)
+_REAL_ASSERT_RE = re.compile(
+    r"(\bassert\b|\bassertEqual\b|\bassertRaises\b|\bpytest\.raises\b|\bexpect\s*\(|\bassert_eq!\b|\bassert_ne!\b|\bt\.(?:Error|Errorf|Fatal|Fatalf)\b|\bassertEquals\b|\bAssert\.)"
+)
+
+
+def _has_meaningful_assertions(test_code: str, language: str = "python") -> bool:
+    """Return True when test_code contains at least one non-vacuous assertion."""
+    _ = language
+    if not isinstance(test_code, str) or not test_code.strip():
+        return False
+    scrubbed = _VACUOUS_ASSERT_RE.sub("", test_code)
+    return bool(_REAL_ASSERT_RE.search(scrubbed))
+
+
 async def generate_integration_tests(
     *,
     mission_id: str,
@@ -770,7 +788,6 @@ async def generate_integration_tests(
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
     model = str(recommendation.get("model", "gemini-3.8-flash")).strip()
 
-
     language = _clean_text(
         str(
             (generated_output or {}).get("language")
@@ -782,20 +799,35 @@ async def generate_integration_tests(
     filename = _clean_text(
         str((generated_output or {}).get("filename") or "output"), max_length=128
     )
-    code_snippet = _clean_text(
-        str((generated_output or {}).get("generated_code") or ""), max_length=3000
+    code_snippet = _clean_code(
+        str((generated_output or {}).get("generated_code") or ""), max_length=8000
     )
     contract_summary = _clean_text(
-        str((mission_contract or {}).get("contract_summary") or ""), max_length=300
+        str((mission_contract or {}).get("contract_summary") or ""), max_length=500
+    )
+    fc = (
+        mission_context.get("feature_contract")
+        if isinstance(mission_context.get("feature_contract"), dict)
+        else {}
     )
     acceptance_criteria = _string_list(
-        (mission_contract or {}).get("acceptance_criteria"), limit=6
+        (mission_contract or {}).get("acceptance_criteria") or fc.get("acceptance_criteria"),
+        limit=12,
+        max_length=1000,
+    )
+    functional_requirements = _string_list(
+        (mission_contract or {}).get("functional_requirements")
+        or fc.get("functional_requirements"),
+        limit=16,
+        max_length=1000,
     )
 
     prompt = (
-        "You are AGENT-10-TESTER generating integration tests.\n"
+        "You are AGENT-10-TESTER generating adversarial and contract-aligned integration tests.\n"
         f"Recommended model: {provider}/{model}\n"
-        "Write tests that verify the acceptance criteria of the generated artifact.\n"
+        "Write tests that verify the SOW functional requirements and acceptance criteria of the generated artifact.\n"
+        "Include nominal happy-path tests, boundary-value tests, empty/null input tests, and malformed/adversarial input tests.\n"
+        "Every test MUST contain real, non-vacuous assertions (never write `assert True` or `expect(true).toBe(true)`).\n"
         "If the artifact is an interactive game or a process that does not exit, "
         "write unit tests of extractable logic (collision, score, movement) — "
         "do not spawn the interactive process.\n"
@@ -804,8 +836,9 @@ async def generate_integration_tests(
         f"Language: {language}\n"
         f"Artifact filename: {filename}\n"
         f"Contract summary: {contract_summary}\n"
+        f"Functional requirements: {json.dumps(functional_requirements)}\n"
         f"Acceptance criteria: {json.dumps(acceptance_criteria)}\n"
-        f"Code artifact (truncated):\n```\n{code_snippet}\n```\n\n"
+        f"Code artifact:\n```\n{code_snippet}\n```\n\n"
         "Required JSON keys:\n"
         "{\n"
         '  "schema_version": "integration_tests.v1",\n'
@@ -843,7 +876,9 @@ async def generate_integration_tests(
                 "expected_outcome": _clean_text(item.get("expected_outcome", ""), max_length=240),
             })
 
-    return {
+    cleaned_test_code = _clean_code(parsed.get("test_code", ""), max_length=10000)
+    non_vacuous = _has_meaningful_assertions(cleaned_test_code, language)
+    result: dict[str, Any] = {
         "schema_version": "integration_tests.v1",
         "mission_id": _clean_text(mission_id, max_length=96),
         "agent_id": "AGENT-10-TESTER",
@@ -853,14 +888,18 @@ async def generate_integration_tests(
         # _clean_code, not _clean_text: the latter replaces every control
         # character with a space, which flattens generated tests onto one
         # line and makes them unimportable. See text._clean_code.
-        "test_code": _clean_code(parsed.get("test_code", ""), max_length=10000),
+        "test_code": cleaned_test_code,
         "test_cases": test_cases,
         "framework": _clean_text(parsed.get("framework", "pytest"), max_length=32),
+        "non_vacuous": non_vacuous,
         "source": "llm",
         "model_provider": resolved_provider,
         "model": resolved_model,
         "created_at": datetime.now(UTC).isoformat(),
     }
+    if not non_vacuous:
+        result["quality_warning"] = "vacuous_or_missing_assertions"
+    return result
 
 
 async def generate_contract_vectors(
@@ -1042,20 +1081,46 @@ async def generate_pod_audit_verdict(
         ),
         max_length=32,
     )
+    code_preview = _clean_code(
+        str((generated_output or {}).get("generated_code") or ""), max_length=6000
+    )
+    mc = (
+        mission_context.get("mission_contract")
+        if isinstance(mission_context.get("mission_contract"), dict)
+        else {}
+    )
+    fc = (
+        mission_context.get("feature_contract")
+        if isinstance(mission_context.get("feature_contract"), dict)
+        else {}
+    )
+    audit_criteria = _string_list(
+        mc.get("acceptance_criteria") or fc.get("acceptance_criteria"),
+        limit=12,
+        max_length=500,
+    )
+    audit_reqs = _string_list(
+        mc.get("functional_requirements") or fc.get("functional_requirements"),
+        limit=12,
+        max_length=500,
+    )
 
     prompt = (
         f"You are {audit_agent_id} performing QC audit of pod {pod_name}.\n"
         f"Recommended model: {provider}/{model}\n"
         "Review the pod's group standard and generated output for quality, "
-        "completeness, and contract alignment.\n"
+        "completeness, and contract alignment against functional requirements and acceptance criteria.\n"
         "Return only JSON. No markdown.\n\n"
         f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
         f"Pod: {pod_name}\n"
         f"Language: {language}\n"
         f"Contract summary: {contract_summary}\n"
+        f"Functional requirements: {json.dumps(audit_reqs)}\n"
+        f"Acceptance criteria: {json.dumps(audit_criteria)}\n"
         f"Canonical LogicNodes produced: {canonical_count}\n"
-        f"Duplicates eliminated: {eliminated}\n\n"
-        "Required JSON keys:\n"
+        f"Duplicates eliminated: {eliminated}\n"
+        + (f"Generated code preview:\n```\n{code_preview}\n```\n\n" if code_preview else "\n")
+        + "Required JSON keys:\n"
         "{\n"
         '  "schema_version": "pod_audit_verdict.v1",\n'
         '  "verdict": "PASS|FAIL|WARN",\n'
