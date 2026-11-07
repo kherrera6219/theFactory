@@ -113,6 +113,13 @@ export function localImageCandidates(image: string, tag: string): string[] {
       candidates.push(`thefactory/${svc}:latest`);
       candidates.push(`deploy-${svc}:latest`);
       candidates.push(`deploy-${svc}`);
+      if (svc === "pod-worker") {
+        candidates.push("deploy-pod-a-worker:latest");
+        candidates.push("deploy-pod-a-worker");
+        candidates.push("deploy-pod-b-worker:latest");
+        candidates.push("deploy-pod-c-worker:latest");
+        candidates.push("deploy-pod-d-worker:latest");
+      }
     }
   }
 

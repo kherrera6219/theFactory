@@ -207,6 +207,9 @@ describe("image pre-cache candidates and throughput formatting", () => {
     expect(candidates).toContain("thefactory-orchestrator:latest");
     expect(candidates).toContain("thefactory/orchestrator:latest");
     expect(candidates).toContain("deploy-orchestrator:latest");
+
+    const podCandidates = localImageCandidates("ghcr.io/kherrera6219/thefactory-pod-worker:v1.0.0", "v1.0.0");
+    expect(podCandidates).toContain("deploy-pod-a-worker:latest");
   });
 
   it("resolves local candidates for sandbox runner images", () => {
