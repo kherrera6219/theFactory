@@ -67,6 +67,7 @@ paths = [
     # Test fixtures intentionally contain fake API-key-shaped strings
     "tests/",
     "apps/mission-control/app/lib/server/vault.test.ts",
+    "apps/mission-control/app/lib/server/vault.preflight.test.ts",
     "apps/mission-control/app/api/vault/route.test.ts",
     "apps/mission-control/app/api/vault/test/route.test.ts",
     "apps/mission-control/e2e/",

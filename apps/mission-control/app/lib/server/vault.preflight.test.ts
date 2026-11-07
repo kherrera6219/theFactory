@@ -68,13 +68,13 @@ describe("preflightProviderCall", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const result = await preflightProviderCall("anthropic", "sk-ant-test-key", "claude-ops-5.5");
+    const result = await preflightProviderCall("anthropic", "sk-ant-test-123456", "claude-ops-5.5");
 
     expect(result.valid).toBe(true);
     expect(result.live_checked).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://api.anthropic.com/v1/messages");
-    expect(init.headers["x-api-key"]).toBe("sk-ant-test-key");
+    expect(init.headers["x-api-key"]).toBe("sk-ant-test-123456");
     expect(init.headers["anthropic-version"]).toBe("2023-06-01");
     const body = JSON.parse(init.body as string);
     expect(body.model).toBe("claude-ops-5.5");
@@ -86,13 +86,13 @@ describe("preflightProviderCall", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const result = await preflightProviderCall("gemini", "AIzaTestKey1234567890", "gemini-4-argon");
+    const result = await preflightProviderCall("gemini", "AIzaTestKey-test-123456", "gemini-4-argon");
 
     expect(result.valid).toBe(true);
     expect(result.live_checked).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent?key=AIzaTestKey1234567890",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent?key=AIzaTestKey-test-123456",
     );
     const body = JSON.parse(init.body as string);
     expect(body.generationConfig.maxOutputTokens).toBe(1);
@@ -103,7 +103,7 @@ describe("preflightProviderCall", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await preflightProviderCall("gemini", "AIzaTestKey1234567890", "gemini-3.8-flash");
+    await preflightProviderCall("gemini", "AIzaTestKey-test-123456", "gemini-3.8-flash");
 
     // Testing the key against a model the app no longer routes to would report
     // health for something no mission will ever use.
