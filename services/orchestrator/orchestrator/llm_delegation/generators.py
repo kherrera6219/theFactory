@@ -244,6 +244,8 @@ async def generate_pm_feature_contract(
         route=llm_route,
         prompt=ambiguity_prompt,
         requested_target_language=requested_target_language,
+        conversation_context=conversation_context,
+        user_intent=user_intent,
     )
     _attach_grounding_provenance(normalized, parsed)
     if str(user_intent or "").strip().lower() == "finalize_plan":
@@ -456,6 +458,11 @@ async def generate_mission_contract(
         mission_type=mission_type,
         output_mode=output_mode,
         requested_target_language=requested_target_language,
+        feature_contract=(
+            mission_context.get("feature_contract")
+            if isinstance(mission_context, dict)
+            else None
+        ),
     )
 
 

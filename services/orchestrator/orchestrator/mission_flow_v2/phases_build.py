@@ -554,6 +554,7 @@ async def _prepare_specialist_plan(
         # Build codegen context — inject PORT source logicnodes when in generation phase
         _codegen_context: dict[str, Any] = {
             **_mission_context(mission, metadata),
+            "feature_contract": metadata.get("feature_contract"),
             "mission_contract": mission_contract,
             "specialist_plan": normalized,
         }

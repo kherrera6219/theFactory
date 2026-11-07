@@ -10,6 +10,12 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-11-06) — read first
 
+**COMPLETE — 2026-11-06: Phase 2 (8-Phase Master Review & Upgrade Plan) — Conversational PM Agent (`AGENT-01-PM`) & Loss-Free SOW-to-Codegen Pipeline.**
+- **Conversational PM Agent (`services/orchestrator/orchestrator/llm_delegation/prompts.py`, `normalizers.py`, `text.py`, `generators.py`):** Added `conversational_reply` and `clarifying_questions_structured` (`{id, question, recommended_default, options, impact}`) to `feature_contract.v1`. Raised per-attachment context slice from 2,000 to 12,000 chars, expanded normalizer item caps, and restricted `_apply_pm_product_clarification_policy` regex injection to Turn-1 discovery.
+- **Loss-Free SOW-to-Codegen Pipeline (`normalizers.py`, `prompts.py`, `phases_build.py`, `phases_runtime.py`):** Carried `functional_requirements`, `non_functional_requirements`, `deliverables`, `out_of_scope`, and untruncated `acceptance_criteria` through `_normalize_mission_contract` and injected `feature_contract` + `specialist_plan` into `_build_codegen_prompt`.
+- **Verification:** `tests/services/test_llm_delegation_unit.py` (102/102 passed), `scripts/validate_documentation.py` passed, `ruff` clean.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 3: Fast-Path Agent Routing & Verification/Support Ring Upgrades**.
+
 **COMPLETE — 2026-11-06: Phase 1 (8-Phase Master Review & Upgrade Plan) — Out-of-Band Vault Transit & Gateway Proxy/Artifact Route Repair.**
 - **Out-of-Band Vault Transit (`shared_runtime/mission_vault.py`, `services/orchestrator/orchestrator/mission_vault.py`, `services/api-gateway/api_gateway/main.py`, `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/runtime.py`):** Eliminated plaintext provider key transit across Redis idempotency records, `INTAKE_STREAM`, and `intake_dlq_stream`, and fixed the silent vault drop when `POST /missions` creates the Postgres row before `consume_intake_stream` processes the stream event.
 - **Gateway Evidence Proxy & Multi-Format Artifact Download (`services/api-gateway/api_gateway/routers/missions.py`, `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/routes/internal.py`):** Connected all 8 gateway mission-evidence routes to `/internal/missions/{mission_id}/...` and implemented `GET /missions/{mission_id}/artifact` supporting `format=json|raw|zip` (unpacking `## FILE` bundles into downloadable `.zip` archives with `manifest.json`).

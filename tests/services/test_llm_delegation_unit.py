@@ -453,7 +453,7 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
         prompt="Build CSV reader",
         requested_target_language="python",
     )
-    assert len(normalized["functional_requirements"]) == 8
+    assert len(normalized["functional_requirements"]) == 16
     assert normalized["estimated_complexity"] == "medium"
     assert normalized["human_approval_required"] is True
     assert normalized["intake_status"] == "needs_clarification"
@@ -2299,3 +2299,131 @@ def test_gemini_grounding_honours_the_global_kill_switch(monkeypatch) -> None:
         delegation_config.current_grounding_enabled.reset(token)
 
     assert "tools" not in captured
+
+
+def test_pm_feature_contract_includes_conversational_reply_and_structured_questions() -> None:
+    normalized = llm_delegation._normalize_pm_feature_contract(
+        {
+            "title": "Hex Tactics Engine",
+            "summary": "Build a browser-based hex grid strategy game.",
+            "conversational_reply": "I scoped a 2-player hex tactics engine with turn-based initiative.",
+            "intake_status": "needs_clarification",
+            "functional_requirements": ["Render axial hex grid", "Compute movement range"],
+            "acceptance_criteria": ["Hex coordinates round-trip accurately"],
+            "clarifying_questions": [
+                "Which renderer should we use? Recommended default: HTML5 Canvas 2D."
+            ],
+            "clarifying_questions_structured": [
+                {
+                    "id": "q1",
+                    "question": "Which renderer should we use?",
+                    "recommended_default": "HTML5 Canvas 2D",
+                    "options": ["HTML5 Canvas 2D", "WebGL / PixiJS", "SVG DOM"],
+                    "impact": "Determines frame rate and asset pipeline.",
+                }
+            ],
+        },
+        provider="gemini",
+        model="gemini-3.8-flash",
+        route="primary",
+        prompt="Build a browser-based hex grid strategy game.",
+        requested_target_language="typescript",
+    )
+    assert normalized["conversational_reply"].startswith(
+        "I scoped a 2-player hex tactics engine"
+    )
+    structured = normalized["clarifying_questions_structured"]
+    assert structured
+    assert structured[0]["id"] == "q1"
+    assert structured[0]["recommended_default"] == "HTML5 Canvas 2D"
+    assert len(structured[0]["options"]) == 3
+
+
+def test_pm_feature_contract_followup_turn_skips_regex_clarification_injection() -> None:
+    normalized = llm_delegation._normalize_pm_feature_contract(
+        {
+            "title": "Modern Angular Snake Game",
+            "summary": "Create a modern Snake game in Angular with a start.bat file.",
+            "functional_requirements": [
+                "Build a complete runnable Angular Snake game.",
+                "Include a Windows start.bat file.",
+            ],
+            "acceptance_criteria": ["The Angular game starts locally."],
+            "target_languages": ["typescript"],
+            "estimated_complexity": "medium",
+            "human_approval_required": False,
+            "intake_status": "ready",
+            "clarifying_questions": [],
+        },
+        provider="gemini",
+        model="gemini-3.8-flash",
+        route="primary",
+        prompt="Create a modern Snake game in Angular with a start.bat file.",
+        requested_target_language="typescript",
+        conversation_context={"decision_memory": ["Use neon arcade theme", "Standard grid rules"]},
+    )
+    assert normalized["intake_status"] == "ready"
+    assert normalized["clarifying_questions"] == []
+    assert "Statement of Work" in normalized["conversational_reply"]
+
+
+def test_mission_contract_and_codegen_prompt_preserve_full_sow_fidelity() -> None:
+    long_criterion = "Must verify all 10 deterministic edge cases including negative balances and currency rounding rules across multi-currency ledgers without floating-point drift."
+    feature_contract = {
+        "title": "Ledger Engine",
+        "summary": "High-precision multi-currency ledger.",
+        "functional_requirements": [f"FR-{i}: Support ledger journal entry {i}" for i in range(10)],
+        "non_functional_requirements": ["Zero floating-point currency math"],
+        "acceptance_criteria": [long_criterion],
+        "deliverables": [
+            {"name": "Ledger Core", "artifact_hint": "src/ledger.py"},
+            {"name": "Ledger Tests", "artifact_hint": "tests/test_ledger.py"},
+        ],
+        "out_of_scope": ["External payment gateway webhooks"],
+    }
+    mission_contract = llm_delegation._normalize_mission_contract(
+        {
+            "contract_summary": "Build high-precision ledger",
+            "output_format": "library",
+            "logicnode_requirements": [
+                {"domain": "finance", "concept": "journal", "intent": "Record double-entry rows", "priority": "HIGH"}
+            ],
+            "acceptance_criteria": [],
+        },
+        provider="gemini",
+        model="gemini-3.8-flash",
+        route="primary",
+        mission_type="BUILD_NEW",
+        output_mode="FULL_BUILD",
+        requested_target_language="python",
+        feature_contract=feature_contract,
+    )
+    assert len(mission_contract["functional_requirements"]) == 10
+    assert mission_contract["non_functional_requirements"] == ["Zero floating-point currency math"]
+    assert len(mission_contract["deliverables"]) == 2
+    assert mission_contract["out_of_scope"] == ["External payment gateway webhooks"]
+    assert long_criterion in mission_contract["acceptance_criteria"]
+
+    prompt = llm_delegation.prompts._build_codegen_prompt(
+        mission_context={
+            "mission_id": "m-ledger",
+            "feature_contract": feature_contract,
+            "specialist_plan": {
+                "plan_summary": "Implement Decimal-backed ledger module and pytest suite.",
+                "deliverables": ["src/ledger.py", "tests/test_ledger.py"],
+            },
+        },
+        mission_contract=mission_contract,
+        logicnodes=[],
+        target_language="python",
+        specialist_agent_id="AGENT-14-PYTHON",
+        recommended_provider="gemini",
+        recommended_model="gemini-3.8-flash",
+    )
+    assert "FR-9: Support ledger journal entry 9" in prompt
+    assert "Zero floating-point currency math" in prompt
+    assert "src/ledger.py" in prompt
+    assert "External payment gateway webhooks" in prompt
+    assert long_criterion in prompt
+    assert "Implement Decimal-backed ledger module" in prompt
+

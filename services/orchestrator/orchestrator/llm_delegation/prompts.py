@@ -326,9 +326,9 @@ def _build_pm_feature_contract_prompt(
             if extracted:
                 docs_context += (
                     f"\n## Attached Document: {att.get('filename')}\n"
-                    f"{extracted[:2000]}"
+                    f"{extracted[:12000]}"
                 )
-                if len(extracted) > 2000:
+                if len(extracted) > 12000:
                     docs_context += "..."
                 docs_context += "\n"
         docs_context += "\n"
@@ -382,6 +382,7 @@ def _build_pm_feature_contract_prompt(
         "{\n"
         '  "title": "short title",\n'
         '  "summary": "one paragraph",\n'
+        '  "conversational_reply": "warm, direct 2-4 sentence reply to the operator explaining how you updated the SOW, trade-offs considered, or why you are asking any questions",\n'
         '  "intake_status": "needs_clarification | ready",\n'
         '  "functional_requirements": ["specific requirements"],\n'
         '  "non_functional_requirements": ["constraints"],\n'
@@ -394,7 +395,10 @@ def _build_pm_feature_contract_prompt(
         '  "deliverables": [{"name": "artifact name", "artifact_hint": "snake.py"}],\n'
         '  "engagement_type": "BUILD_NEW | PORT | IMPORT_MODERNIZE | DEBUG_REPAIR | ANALYZE_ONLY",\n'
         '  "risk_notes": ["material risks or constraints"],\n'
-        '  "clarifying_questions": ["specific, answerable questions about missing execution detail"]\n'
+        '  "clarifying_questions": ["specific, answerable questions about missing execution detail (include Recommended default: ...)"],\n'
+        '  "clarifying_questions_structured": [\n'
+        '    {"id": "q1", "question": "decision question", "recommended_default": "default choice", "options": ["default choice (Recommended)", "alternative B", "alternative C"], "impact": "why this matters"}\n'
+        "  ]\n"
         "}\n\n"
         "Intake discipline (this is the core of your job — do not skip it):\n"
         "- Before writing requirements, check whether the request actually specifies, at minimum: "
@@ -437,24 +441,113 @@ def _build_codegen_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
-    contract_summary = _clean_text(
-        mission_contract.get("contract_summary", "Implement the mission"), max_length=280
+    feature_contract = (
+        mission_context.get("feature_contract")
+        if isinstance(mission_context.get("feature_contract"), dict)
+        else {}
     )
+    specialist_plan = (
+        mission_context.get("specialist_plan")
+        if isinstance(mission_context.get("specialist_plan"), dict)
+        else {}
+    )
+    contract_summary = _clean_text(
+        mission_contract.get("contract_summary")
+        or feature_contract.get("summary")
+        or "Implement the mission",
+        max_length=1200,
+        preserve_newlines=True,
+    )
+    raw_acceptance = list(mission_contract.get("acceptance_criteria") or [])
+    for item in feature_contract.get("acceptance_criteria") or []:
+        if item not in raw_acceptance:
+            raw_acceptance.append(item)
     acceptance = "\n".join(
-        f"- {_clean_text(item, max_length=140)}"
-        for item in (mission_contract.get("acceptance_criteria") or [])[:6]
+        f"- {_clean_text(item, max_length=1000)}"
+        for item in raw_acceptance[:12]
+        if _clean_text(item, max_length=1000)
     ) or "- Satisfy the mission contract."
     requirements = []
     raw_requirements = mission_contract.get("logicnode_requirements")
     if isinstance(raw_requirements, list):
-        for item in raw_requirements[:12]:
+        for item in raw_requirements[:16]:
             if isinstance(item, dict):
                 requirements.append(
                     "- "
-                    f"{_clean_text(item.get('domain'), max_length=48)}."
-                    f"{_clean_text(item.get('concept'), max_length=48)}: "
-                    f"{_clean_text(item.get('intent'), max_length=140)}"
+                    f"{_clean_text(item.get('domain'), max_length=64)}."
+                    f"{_clean_text(item.get('concept'), max_length=64)}: "
+                    f"{_clean_text(item.get('intent'), max_length=500)}"
                 )
+    func_reqs = (
+        mission_contract.get("functional_requirements")
+        or feature_contract.get("functional_requirements")
+        or []
+    )
+    func_req_lines = "\n".join(
+        f"- {_clean_text(item, max_length=1000)}"
+        for item in (func_reqs[:16] if isinstance(func_reqs, list) else [])
+        if _clean_text(item, max_length=1000)
+    )
+    non_func_reqs = (
+        mission_contract.get("non_functional_requirements")
+        or feature_contract.get("non_functional_requirements")
+        or []
+    )
+    non_func_req_lines = "\n".join(
+        f"- {_clean_text(item, max_length=1000)}"
+        for item in (non_func_reqs[:12] if isinstance(non_func_reqs, list) else [])
+        if _clean_text(item, max_length=1000)
+    )
+    raw_deliverables = (
+        mission_contract.get("deliverables")
+        or feature_contract.get("deliverables")
+        or []
+    )
+    deliverable_lines_list: list[str] = []
+    if isinstance(raw_deliverables, list):
+        for item in raw_deliverables[:12]:
+            if isinstance(item, dict):
+                d_name = _clean_text(item.get("name"), max_length=300)
+                d_hint = _clean_text(item.get("artifact_hint"), max_length=300)
+                if d_name:
+                    deliverable_lines_list.append(
+                        f"- {d_name} ({d_hint})" if d_hint else f"- {d_name}"
+                    )
+            elif str(item or "").strip():
+                deliverable_lines_list.append(f"- {_clean_text(item, max_length=300)}")
+    raw_out_of_scope = (
+        mission_contract.get("out_of_scope")
+        or feature_contract.get("out_of_scope")
+        or []
+    )
+    out_of_scope_lines = "\n".join(
+        f"- {_clean_text(item, max_length=1000)}"
+        for item in (raw_out_of_scope[:10] if isinstance(raw_out_of_scope, list) else [])
+        if _clean_text(item, max_length=1000)
+    )
+    sow_context_block = ""
+    if func_req_lines:
+        sow_context_block += f"Functional requirements (SOW):\n{func_req_lines}\n\n"
+    if non_func_req_lines:
+        sow_context_block += f"Non-functional requirements (SOW):\n{non_func_req_lines}\n\n"
+    if deliverable_lines_list:
+        sow_context_block += f"Required deliverables (SOW):\n{chr(10).join(deliverable_lines_list)}\n\n"
+    if out_of_scope_lines:
+        sow_context_block += f"Out of scope (do not build):\n{out_of_scope_lines}\n\n"
+    if specialist_plan:
+        plan_summary = _clean_text(specialist_plan.get("plan_summary"), max_length=1000)
+        plan_deliverables = [
+            _clean_text(item, max_length=300)
+            for item in (specialist_plan.get("deliverables") or [])[:10]
+            if _clean_text(item, max_length=300)
+        ]
+        if plan_summary or plan_deliverables:
+            sow_context_block += "Specialist Execution Plan:\n"
+            if plan_summary:
+                sow_context_block += f"- Summary: {plan_summary}\n"
+            for pd in plan_deliverables:
+                sow_context_block += f"- Step/Deliverable: {pd}\n"
+            sow_context_block += "\n"
     logicnode_lines = []
     for node in logicnodes[:12]:
         if isinstance(node, dict):
@@ -492,7 +585,10 @@ def _build_codegen_prompt(
             )
 
     imported_source = str(mission_context.get("imported_source_code") or "")
-    deliverables = mission_contract.get("deliverables") if isinstance(mission_contract, dict) else None
+    deliverables = (
+        (mission_contract.get("deliverables") if isinstance(mission_contract, dict) else None)
+        or (feature_contract.get("deliverables") if isinstance(feature_contract, dict) else None)
+    )
     deliverable_count = len(deliverables) if isinstance(deliverables, list) else 0
     wants_tree = bool(imported_source.strip()) or deliverable_count > 1
     imported_excerpt = ""
@@ -541,6 +637,7 @@ def _build_codegen_prompt(
         f"{port_source_context}"
         f"{imported_excerpt}"
         f"{repair_block}"
+        f"{sow_context_block}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"

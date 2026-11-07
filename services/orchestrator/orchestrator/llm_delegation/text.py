@@ -572,18 +572,143 @@ def _pm_product_clarifying_questions(
     return questions[:3]
 
 
+def _build_structured_clarifying_questions(
+    raw_structured: Any,
+    clarifying_questions: list[str],
+) -> list[dict[str, Any]]:
+    """Build structured clarifying question objects with recommended defaults and option chips."""
+    structured: list[dict[str, Any]] = []
+    seen_questions: set[str] = set()
+
+    if isinstance(raw_structured, list):
+        for idx, item in enumerate(raw_structured[:5], start=1):
+            if not isinstance(item, dict):
+                continue
+            q_text = _clean_text(item.get("question", ""), max_length=1000)
+            if not q_text:
+                continue
+            rec_default = _clean_text(item.get("recommended_default", ""), max_length=400)
+            raw_options = _string_list(item.get("options"), limit=5, max_length=300)
+            if rec_default and not any(rec_default.lower() in opt.lower() for opt in raw_options):
+                raw_options = [f"{rec_default} (Recommended)", *raw_options][:5]
+            structured.append(
+                {
+                    "id": _clean_text(item.get("id") or f"q{idx}", max_length=32) or f"q{idx}",
+                    "question": q_text,
+                    "recommended_default": rec_default,
+                    "options": raw_options,
+                    "impact": _clean_text(item.get("impact", ""), max_length=400),
+                }
+            )
+            seen_questions.add(q_text.lower())
+
+    for question_str in clarifying_questions[:5]:
+        cleaned = str(question_str or "").strip()
+        if not cleaned or cleaned.lower() in seen_questions:
+            continue
+        rec_default = ""
+        question_part = cleaned
+        match = re.search(
+            r"\(?recommended\s+default\s*:\s*([^)]+?)\)?\.?$",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            rec_default = _clean_text(match.group(1), max_length=400)
+            question_part = cleaned[: match.start()].strip().rstrip("—- ") or cleaned
+        if any(s["question"].lower() == question_part.lower() for s in structured):
+            continue
+        options: list[str] = []
+        if rec_default:
+            options.append(f"{rec_default} (Recommended)")
+        structured.append(
+            {
+                "id": f"q{len(structured) + 1}",
+                "question": question_part,
+                "recommended_default": rec_default,
+                "options": options,
+                "impact": "",
+            }
+        )
+        seen_questions.add(cleaned.lower())
+
+    return structured[:5]
+
+
+def _synthesize_pm_conversational_reply(
+    contract: dict[str, Any],
+    raw_reply: Any = None,
+) -> str:
+    """Return the PM's natural-language conversational reply or synthesize a clear summary."""
+    explicit = (
+        _clean_text(raw_reply, max_length=2000, preserve_newlines=True)
+        if isinstance(raw_reply, str)
+        else ""
+    )
+    if explicit:
+        return explicit
+    raw_existing = contract.get("conversational_reply")
+    existing = (
+        _clean_text(raw_existing, max_length=2000, preserve_newlines=True)
+        if isinstance(raw_existing, str)
+        else ""
+    )
+    if existing:
+        return existing
+    title = _clean_text(contract.get("title") or "your mission", max_length=120)
+    questions = contract.get("clarifying_questions") or []
+    reqs = contract.get("functional_requirements") or []
+    criteria = contract.get("acceptance_criteria") or []
+    if contract.get("intake_status") == "needs_clarification" and questions:
+        return (
+            f"I've drafted the Statement of Work for {title} with {len(reqs)} functional "
+            f"requirement(s) and {len(criteria)} acceptance criteria. Before we lock the scope, "
+            f"please review the {len(questions)} clarifying question(s) below or accept the "
+            "recommended defaults to proceed."
+        )
+    return (
+        f"I've prepared the Statement of Work for {title} with {len(reqs)} functional "
+        f"requirement(s) and {len(criteria)} acceptance criteria. Review the contract in the "
+        "studio panel and approve when ready to launch."
+    )
+
+
 def _apply_pm_product_clarification_policy(
     *,
     contract: dict[str, Any],
     prompt: str,
     requested_target_language: str | None = None,
+    conversation_context: dict[str, Any] | None = None,
+    user_intent: str | None = None,
 ) -> dict[str, Any]:
+    is_followup_or_finalize = str(user_intent or "").strip().lower() == "finalize_plan" or (
+        isinstance(conversation_context, dict)
+        and bool(
+            conversation_context.get("decision_memory")
+            or conversation_context.get("answered_questions")
+            or conversation_context.get("prior_sow")
+            or int(conversation_context.get("turn_count") or 0) > 1
+        )
+    )
+    if is_followup_or_finalize:
+        contract["clarifying_questions_structured"] = _build_structured_clarifying_questions(
+            contract.get("clarifying_questions_structured"),
+            list(contract.get("clarifying_questions") or []),
+        )
+        contract["conversational_reply"] = _synthesize_pm_conversational_reply(contract)
+        return contract
+
     questions = _pm_product_clarifying_questions(
         prompt=prompt,
         contract=contract,
         requested_target_language=requested_target_language,
     )
     if not questions:
+        contract["clarifying_questions_structured"] = _build_structured_clarifying_questions(
+            contract.get("clarifying_questions_structured"),
+            list(contract.get("clarifying_questions") or []),
+        )
+        contract["conversational_reply"] = _synthesize_pm_conversational_reply(contract)
         return contract
 
     existing = [
@@ -601,8 +726,17 @@ def _apply_pm_product_clarification_policy(
     assumptions.append(
         "If the operator says to proceed with assumptions, use the recommended defaults from the clarifying questions."
     )
-    contract["assumptions"] = assumptions[:6]
+    contract["assumptions"] = assumptions[:10]
     contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    contract["clarifying_questions_structured"] = _build_structured_clarifying_questions(
+        contract.get("clarifying_questions_structured"),
+        list(contract.get("clarifying_questions") or []),
+    )
+    contract["conversational_reply"] = _synthesize_pm_conversational_reply(
+        contract,
+        raw_reply=contract.get("_raw_conversational_reply"),
+    )
+    contract.pop("_raw_conversational_reply", None)
     return contract
 
 

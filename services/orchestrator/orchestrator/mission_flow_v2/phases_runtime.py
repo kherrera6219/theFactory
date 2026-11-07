@@ -578,6 +578,8 @@ async def _prepare_runtime_qc(
             repaired_output = await _pkg().generate_code_from_contract(
                 mission_context={
                     **_mission_context(mission, metadata),
+                    "feature_contract": metadata.get("feature_contract"),
+                    "specialist_plan": metadata.get("specialist_plan"),
                     "runtime_qc_repair_context": repair_context,
                 },
                 specialist_agent_id=specialist_agent_id,

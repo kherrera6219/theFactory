@@ -23,6 +23,7 @@ VAULT_TTL_SECONDS = 72 * 3600
 
 
 def vault_key(mission_id: str) -> str:
+    """Return the Redis key used to store the per-mission credential vault."""
     return f"mission-vault:{mission_id}"
 
 

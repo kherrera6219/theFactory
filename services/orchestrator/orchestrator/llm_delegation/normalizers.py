@@ -12,6 +12,7 @@ from .config import _VALID_POD_MANAGER_IDS, _VALID_SPECIALIST_IDS
 from .fallbacks import _fallback_logic_clusters, _fallback_pod_group_standard
 from .text import (
     _apply_pm_product_clarification_policy,
+    _build_structured_clarifying_questions,
     _clean_text,
     _cluster_id,
     _normalize_agent_choice,
@@ -22,6 +23,7 @@ from .text import (
     _standard_node_id,
     _string_list,
     _strip_code_fences,
+    _synthesize_pm_conversational_reply,
 )
 
 
@@ -37,7 +39,7 @@ def _code_text_trace(value: str) -> dict[str, Any]:
 def _normalize_deliverables(raw: Any, fallback_requirements: list[str]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     source = raw if isinstance(raw, list) else []
-    for item in source[:8]:
+    for item in source[:12]:
         if isinstance(item, dict):
             name = _clean_text(str(item.get("name") or ""), max_length=300)
             hint = _clean_text(str(item.get("artifact_hint") or ""), max_length=300)
@@ -63,6 +65,8 @@ def _normalize_pm_feature_contract(
     route: str,
     prompt: str,
     requested_target_language: str | None,
+    conversation_context: dict[str, Any] | None = None,
+    user_intent: str | None = None,
 ) -> dict[str, Any]:
     intake_status = _clean_text(raw.get("intake_status", "ready"), max_length=32).lower()
     if intake_status not in {"needs_clarification", "ready"}:
@@ -79,10 +83,14 @@ def _normalize_pm_feature_contract(
     target_languages = _string_list(raw.get("target_languages"), limit=4, max_length=32)
     if not target_languages and requested_target_language:
         target_languages = [_clean_text(requested_target_language, max_length=32).lower()]
-    functional_requirements = _string_list(raw.get("functional_requirements"), limit=8, max_length=1000)
+    functional_requirements = _string_list(
+        raw.get("functional_requirements"), limit=16, max_length=1000
+    )
     if not functional_requirements:
-        functional_requirements = [_clean_text(prompt, max_length=1000, preserve_newlines=True) or "Complete mission"]
-    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6, max_length=1000)
+        functional_requirements = [
+            _clean_text(prompt, max_length=1000, preserve_newlines=True) or "Complete mission"
+        ]
+    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=12, max_length=1000)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission completes without error."]
     risk_assessment = {
@@ -99,13 +107,23 @@ def _normalize_pm_feature_contract(
     else:
         risk_assessment["risk_score"] = 0.2
 
+    clarifying_questions = _string_list(
+        raw.get("clarifying_questions"),
+        limit=5,
+        max_length=1000,
+    )
+    raw_conversational_reply = _clean_text(
+        raw.get("conversational_reply", ""), max_length=2000, preserve_newlines=True
+    )
     contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(raw.get("title", "Mission"), max_length=120) or "Mission",
         "summary": _clean_text(raw.get("summary", prompt), max_length=4000, preserve_newlines=True),
+        "conversational_reply": raw_conversational_reply,
+        "_raw_conversational_reply": raw_conversational_reply,
         "functional_requirements": functional_requirements,
         "non_functional_requirements": _string_list(
-            raw.get("non_functional_requirements"), limit=8, max_length=1000
+            raw.get("non_functional_requirements"), limit=12, max_length=1000
         ),
         "acceptance_criteria": acceptance_criteria,
         "target_languages": target_languages,
@@ -113,10 +131,10 @@ def _normalize_pm_feature_contract(
         "risk_assessment": risk_assessment,
         "human_approval_required": human_approval,
         "risk_notes": _string_list(raw.get("risk_notes"), limit=8, max_length=1000),
-        "clarifying_questions": _string_list(
-            raw.get("clarifying_questions"),
-            limit=5,
-            max_length=1000,
+        "clarifying_questions": clarifying_questions,
+        "clarifying_questions_structured": _build_structured_clarifying_questions(
+            raw.get("clarifying_questions_structured"),
+            clarifying_questions,
         ),
         "assumptions": _string_list(raw.get("assumptions"), limit=10, max_length=1000),
         "out_of_scope": _string_list(raw.get("out_of_scope"), limit=10, max_length=1000),
@@ -131,11 +149,19 @@ def _normalize_pm_feature_contract(
         "created_at": datetime.now(UTC).isoformat(),
     }
     contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
-    return _apply_pm_product_clarification_policy(
+    result = _apply_pm_product_clarification_policy(
         contract=contract,
         prompt=prompt,
         requested_target_language=requested_target_language,
+        conversation_context=conversation_context,
+        user_intent=user_intent,
     )
+    result.pop("_raw_conversational_reply", None)
+    if not result.get("conversational_reply"):
+        result["conversational_reply"] = _synthesize_pm_conversational_reply(
+            result, raw_reply=raw_conversational_reply
+        )
+    return result
 
 
 def _normalize_mission_contract(
@@ -147,7 +173,9 @@ def _normalize_mission_contract(
     mission_type: str,
     output_mode: str,
     requested_target_language: str | None,
+    feature_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    fc = feature_contract if isinstance(feature_contract, dict) else {}
     valid_priorities = {"HIGH", "MEDIUM", "LOW"}
     valid_output_formats = {"standalone_script", "library", "service", "analysis_report", "patch"}
     normalized_output_format = _clean_text(
@@ -173,7 +201,9 @@ def _normalize_mission_contract(
                         item.get("concept", "primary_operation"), max_length=64
                     )
                     or "primary_operation",
-                    "intent": _clean_text(item.get("intent", "Implement requested behavior")),
+                    "intent": _clean_text(
+                        item.get("intent", "Implement requested behavior"), max_length=500
+                    ),
                     "priority": priority,
                 }
             )
@@ -191,14 +221,39 @@ def _normalize_mission_contract(
     if not target_languages and requested_target_language:
         target_languages = [_clean_text(requested_target_language, max_length=32).lower()]
 
-    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
+    combined_acceptance = list(raw.get("acceptance_criteria") or [])
+    for item in fc.get("acceptance_criteria") or []:
+        if item not in combined_acceptance:
+            combined_acceptance.append(item)
+    acceptance_criteria = _string_list(combined_acceptance, limit=12, max_length=1000)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission output satisfies the requested behavior."]
+
+    functional_requirements = _string_list(
+        raw.get("functional_requirements") or fc.get("functional_requirements"),
+        limit=16,
+        max_length=1000,
+    )
+    non_functional_requirements = _string_list(
+        raw.get("non_functional_requirements") or fc.get("non_functional_requirements"),
+        limit=12,
+        max_length=1000,
+    )
+    out_of_scope = _string_list(
+        raw.get("out_of_scope") or fc.get("out_of_scope"),
+        limit=10,
+        max_length=1000,
+    )
+    deliverables = _normalize_deliverables(
+        raw.get("deliverables") or fc.get("deliverables"),
+        functional_requirements,
+    )
 
     return {
         "schema_version": "mission_contract.v1",
         "contract_summary": _clean_text(
-            raw.get("contract_summary", "Mission contract generated."), max_length=240
+            raw.get("contract_summary") or fc.get("summary") or "Mission contract generated.",
+            max_length=1200,
         ),
         "mission_type": _clean_text(raw.get("mission_type", mission_type), max_length=48).upper(),
         "target_languages": target_languages,
@@ -206,8 +261,12 @@ def _normalize_mission_contract(
         "output_format": normalized_output_format,
         "required_domains": _string_list(raw.get("required_domains"), limit=10, max_length=64),
         "logicnode_requirements": requirements,
+        "functional_requirements": functional_requirements,
+        "non_functional_requirements": non_functional_requirements,
+        "deliverables": deliverables,
+        "out_of_scope": out_of_scope,
         "acceptance_criteria": acceptance_criteria,
-        "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
+        "risk_notes": _string_list(raw.get("risk_notes"), limit=8, max_length=1000),
         "source": "llm",
         "llm_route": route,
         "model_provider": provider,

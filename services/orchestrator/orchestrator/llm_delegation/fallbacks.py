@@ -172,6 +172,8 @@ def _fallback_pm_feature_contract(
             "API key) and re-run for a full feature contract.",
         ],
         "clarifying_questions": [],
+        "clarifying_questions_structured": [],
+        "conversational_reply": "",
         "assumptions": [],
         "intake_status": "ready",
         "source": "fallback",
