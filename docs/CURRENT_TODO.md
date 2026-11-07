@@ -13,6 +13,11 @@ as current work.
 
 ## Current Status
 
+**COMPLETE — 2026-11-06: Phase 1 (Master Review Plan) — Out-of-Band Vault Transit & Gateway Proxy/Artifact Route Repair.**
+- **Out-of-Band Vault Transit (`shared_runtime/mission_vault.py`, `api_gateway/main.py`, `orchestrator/routes/missions.py`, `orchestrator/runtime.py`):** Promoted `mission_vault` to `shared_runtime` so both `api-gateway` and `orchestrator` share `split_vault`, `store_vault`, `load_vault`, `strip_vault`, and `scrub_intake_payload_raw`. `POST /v1/missions` on `api-gateway` now extracts `metadata.vault` directly into `mission-vault:<mission_id>` (72h TTL) and strips `vault` before computing idempotency hashes, persisting to `POST /missions`, or publishing to `INTAKE_STREAM`. Fixed the silent vault drop in `consume_intake_stream` when `existing is not None` and added DLQ payload scrubbing in `_write_intake_dlq`.
+- **Gateway Evidence Proxy & Artifact Download Route (`api_gateway/routers/missions.py`, `orchestrator/routes/missions.py`, `orchestrator/routes/internal.py`):** Repaired the 8 `/v1/missions/{mission_id}/...` proxy routes (`logicnodes`, `knowledge`, `knowledge-graph`, `audit-reports`, `audit-artifacts`, `audit-events`, `build-artifacts`, `build-artifacts/{artifact_id}`) to target `/internal/missions/{mission_id}/...` (with backwards-compatible route aliases on the orchestrator) and implemented `GET /missions/{mission_id}/artifact` (`format=json|raw|zip`) with multi-file `## FILE` ZIP archive packaging and `manifest.json`.
+- **Next Up:** Phase 2 (Conversational PM Agent `AGENT-01-PM` & Loss-Free SOW-to-Codegen Pipeline), followed by Phases 3–8.
+
 **COMPLETE — 2026-11-02: PM clarification loop fix, ambiguity scoring, and provider-key vault.**
 Found from a live mission (`mission-4ff982c4`, "Military Madness" web RPG) parked in `CLARIFYING` after the operator had already approved the SOW; the operator was bounced back to PM chat to answer the same questions.
 - **Root cause (`mission_flow_v2/phases_intake.py`):** an approved SOW's stored contract still carried the PM's pre-approval `ambiguity_score` (1.0, `needs_clarification`), and intake re-gated on it. An operator-approved SOW now resolves ambiguity: the original score is kept as `prior_ambiguity_score`, the working score is 0 and `intake_status` is `ready`.

@@ -559,6 +559,7 @@ async def create_audit_event(
 
 
 @router.get("/internal/missions/{mission_id}/audit-events")
+@router.get("/missions/{mission_id}/audit-events", include_in_schema=False)
 async def get_mission_audit_events(
     request: Request,
     mission_id: str,
@@ -648,6 +649,7 @@ async def upsert_logicnode(
 
 
 @router.get("/internal/missions/{mission_id}/logicnodes")
+@router.get("/missions/{mission_id}/logicnodes", include_in_schema=False)
 async def get_logicnodes(
     request: Request,
     mission_id: str,
@@ -771,6 +773,7 @@ async def upsert_knowledge(
 
 
 @router.get("/internal/missions/{mission_id}/knowledge")
+@router.get("/missions/{mission_id}/knowledge", include_in_schema=False)
 async def get_knowledge(
     request: Request,
     mission_id: str,
@@ -937,6 +940,7 @@ async def upsert_repo_import_index(
 
 
 @router.get("/internal/missions/{mission_id}/knowledge-graph")
+@router.get("/missions/{mission_id}/knowledge-graph", include_in_schema=False)
 async def get_knowledge_graph(
     request: Request,
     mission_id: str,
@@ -1168,6 +1172,7 @@ async def get_review_approval(
 
 
 @router.get("/internal/missions/{mission_id}/audit-reports")
+@router.get("/missions/{mission_id}/audit-reports", include_in_schema=False)
 async def get_audit_reports(
     request: Request,
     mission_id: str,
@@ -1185,6 +1190,7 @@ async def get_audit_reports(
 
 
 @router.get("/internal/missions/{mission_id}/audit-artifacts")
+@router.get("/missions/{mission_id}/audit-artifacts", include_in_schema=False)
 async def get_audit_artifacts(
     request: Request,
     mission_id: str,
@@ -1215,6 +1221,7 @@ async def get_audit_artifacts(
 
 
 @router.get("/internal/missions/{mission_id}/build-artifacts")
+@router.get("/missions/{mission_id}/build-artifacts", include_in_schema=False)
 async def get_build_artifacts(
     request: Request,
     mission_id: str,
@@ -1236,6 +1243,7 @@ async def get_build_artifacts(
 
 
 @router.get("/internal/missions/{mission_id}/build-artifacts/{artifact_id}")
+@router.get("/missions/{mission_id}/build-artifacts/{artifact_id}", include_in_schema=False)
 async def get_build_artifact(
     request: Request,
     mission_id: str,

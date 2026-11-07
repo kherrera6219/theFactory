@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import io
+import json
 import logging
+import zipfile
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,7 +17,9 @@ from .. import storage
 from ..audit_events import record_audit_event
 from ..auth import AuthContext
 from ..lifecycle_interface import get_lifecycle_engine_name
+from ..mission_vault import split_vault, store_vault
 from ..models import (
+    MissionBuildArtifactRecord,
     MissionClarifyRequest,
     MissionCreate,
     MissionRecord,
@@ -38,7 +45,10 @@ async def create_mission(
     app = request.app
     redis_ready, _ = await _main._ensure_db_ready(app)
     redis_client = getattr(app.state, "redis", None)
-    metadata = with_project_identity(payload.metadata, mission_id=payload.mission_id)
+    clean_metadata, vault_secrets = split_vault(payload.metadata)
+    if vault_secrets and redis_client is not None:
+        await store_vault(redis_client, payload.mission_id, vault_secrets)
+    metadata = with_project_identity(clean_metadata, mission_id=payload.mission_id)
     metadata["lifecycle_engine"] = get_lifecycle_engine_name(app.state.settings)
     project_id = payload.project_id or resolve_project_id(metadata, mission_id=payload.mission_id)
 
@@ -379,4 +389,154 @@ async def export_mission_github_actions(mission_id: str, request: Request) -> Re
             "Content-Disposition": f'attachment; filename="deploy-workflow-{mission_id}.yml"'
         },
     )
+
+
+_LANGUAGE_EXTENSION_MAP: dict[str, str] = {
+    "python": ".py",
+    "typescript": ".ts",
+    "javascript": ".js",
+    "go": ".go",
+    "rust": ".rs",
+    "java": ".java",
+    "c": ".c",
+    "cpp": ".cpp",
+    "c++": ".cpp",
+    "csharp": ".cs",
+    "c#": ".cs",
+    "ruby": ".rb",
+    "php": ".php",
+    "kotlin": ".kt",
+    "scala": ".scala",
+    "zig": ".zig",
+    "haskell": ".hs",
+    "ocaml": ".ml",
+    "julia": ".jl",
+    "r": ".R",
+}
+
+
+@router.get("/missions/{mission_id}/artifact", dependencies=[INTERNAL_AUTH_DEP])
+async def download_mission_artifact(
+    request: Request,
+    mission_id: str,
+    artifact_id: str | None = Query(default=None),
+    artifact_type: str | None = Query(default=None),
+    format: str = Query(default="json"),
+) -> Any:
+    """Retrieve or download a mission's primary or specified build artifact (`json`, `raw`, or `zip`)."""
+    import orchestrator.main as _main
+
+    from ..file_tree import parse_file_tree
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    await _main._fetch_existing_mission(app, mission_id)
+
+    record: dict[str, Any] | None = None
+    if artifact_id:
+        record = await asyncio.to_thread(
+            storage.get_build_artifact,
+            app.state.settings,
+            mission_id,
+            artifact_id,
+        )
+    else:
+        records = await asyncio.to_thread(
+            storage.list_build_artifacts,
+            app.state.settings,
+            mission_id,
+            50,
+        )
+        if artifact_type:
+            desired_type = artifact_type.strip().lower()
+            record = next(
+                (
+                    r
+                    for r in records
+                    if str(r.get("artifact_type") or "").strip().lower() == desired_type
+                ),
+                None,
+            )
+        if record is None and records:
+            record = next(
+                (
+                    r
+                    for r in records
+                    if str(r.get("artifact_type") or "").strip().lower() == "generated_code"
+                    and r.get("artifact_text")
+                ),
+                records[0],
+            )
+
+    if record is None:
+        raise HTTPException(status_code=404, detail="build artifact not found")
+
+    record = dict(record)
+    record.setdefault("storage_backend", "postgres")
+    record.setdefault("updated_at", record.get("created_at") or datetime.now(UTC).isoformat())
+    if record.get("artifact_text") is not None and isinstance(record.get("verification"), dict):
+        verification = dict(record["verification"])
+        if "signature_record" in verification:
+            from shared_runtime.crypto_signing import verify_payload
+
+            verification["verified"] = verify_payload(
+                record["artifact_text"], verification["signature_record"]
+            )
+        elif verification.get("artifact_digest_sha256") or verification.get(
+            "bundle_digest_sha256"
+        ):
+            expected_digest = verification.get("artifact_digest_sha256") or verification.get(
+                "bundle_digest_sha256"
+            )
+            actual_digest = hashlib.sha256(record["artifact_text"].encode("utf-8")).hexdigest()
+            verification["verified"] = hmac.compare_digest(actual_digest, str(expected_digest))
+        record["verification"] = verification
+
+    normalized_format = str(format or "json").strip().lower()
+    sanitized_id = "".join(c for c in mission_id if c.isalnum() or c in {"-", "_"}) or "mission"
+    artifact_text = str(record.get("artifact_text") or "")
+
+    if normalized_format == "raw":
+        return Response(
+            content=artifact_text,
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{sanitized_id}-artifact.txt"'
+            },
+        )
+
+    if normalized_format == "zip":
+        parsed_files = parse_file_tree(artifact_text)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            file_paths: list[str] = []
+            if parsed_files:
+                for entry in parsed_files:
+                    archive.writestr(entry["path"], entry["content"])
+                    file_paths.append(entry["path"])
+            else:
+                lang = str(record.get("language") or "python").strip().lower()
+                ext = _LANGUAGE_EXTENSION_MAP.get(lang, ".txt")
+                fallback_name = f"main{ext}"
+                archive.writestr(fallback_name, artifact_text)
+                file_paths.append(fallback_name)
+            manifest = {
+                "mission_id": mission_id,
+                "artifact_id": record.get("artifact_id"),
+                "artifact_type": record.get("artifact_type"),
+                "language": record.get("language"),
+                "file_count": len(file_paths),
+                "files": file_paths,
+                "verification": record.get("verification") or {},
+            }
+            archive.writestr("manifest.json", json.dumps(manifest, indent=2))
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{sanitized_id}-bundle.zip"'
+            },
+        )
+
+    return MissionBuildArtifactRecord(**record)
 

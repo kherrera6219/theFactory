@@ -104,7 +104,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/logicnodes", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/logicnodes", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/knowledge")
     async def get_mission_knowledge(
@@ -114,7 +116,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/knowledge", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/knowledge", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/knowledge-graph")
     async def get_mission_knowledge_graph(
@@ -124,7 +128,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/knowledge-graph", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/knowledge-graph", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/audit-reports")
     async def get_mission_audit_reports(
@@ -134,7 +140,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/audit-reports", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/audit-reports", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/audit-artifacts")
     async def get_mission_audit_artifacts(
@@ -144,7 +152,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/audit-artifacts", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/audit-artifacts", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/audit-events")
     async def get_mission_audit_events(
@@ -154,7 +164,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/audit-events", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/audit-events", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/build-artifacts")
     async def get_mission_build_artifacts(
@@ -164,7 +176,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/build-artifacts", params={"limit": limit})
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/build-artifacts", params={"limit": limit}
+        )
 
     @router.get("/v1/missions/{mission_id}/build-artifacts/{artifact_id}")
     async def get_mission_build_artifact(
@@ -174,7 +188,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/build-artifacts/{artifact_id}")
+        return await gateway_main._proxy_get_internal(
+            f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}"
+        )
 
     @router.get("/v1/missions/{mission_id}/artifact")
     async def download_mission_artifact(

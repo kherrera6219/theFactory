@@ -3998,6 +3998,104 @@
         "summary": "Get Mission"
       }
     },
+    "/missions/{mission_id}/artifact": {
+      "get": {
+        "description": "Retrieve or download a mission's primary or specified build artifact (`json`, `raw`, or `zip`).",
+        "operationId": "download_mission_artifact_missions__mission_id__artifact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Download Mission Artifact Missions  Mission Id  Artifact Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Mission Artifact"
+      }
+    },
     "/missions/{mission_id}/clarify": {
       "post": {
         "description": "Supply operator clarification to a mission blocked in CLARIFYING state.\n\nStores the clarification text in ``metadata[\"pm_clarification\"]`` and\nre-queues the mission so the PM Agent re-processes the intent with the\nadditional context. Only valid when the current state is CLARIFYING;\nreturns HTTP 409 otherwise.",

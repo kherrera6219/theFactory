@@ -31,6 +31,7 @@ from shared_runtime.mission_types import (
     normalize_mission_type,
     normalize_output_mode,
 )
+from shared_runtime.mission_vault import split_vault, store_vault, strip_vault
 from shared_runtime.pii_guard import detect_pii, scan_dict_for_pii
 from shared_runtime.prompt_guard import check_prompt
 from shared_runtime.protocol import (
@@ -642,7 +643,7 @@ def _build_sensitive_input_scan(payload: MissionCreate) -> dict[str, Any]:
 
     metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
     for field_path, pii_type in scan_dict_for_pii(metadata, max_depth=4):
-        if field_path in {"source_code", "prompt", "chain_trace"}:
+        if field_path in {"source_code", "prompt", "chain_trace"} or field_path.startswith("vault"):
             continue
         key = (f"metadata.{field_path}", pii_type)
         field_counts[key] = field_counts.get(key, 0) + 1
@@ -679,7 +680,7 @@ def _metadata_prompt_fields(
         for key, child in value.items():
             if not isinstance(key, str):
                 continue
-            if key in {"source_code", "prompt", "chain_trace"}:
+            if key in {"source_code", "prompt", "chain_trace", "vault"}:
                 continue
             fields.extend(
                 _metadata_prompt_fields(
@@ -2254,11 +2255,14 @@ async def _emit_intake_telemetry(
 ) -> None:
     """Publish mission intake event to the Protocol Bus."""
     payload_ref = f"registry://missions/{mission_id}/intake"
+    scrubbed_payload = dict(mission_payload)
+    if isinstance(scrubbed_payload.get("metadata"), dict):
+        scrubbed_payload["metadata"] = strip_vault(scrubbed_payload["metadata"])
     try:
         envelope = _build_envelope(correlation_id=mission_id, payload_ref=payload_ref)
         await redis_client.xadd(
             INTAKE_STREAM,
-            {"envelope": json.dumps(envelope), "payload": json.dumps(mission_payload)},
+            {"envelope": json.dumps(envelope), "payload": json.dumps(scrubbed_payload)},
             maxlen=MAX_STREAM_LEN,
             approximate=True,
         )
@@ -2338,9 +2342,11 @@ async def create_mission(
         mission_id=provisional_id,
         requested_target_language=payload.requested_target_language
     )
+    normalized_metadata, vault_secrets = split_vault(normalized_metadata)
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
     normalized_metadata = _apply_mission_classification(payload, normalized_metadata)
+    payload = payload.model_copy(update={"metadata": normalized_metadata})
 
     prompt_input_scan = _build_prompt_input_scan(payload)
     normalized_metadata["prompt_input_scan"] = prompt_input_scan
@@ -2383,9 +2389,12 @@ async def create_mission(
     if idempotency_key:
         mission_id, existing = await _handle_mission_idempotency(redis_client, idempotency_key, payload, provisional_id)
         if existing:
+            await store_vault(redis_client, existing.mission_id, vault_secrets)
             return existing
         idempotency_redis_key = _idempotency_redis_key(idempotency_key.strip())
         request_hash = _request_hash(payload)
+
+    await store_vault(redis_client, mission_id, vault_secrets)
 
     created_at = datetime.now(UTC).isoformat()
     mission_payload = _prepare_initial_mission_payload(mission_id, payload, created_at)
@@ -2465,6 +2474,18 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
         raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail="orchestrator internal query failed")
+    resp_headers = getattr(response, "headers", None) or {}
+    content_type = str(resp_headers.get("content-type") or "").lower()
+    if content_type and "application/json" not in content_type and hasattr(response, "content"):
+        forward_headers: dict[str, str] = {}
+        if "content-disposition" in resp_headers:
+            forward_headers["Content-Disposition"] = str(resp_headers["content-disposition"])
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            media_type=resp_headers.get("content-type"),
+            headers=forward_headers,
+        )
     return response.json()
 
 

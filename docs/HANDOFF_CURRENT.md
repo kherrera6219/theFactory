@@ -8,7 +8,15 @@ Audience: Maintainers, operators, and AI coding agents
 ---
 
 
-## Latest session (2026-10-29) — read first
+## Latest session (2026-11-06) — read first
+
+**COMPLETE — 2026-11-06: Phase 1 (8-Phase Master Review & Upgrade Plan) — Out-of-Band Vault Transit & Gateway Proxy/Artifact Route Repair.**
+- **Out-of-Band Vault Transit (`shared_runtime/mission_vault.py`, `services/orchestrator/orchestrator/mission_vault.py`, `services/api-gateway/api_gateway/main.py`, `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/runtime.py`):** Eliminated plaintext provider key transit across Redis idempotency records, `INTAKE_STREAM`, and `intake_dlq_stream`, and fixed the silent vault drop when `POST /missions` creates the Postgres row before `consume_intake_stream` processes the stream event.
+- **Gateway Evidence Proxy & Multi-Format Artifact Download (`services/api-gateway/api_gateway/routers/missions.py`, `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/routes/internal.py`):** Connected all 8 gateway mission-evidence routes to `/internal/missions/{mission_id}/...` and implemented `GET /missions/{mission_id}/artifact` supporting `format=json|raw|zip` (unpacking `## FILE` bundles into downloadable `.zip` archives with `manifest.json`).
+- **Verification:** `tests/services/test_mission_vault.py` (11/11 passed), `docs/openapi/orchestrator.v1.json` updated and verified via `scripts/export_openapi.py --check`, `ruff` clean.
+- **Next Session / Immediate Continuation:** Proceed to **Phase 2: Conversational PM Agent (`AGENT-01-PM`) & Loss-Free SOW-to-Codegen Pipeline**.
+
+## Previous session (2026-10-29)
 
 **COMPLETE — 2026-10-29: Enterprise Hardening & Architecture Alignment — Completed across all 7 technical domains.**
 - **Phase 7:** Added warm-pool execution, latency profiling (`duration_ms`), and `GET /internal/sandbox/warm-pool` endpoint in `sandbox_runner.py` and `sandbox_exec.py`, achieving <200ms execution latency and 100% module coverage.

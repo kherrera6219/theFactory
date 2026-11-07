@@ -21,7 +21,7 @@ from .mission_flow import (
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
-from .mission_vault import load_vault, split_vault, store_vault
+from .mission_vault import load_vault, scrub_intake_payload_raw, split_vault, store_vault
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -554,7 +554,7 @@ async def _write_intake_dlq(
             "error": error,
             "entry_id": entry_id,
             "envelope": fields.get("envelope", ""),
-            "payload": fields.get("payload", ""),
+            "payload": scrub_intake_payload_raw(str(fields.get("payload", ""))),
             "ts": datetime.now(UTC).isoformat(),
         },
         maxlen=settings.intake_dlq_max_len,
@@ -597,6 +597,11 @@ async def consume_intake_stream(app: FastAPI) -> None:
                         payload_json = json.loads(payload_raw)
                         validator.parse_intake_envelope(fields, payload_json)
 
+                        intake_metadata, intake_vault = split_vault(
+                            _normalize_metadata(payload_json.get("metadata"))
+                        )
+                        await store_vault(redis_client, payload_json["mission_id"], intake_vault)
+
                         existing = await asyncio.to_thread(
                             storage.fetch_mission,
                             settings,
@@ -607,10 +612,6 @@ async def consume_intake_stream(app: FastAPI) -> None:
                                 start_lifecycle_task(app, existing.mission_id)
                             acknowledge = True
                         else:
-                            intake_metadata, intake_vault = split_vault(
-                                _normalize_metadata(payload_json.get("metadata"))
-                            )
-                            await store_vault(redis_client, payload_json["mission_id"], intake_vault)
                             mission = MissionRecord(
                                 mission_id=payload_json["mission_id"],
                                 prompt=payload_json["prompt"],

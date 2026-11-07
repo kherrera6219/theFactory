@@ -11,7 +11,7 @@ import os
 import re
 from typing import Any
 
-FILE_MARKER = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+FILE_MARKER = re.compile(r"^## FILE:?\s+(.+)$", re.MULTILINE)
 _MAX_FILES = 80
 _MAX_PATH = 240
 _MAX_CONTENT_CHARS = 200_000
