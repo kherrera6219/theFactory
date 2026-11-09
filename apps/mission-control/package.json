@@ -124,7 +124,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
-    "@lhci/cli": "^0.15.1",
+    "@lhci/cli": "^0.16.0",
     "@playwright/test": "^1.60.0",
     "@types/node": "26.0.1",
 
