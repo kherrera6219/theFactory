@@ -138,11 +138,11 @@
     "electron": "^42.11.16",
     "electron-builder": "^26.15.3",
     "esbuild": "0.28.2",
-    "jsdom": "29.1.1",
+    "jsdom": "31.0.0",
     "openapi-typescript": "^7.13.0",
     "patch-package": "^8.0.1",
     "ts-node": "^10.9.2",
     "typescript": "6.0.2",
-    "vitest": "4.1.12"
+    "vitest": "5.1.0"
   }
 }
