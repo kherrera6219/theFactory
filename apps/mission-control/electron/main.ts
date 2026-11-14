@@ -417,8 +417,8 @@ async function runFirstRunWizard(): Promise<LlmProviderKeys> {
  */
 async function ensureBackendConfigured(): Promise<string | null> {
   const { deployDir, envPath } = stackPaths();
+  const templatePath = path.join(deployDir, "..", ".env.example");
   if (!fs.existsSync(envPath)) {
-    const templatePath = path.join(deployDir, "..", ".env.example");
     if (!fs.existsSync(templatePath)) {
       report({ step: "configure", failed: true, detail: "Bundled configuration template is missing.",
         log: `.env.example not found at ${templatePath}` });
@@ -442,7 +442,7 @@ async function ensureBackendConfigured(): Promise<string | null> {
     SANDBOX_WORKSPACE_HOST_ROOT: sandboxWorkspace,
     COMPOSE_PROJECT_DIR: deployDir,
     // Model defaults ship with the release; refresh them like the image tag.
-    ...releaseModelDefaults(templatePath),
+    ...(fs.existsSync(templatePath) ? releaseModelDefaults(templatePath) : {}),
   });
   stepReport("configure", "Configuration ready.", 1);
   return envPath;
