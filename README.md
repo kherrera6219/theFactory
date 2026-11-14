@@ -28,7 +28,7 @@
 > - **20 Language Toolchains**: Automated syntax parsing, comment-stripped structural & AST extraction (`ast`, `esprima`, `javalang`, `go`, `haskell`, `ocaml`, `julia`, `treesitter_extractor`), and isolated test execution across 20 languages.
 > - **41 Specialist Agents**: Role-based multi-agent architecture spanning conversational PM Studio (`AGENT-01-PM`), fast-path SOW routing, paradigm pods, language specialists, and contract-driven quality control.
 > - **Hardened Container Sandbox & Multi-Turn Surgical Self-Repair**: Untrusted code executes in an unprivileged, non-networked Docker container (`--user=65534`, `--network=none`, `--read-only`) with surgical file-level self-repair (`rqca_repair.py`) and polyglot behavioral equivalence (`Python`, `JavaScript`, `TypeScript`, plus CLI contract oracles across all 20 languages).
-> - **Native Desktop & Web UI**: Mission Control operator console with a Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, and 1-click `.zip`, `.patch`, and signed CycloneDX `1.5` SBOM exports.
+> - **Native Desktop & Web UI**: Mission Control operator console with a Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, and 1-click `.zip`, `.patch`, and `ECDSA-P256-SHA256`-signed CycloneDX `1.5` SBOM exports (authenticated end-to-end via gateway + `INTERNAL_AUTH_DEP`).
 > - **Out-of-Band Credential Vault & Zero-Trust Identity**: Ephemeral Redis vault (`mission-vault:<id>`) keeps provider API keys out of Postgres and Redis intake/DLQ streams; strict multi-tenant OIDC & mutual TLS (`mTLS`) secure service boundaries.
 > - **Dynamic Deployment Topologies**: One-command scaling between lightweight condensed mode and a 41-container dedicated fleet.
 
@@ -69,7 +69,7 @@ theFactory is not an inline autocomplete widget, chat tab, or "vibe coding" assi
 | **Inter-Service Bus** | Unstructured REST calls or tight couplings | 6 typed Redis protocol streams with W3C distributed tracing context and out-of-band vault transit |
 | **Data Integrity** | Vector-only semantic search prone to hallucinations | Reciprocal Rank Fusion (RRF) combining dense vectors and sparse lexical search |
 | **Security & Identity** | Static API keys or developer-mode defaults | Strict multi-tenant OIDC claim validation and inter-service mutual TLS |
-| **Audit Readiness** | Missing or ephemeral chat histories | Digitally signed cryptographic audit ledgers, SHA-256 `.zip` bundles, unified `.patch` diffs, and signed CycloneDX 1.5 SBOMs |
+| **Audit Readiness** | Missing or ephemeral chat histories | Digitally signed cryptographic audit ledgers, SHA-256 `.zip` bundles, unified `.patch` diffs, and `ECDSA-P256-SHA256`-signed CycloneDX 1.5 SBOMs |
 | **Deployment Modes** | Monolithic local dev only | Dynamic switching between lightweight condensed and 41-container dedicated stacks |
 
 ---
@@ -239,7 +239,7 @@ SANDBOX_SECURITY_FLAGS: tuple[str, ...] = (
 ```
 
 - **Socket Proxying**: The orchestrator does not mount `/var/run/docker.sock`. Only the dedicated `sandbox-runner` service mounts the socket via `tecnativa/docker-socket-proxy`, with container creation restricted to allowed sandbox images.
-- **Pre-Warmed Pool**: Pre-warmed container tracking keeps execution latency **< 200ms**, eliminating multi-second cold-start overheads during automated verification passes.
+- **Local Image-Tag Cache & Timeout Reaper**: Tracks locally cached sandbox runner images at `/internal/sandbox/warm-pool` (`mode="image_tag_cache"`) and spawns unique `--name=sbx-<id>` containers with deterministic `docker kill` / `rm -f` timeout cleanup.
 
 ---
 
@@ -547,14 +547,14 @@ Generated software cannot be certified as working simply because an LLM claims i
   - Strict process caps (`--pids-limit=256`) and CPU ceilings (`--cpus=1`) prevent fork bombs and host CPU exhaustion.
 - **Vendored Offline Test Runners**: The factory maintains pre-built, hash-pinned runner images for every supported language (e.g., `pytest`, `cargo test`, `vitest`, `PHPUnit`, `go test`, `dotnet test`, `ScalaTest`).
 - **Contract-Oracle Behavioral Equivalence**: Tests evaluate not only that the code runs, but that its behavior strictly matches the acceptance criteria defined in the initial SOW contract.
-- **Pre-Warmed Warm Pool**: A background container pool keeps sandbox execution latency under 200ms, enabling fast feedback cycles.
+- **Local Image-Tag Cache (`/internal/sandbox/warm-pool`)**: Reports locally cached sandbox runner images (`mode="image_tag_cache"`) rather than warm long-lived containers, ensuring every verification run starts in a clean ephemeral container with timeout reaper cleanup.
 
 ### 6. Multi-File IDE Workspace, Brownfield Diffs & Signed Exports
 All generated files, documentation, and test suites are presented in Mission Control's **Multi-File IDE Workspace** (`/missions/output` and `GeneratedOutputPanel`):
 
 - **Multi-File Tree & File Tabs**: Multi-file `## FILE` bundles are unpacked into a VS Code-style file tree with per-file language badges, line counts, byte sizes, and syntax highlighting.
 - **Side-by-Side & Unified LCS Diffs**: For brownfield/refactor missions, operators can toggle **Code / Diff vs Source** to inspect line-by-line additions and removals against `source_code`, or export a `git apply`-ready unified patch (`/v1/missions/{id}/export/patch`).
-- **Signed CycloneDX 1.5 SBOM & ZIP Archive**: Download the complete multi-file `.zip` bundle with `manifest.json` (`/v1/missions/{id}/artifact?format=zip`) or export a cryptographically signed CycloneDX 1.5 Software Bill of Materials (`/v1/missions/{id}/export/sbom`).
+- **Signed CycloneDX 1.5 SBOM & ZIP Archive**: Download the complete multi-file `.zip` bundle with `manifest.json` (`/v1/missions/{id}/artifact?format=zip`) or export an authenticated `ECDSA-P256-SHA256`-signed CycloneDX 1.5 Software Bill of Materials (`/v1/missions/{id}/export/sbom`, backed by `cryptography==50.0.2` and `shared_runtime/crypto_signing.py`).
 
 ### 7. Delivery, Archival & Audit Ledger
 Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finalizes the mission:
@@ -567,6 +567,12 @@ Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finaliz
 
 ## Documentation Index & License
 
+### Roadmap & Current Status
+- **Current Status (`2026-11-13`)**: All 8 phases of the Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`), `F1`–`F11` engineering & security remediation (`cryptography==50.0.2` ECDSA P-256 SBOM signing, `_keystore_path()` read-only container fallback, sandbox timeout reaper, RBAC/auth guards, self-repair rollback), and Windows installer rebuild are **complete** and live-verified. See [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md) and [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
+- **Next Phase Roadmap**: [`GEMINI_NEXT_PHASE_PLAN_2026-11-13.md`](GEMINI_NEXT_PHASE_PLAN_2026-11-13.md) — 7-phase plan to **"Make Brownfield Work Real"** (benchmark corpus, git-backed `MissionWorkspace`, multi-turn `AgentHarness`, offline `dependency-provisioner`, full-repo indexing & sliced SOW, baseline characterisation tests, and slice-by-slice PR delivery).
+- **Engineering Review Record (`F1`–`F11`)**: [`GEMINI_REVIEW_FINDINGS_2026-11-13.md`](GEMINI_REVIEW_FINDINGS_2026-11-13.md)
+
+### Documentation & Specifications
 - **Full Documentation Index**: [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md)
 - **Architecture Overview**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Mission Flow v2 Lifecycle**: [`docs/MISSION_FLOW_V2.md`](docs/MISSION_FLOW_V2.md)

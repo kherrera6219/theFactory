@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-11-13. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), `F1`–`F11` engineering/security remediation, Electron `releaseModelDefaults()` `backend.env` auto-refresh, and `opentelemetry` `1.45.2` / `0.66b2` (`CVE-2026-126360`) remediation. See `docs/CURRENT_TODO.md` (2026-11-13).
+> Last validated: 2026-11-13. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), `F1`–`F11` engineering/security remediation (including `cryptography==50.0.2` ECDSA-P256-SHA256 SBOM signing and `shared_runtime/crypto_signing.py` `_keystore_path()` read-only container fallback on `6fe77d2`), Electron `releaseModelDefaults()` `backend.env` auto-refresh, and `opentelemetry` `1.45.2` / `0.66b2` (`CVE-2026-126360`) remediation. Next initiative: `GEMINI_NEXT_PHASE_PLAN_2026-11-13.md` ("Make Brownfield Work Real", Phases 1–7). See `docs/CURRENT_TODO.md` (2026-11-13).
 
 ---
 
@@ -42,14 +42,9 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- 2026-09-27 pass is on `main` (see `docs/CURRENT_TODO.md`): WQ7 and WQ12
-  closed, object store is SeaweedFS, every language has sandbox execution.
-- Done 2026-09-27: local object-store migration; Windows installer (#9) built,
-  installed and validated (`docs/ELECTRON_INSTALLER.md`); all agents on
-  `gemini-4-argon` (and `gpt-6.1-terrea` / `claude-opus-5-5`, with `claude-ops-5.5` alias).
-- Next: stuck missions + coverage re-run; first `v*` release with public GHCR
-  images. Electron preloads run sandboxed -- they must stay esbuild-bundled
-  (build-electron.mjs fails otherwise).
+- **Done (2026-11-13, `6fe77d2`):** Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` alias), `F1`–`F11` engineering & security remediation (`cryptography==50.0.2` + `_keystore_path()` writable tempdir fallback in `shared_runtime/crypto_signing.py`), `opentelemetry` `1.45.2`/`0.66b2` (`CVE-2026-126360`) fix, rebuilt `theFactory-MissionControl-Setup-0.1.0.exe`, and verified live smoke mission `mission-5b6e6a8e-7de9-4bc5-874e-cc72bf4720d2` (`VERIFIED`, `ECDSA-P256-SHA256` SBOM, HTTP `401` on direct unauthenticated `:8101` export access) alongside green GitHub `CI` / `Security Checks` / `CodeQL`.
+- **Next:** Execute `GEMINI_NEXT_PHASE_PLAN_2026-11-13.md` ("Make Brownfield Work Real", Phases 1–7), starting with **Phase 1** (brownfield benchmark corpus & runner, non-skippable live CI gates + provider preflight, `MISSION_FALLBACK_POLICY`, and agent activation timeline).
+- Electron preloads run sandboxed -- they must stay esbuild-bundled (`build-electron.mjs` fails otherwise).
 - **Executing tests goes through the vendored images** in
   `deploy/sandbox-images` (built by `make sandbox-images`). Pin every base by
   digest and every download by checksum; `test_factory_sandbox_images_pin_every_input`
