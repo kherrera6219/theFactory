@@ -1313,3 +1313,62 @@ def test_insert_agent_action_event_acquires_advisory_lock_before_reading_prev_di
     assert lock_index < select_index < insert_index
     lock_params = cursor.executed[lock_index][1]
     assert lock_params == ("project-1",)
+
+
+def test_jsonb_writes_strip_nul_bytes(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    settings = _settings()
+    record = MissionRecord(
+        mission_id="mission-nul",
+        prompt="build parser",
+        requested_target_language="python",
+        metadata={"payload": "a\x00b"},
+        state=MissionState.queued,
+        created_at=now,
+    )
+    upsert_params = storage_missions._mission_upsert_params(record, "1-0")
+    assert "\\u0000" not in upsert_params[3]
+    assert '"payload": "ab"' in upsert_params[3]
+
+    c_meta = FakeCursor(fetchone_results=[None])
+    c_td = FakeCursor(
+        fetchone_results=[
+            ("mission-nul", {"language": "python"}, "python", "python:3.12", "pytest", "s", now)
+        ]
+    )
+    c_qc = FakeCursor(
+        fetchone_results=[
+            (
+                "mission-nul", "container", "PASS", "APPROVED", 0, "python", "main.py",
+                "python:3.12", "ok", "", {"verdict": "PASS"}, {"qc_verdict": "APPROVED"},
+                now, now, now,
+            )
+        ]
+    )
+    _patch_db(monkeypatch, [c_meta, c_td, c_qc])
+
+    storage_missions.update_mission_metadata(settings, "mission-nul", {"notes": "x\x00y"})
+    storage_artifacts.insert_testdata_manifest(
+        settings,
+        "mission-nul",
+        {"language": "python", "synthetic_inputs": [{"input_data": "bad\x00data"}]},
+    )
+    storage_artifacts.insert_runtime_qc_report(
+        settings,
+        "mission-nul",
+        {"verdict": "PASS", "stdout_preview": "ok", "details": "o\x00k"},
+        {"qc_verdict": "APPROVED", "notes": "n\x00o"},
+    )
+
+    for cursor in (c_meta, c_td, c_qc):
+        assert len(cursor.executed) == 1
+        params = cursor.executed[0][1]
+        for val in params:
+            if isinstance(val, str):
+                assert "\\u0000" not in val
+                assert "\x00" not in val
+    assert '"notes": "xy"' in c_meta.executed[0][1][0]
+    assert '"input_data": "baddata"' in c_td.executed[0][1][1]
+    assert any(isinstance(v, str) and '"details": "ok"' in v for v in c_qc.executed[0][1])
+    assert any(isinstance(v, str) and '"notes": "no"' in v for v in c_qc.executed[0][1])
+

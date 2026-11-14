@@ -61,18 +61,20 @@ describe("generateEnvFile", () => {
 describe("releaseModelDefaults", () => {
   it("reads only the model keys from the template and refreshes a stale env", () => {
     const template = tempEnv(
-      "GEMINI_MODEL=gemini-4-argon\nOPENAI_MODEL=gpt-6.1-terrea\nANTHROPIC_MODEL=claude-ops-5.5\nGEMINI_API_KEY=secret\n# GEMINI_MODEL=old\n",
+      "GEMINI_MODEL=gemini-4-argon\nOPENAI_MODEL=gpt-6.1-terrea\nANTHROPIC_MODEL=claude-ops-5.5\nGEMINI_TIMEOUT_SECONDS=180\nGEMINI_API_KEY=secret\n# GEMINI_MODEL=old\n",
     );
     const defaults = releaseModelDefaults(template);
     expect(defaults).toEqual({
       GEMINI_MODEL: "gemini-4-argon",
       OPENAI_MODEL: "gpt-6.1-terrea",
       ANTHROPIC_MODEL: "claude-ops-5.5",
+      GEMINI_TIMEOUT_SECONDS: "180",
     });
-    const env = tempEnv("GEMINI_MODEL=gemini-3.8-flash\nGEMINI_API_KEY=keep\n");
+    const env = tempEnv("GEMINI_MODEL=gemini-3.8-flash\nGEMINI_TIMEOUT_SECONDS=60\nGEMINI_API_KEY=keep\n");
     upsertEnvValues(env, defaults);
     const text = fs.readFileSync(env, "utf-8");
     expect(text).toContain("GEMINI_MODEL=gemini-4-argon");
+    expect(text).toContain("GEMINI_TIMEOUT_SECONDS=180");
     expect(text).toContain("GEMINI_API_KEY=keep");
   });
 });

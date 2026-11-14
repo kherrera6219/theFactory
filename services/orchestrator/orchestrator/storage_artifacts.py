@@ -69,7 +69,13 @@ def upsert_audit_report(
                     created_at = EXCLUDED.created_at
                 RETURNING mission_id, audit_id, status, report_json, created_at
                 """,
-                (mission_id, audit_id, status, json.dumps(report), created_at),
+                (
+                    mission_id,
+                    audit_id,
+                    status,
+                    json.dumps(report).replace("\\u0000", ""),
+                    created_at,
+                ),
             )
             row = cur.fetchone()
 
@@ -210,7 +216,7 @@ def upsert_review_approval(
                     scope,
                     fingerprint,
                     summary,
-                    json.dumps(metadata),
+                    json.dumps(metadata).replace("\\u0000", ""),
                     receipt_digest,
                     storage_backend,
                     approved_at,
@@ -413,8 +419,8 @@ def upsert_build_artifact(
                     storage_ref,
                     digest_sha256,
                     max(0, int(size_bytes)),
-                    json.dumps(manifest),
-                    json.dumps(verification),
+                    json.dumps(manifest).replace("\\u0000", ""),
+                    json.dumps(verification).replace("\\u0000", ""),
                     build_log,
                     artifact_text,
                     created_at,
@@ -548,7 +554,7 @@ def insert_testdata_manifest(
                 """,
                 (
                     mission_id,
-                    json.dumps(manifest),
+                    json.dumps(manifest).replace("\\u0000", ""),
                     language,
                     base_image,
                     test_framework,
@@ -661,8 +667,8 @@ def insert_runtime_qc_report(
                     execution_result.get("base_image"),
                     execution_result.get("stdout_preview"),
                     execution_result.get("stderr_preview"),
-                    json.dumps(execution_result),
-                    json.dumps(qc_assessment),
+                    json.dumps(execution_result).replace("\\u0000", ""),
+                    json.dumps(qc_assessment).replace("\\u0000", ""),
                     execution_result.get("started_at"),
                     execution_result.get("completed_at"),
                 ),

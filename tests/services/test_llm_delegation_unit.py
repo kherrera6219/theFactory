@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -2517,6 +2518,28 @@ def test_testdata_manifest_synthesizes_four_contract_categories() -> None:
     assert len(manifest["synthetic_inputs"]) == 4
     assert "id,name,value" in manifest["synthetic_inputs"][0]["input_data"]
     assert "--strict" in manifest["synthetic_inputs"][0]["args"]
+    for contract in (
+        {"contract_summary": "Parse JSON records safely"},
+        {"contract_summary": "Transform generic input text"},
+        {},
+    ):
+        alt = asyncio.run(
+            generate_testdata_manifest(
+                mission_id="m-td-alt",
+                generated_output={"filename": "parser.py", "language": "python"},
+                integration_tests=None,
+                mission_contract=contract,
+                language="python",
+                settings=None,
+            )
+        )
+        assert len(alt["synthetic_inputs"]) == 4
+        for item in alt["synthetic_inputs"]:
+            assert "\x00" not in str(item.get("input_data", ""))
+            assert "\\u0000" not in json.dumps(item)
+    for item in manifest["synthetic_inputs"]:
+        assert "\x00" not in str(item.get("input_data", ""))
+        assert "\\u0000" not in json.dumps(item)
 
 
 def test_security_compliance_checks_sow_deliverable_completeness_and_dangerous_apis() -> None:

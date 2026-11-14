@@ -135,7 +135,7 @@ def _synthesize_contract_inputs(
                 "input_id": "t004",
                 "category": "malformed_adversarial",
                 "description": "malformed adversarial payload",
-                "input_data": "{unclosed_json: [null, \"\x00\", -99999999999999999999",
+                "input_data": "{unclosed_json: [null, \"\\\\x00\", -99999999999999999999",
                 "args": [],
             },
         ]
@@ -155,7 +155,7 @@ def _synthesize_contract_inputs(
     else:
         nominal_data = summary[:120].strip() or "test"
         boundary_data = f"0\n-1\n{upper_bound}"
-        malformed_data = "INVALID_INPUT\x00--bad-flag\n{malformed"
+        malformed_data = "INVALID_INPUT_BAD_PAYLOAD\n--bad-flag\n{malformed"
 
     return [
         {

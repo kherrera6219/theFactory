@@ -263,7 +263,7 @@ For operators preferring a dedicated desktop interface, theFactory ships a compl
 - **Local Pre-Cached Image Detection**: Automatically inspects local Docker Desktop images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners, skipping multi-gigabyte downloads.
 - **Live Throughput Progress UX**: Real-time download speed in MB/s (`45.2 MB / 180.0 MB • 14.2 MB/s`) rendered in `starting.html`.
 - **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller and keep-data uninstallation.
-- **Automatic Release Model Synchronization**: `releaseModelDefaults()` in [`apps/mission-control/electron/env-generator.ts`](apps/mission-control/electron/env-generator.ts) refreshes `GEMINI_MODEL`, `OPENAI_MODEL`, and `ANTHROPIC_MODEL` in `%APPDATA%\theFactory Mission Control\backend.env` on every startup while preserving all generated secrets and API keys.
+- **Automatic Release Model Synchronization**: `releaseModelDefaults()` in [`apps/mission-control/electron/env-generator.ts`](apps/mission-control/electron/env-generator.ts) refreshes `GEMINI_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GEMINI_TIMEOUT_SECONDS` in `%APPDATA%\theFactory Mission Control\backend.env` on every startup while preserving all generated secrets and API keys.
 
 ---
 

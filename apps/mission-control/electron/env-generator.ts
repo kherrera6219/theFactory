@@ -172,7 +172,12 @@ export function upsertEnvValues(envPath: string, values: Record<string, string>)
 }
 
 /** Model-selection keys that ship with each release. */
-export const RELEASE_MODEL_KEYS = ["GEMINI_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL"] as const;
+export const RELEASE_MODEL_KEYS = [
+  "GEMINI_MODEL",
+  "OPENAI_MODEL",
+  "ANTHROPIC_MODEL",
+  "GEMINI_TIMEOUT_SECONDS",
+] as const;
 
 /**
  * Reads the release's default model ids from the bundled .env.example so an

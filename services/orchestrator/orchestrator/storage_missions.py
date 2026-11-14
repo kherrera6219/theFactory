@@ -277,7 +277,7 @@ def _mission_upsert_params(
         record.mission_id,
         record.prompt,
         record.requested_target_language,
-        json.dumps(metadata),
+        json.dumps(metadata).replace("\\u0000", ""),
         project_id,
         record.state.value,
         record.created_at,
@@ -376,7 +376,11 @@ def update_mission_metadata(
         with conn.cursor() as cur:
             cur.execute(
                 UPDATE_MISSION_METADATA_SQL,
-                (json.dumps(normalized_metadata), project_id, mission_id),
+                (
+                    json.dumps(normalized_metadata).replace("\\u0000", ""),
+                    project_id,
+                    mission_id,
+                ),
             )
             row = cur.fetchone()
 
@@ -651,7 +655,9 @@ def _locked_mission_metadata_update(
                 cur.execute(
                     LOCKED_UPDATE_MISSION_METADATA_SQL,
                     (
-                        json.dumps(with_project_identity(updated_metadata, mission_id=mission_id)),
+                        json.dumps(
+                            with_project_identity(updated_metadata, mission_id=mission_id)
+                        ).replace("\\u0000", ""),
                         resolve_project_id(updated_metadata, mission_id=mission_id),
                         mission_id,
                     ),
