@@ -170,3 +170,28 @@ export function upsertEnvValues(envPath: string, values: Record<string, string>)
   for (const [key, value] of pending) updated.push(`${key}=${value}`);
   fs.writeFileSync(envPath, updated.join(newline) + newline, { mode: 0o600 });
 }
+
+/** Model-selection keys that ship with each release. */
+export const RELEASE_MODEL_KEYS = ["GEMINI_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL"] as const;
+
+/**
+ * Reads the release's default model ids from the bundled .env.example so an
+ * upgraded app can push them into an existing backend.env. Without this the
+ * models chosen on first install stay pinned forever: a model upgrade never
+ * reached installed users (found 2026-11-13 -- the stack still ran
+ * gemini-3.8-flash after the move to gemini-4-argon). Operator choices are
+ * made in the Settings vault, not in this file.
+ */
+export function releaseModelDefaults(templatePath: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of fs.readFileSync(templatePath, "utf-8").split(/\r?\n/)) {
+    const eq = line.indexOf("=");
+    if (eq === -1 || line.trimStart().startsWith("#")) continue;
+    const key = line.slice(0, eq).trim();
+    const value = line.slice(eq + 1).trim();
+    if ((RELEASE_MODEL_KEYS as readonly string[]).includes(key) && /^[A-Za-z0-9._-]+$/.test(value)) {
+      out[key] = value;
+    }
+  }
+  return out;
+}

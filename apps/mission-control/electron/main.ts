@@ -8,7 +8,7 @@ import { setupUpdater } from "./updater";  // version IPC only — auto-update d
 import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
 import { ensureTlsCertificates } from "./tls-certs";
-import { generateEnvFile, upsertEnvValues, type LlmProviderKeys } from "./env-generator";
+import { generateEnvFile, releaseModelDefaults, upsertEnvValues, type LlmProviderKeys } from "./env-generator";
 import {
   SETUP_WIZARD_CHANNELS,
   STARTING_WINDOW_ACTIONS,
@@ -441,6 +441,8 @@ async function ensureBackendConfigured(): Promise<string | null> {
     // must be a host path Docker Desktop can bind-mount.
     SANDBOX_WORKSPACE_HOST_ROOT: sandboxWorkspace,
     COMPOSE_PROJECT_DIR: deployDir,
+    // Model defaults ship with the release; refresh them like the image tag.
+    ...releaseModelDefaults(templatePath),
   });
   stepReport("configure", "Configuration ready.", 1);
   return envPath;
