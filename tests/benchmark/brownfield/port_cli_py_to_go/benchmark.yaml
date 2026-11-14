@@ -1,0 +1,37 @@
+id: port_cli_py_to_go
+title: Legacy Python Metrics CLI to Go Port (Brownfield Language Port)
+license: MIT
+language: python
+target_language: go
+mission_type: PORT
+source_framework: python-argparse
+runtime_version: "go1.22"
+intent: >-
+  Port the Python JSONL event metrics aggregator CLI (app.py) to idiomatic Go
+  while matching the exact --input flag, deterministic sorted category totals,
+  and JSON stdout contract verified by reference_go/main_test.go.
+entrypoint: app.py
+build_command: "cd reference_go && go build ./..."
+test_command: "python -m pytest -q test_app.py && cd reference_go && go test ./..."
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - app.py
+  - test_app.py
+  - reference_go/go.mod
+  - reference_go/main.go
+  - reference_go/main_test.go
+equivalence_cases:
+  - args: ["--input", "sample.jsonl"]
+    stdin: '{"category":"api","ms":120}\n{"category":"db","ms":80}\n{"category":"api","ms":30}\n'
+    expected_json:
+      total_events: 3
+      total_ms: 230
+      by_category:
+        api:
+          count: 2
+          total_ms: 150
+        db:
+          count: 1
+          total_ms: 80

@@ -64,6 +64,8 @@ async def _advance_running_to_gating(
     if mission is None:
         return False
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if metadata.get("generation_degraded_blocked"):
+        return False
     if metadata.get("scaling_active"):
         if not metadata.get("scaling_partition_events_emitted"):
             mission = await _emit_partition_work_items(
@@ -133,6 +135,8 @@ async def _advance_verified_to_complete(
 ) -> bool:
     mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
     if mission is None:
+        return False
+    if (mission.metadata or {}).get("generation_degraded_blocked"):
         return False
     ready, details = await completion_check_fn(settings=settings, mission=mission)
     if ready:

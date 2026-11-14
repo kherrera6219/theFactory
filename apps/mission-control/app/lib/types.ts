@@ -568,6 +568,7 @@ export type MissionChainTrace = {
     recommendations: string[];
     primary_artifact_type?: string | null;
     source: string;
+    degraded?: boolean;
     model_provider?: string;
     model?: string;
   } | null;
@@ -1120,6 +1121,21 @@ export type LlmUsageSummary = {
     input_tokens: number;
     output_tokens: number;
     cost_usd: number | null;
+  }>;
+  routing_sources?: string[];
+  activations?: Array<{
+    agent_id: string;
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens?: number;
+    cost_usd: number | null;
+    pricing_known?: boolean;
+    call_succeeded?: boolean;
+    source?: string | null;
+    routing_source?: string | null;
+    created_at?: string | null;
   }>;
 };
 

@@ -114,6 +114,18 @@ async def _prepare_delivery_summary(
         feature_contract=metadata.get("feature_contract") or {},
         mission_contract=mission_contract,
     )
+    is_degraded = (
+        bool(metadata.get("generation_degraded"))
+        or str((generated_output or {}).get("source") or "").strip().lower() == "fallback"
+        or (
+            isinstance(delivery_summary, dict)
+            and str(delivery_summary.get("source") or "").strip().lower() == "fallback"
+        )
+    )
+    if isinstance(delivery_summary, dict):
+        delivery_summary["degraded"] = is_degraded
+    if is_degraded:
+        metadata["generation_degraded"] = True
     metadata["delivery_summary"] = delivery_summary
 
     # PBLA-02: broadcast the PM delivery handoff on the Omega lane (fire-and-forget).

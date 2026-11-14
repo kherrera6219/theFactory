@@ -162,3 +162,126 @@ def get_provider_health_summary(now: float | None = None) -> dict[str, Any]:
         "generated_at": datetime.now(UTC).isoformat(),
     }
 
+
+_PROVIDER_PREFLIGHT_STATE = {
+    "schema_version": "provider_preflight.v1",
+    "checked": False,
+    "checked_at": None,
+    "any_provider_ready": False,
+    "configured_count": 0,
+    "ready_count": 0,
+    "providers": {},
+}
+
+
+def get_provider_preflight_status() -> dict:
+    """Return a copy of the latest non-generative LLM provider preflight snapshot."""
+    from copy import deepcopy
+
+    return deepcopy(_PROVIDER_PREFLIGHT_STATE)
+
+
+def _probe_specs() -> list[tuple[str, str, str, dict[str, str]]]:
+    import os
+
+    gemini_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+    openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    anthropic_key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+
+    gemini_base = os.getenv(
+        "GEMINI_API_BASE",
+        "https://generativelanguage.googleapis.com/v1beta",
+    ).rstrip("/")
+    openai_base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    anthropic_base = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
+
+    return [
+        (
+            "gemini",
+            gemini_key,
+            f"{gemini_base}/models",
+            {"x-goog-api-key": gemini_key} if gemini_key else {},
+        ),
+        (
+            "openai",
+            openai_key,
+            f"{openai_base}/models",
+            {"Authorization": f"Bearer {openai_key}"} if openai_key else {},
+        ),
+        (
+            "anthropic",
+            anthropic_key,
+            f"{anthropic_base}/models",
+            {"x-api-key": anthropic_key, "anthropic-version": "2023-06-01"}
+            if anthropic_key
+            else {},
+        ),
+    ]
+
+
+async def run_provider_preflight(
+    settings: object = None,
+    *,
+    timeout_seconds: float = 4.0,
+    client_factory: object = None,
+) -> dict:
+    """Run lightweight non-generative metadata probes against configured LLM providers."""
+    del settings
+    from copy import deepcopy
+
+    import httpx
+
+    providers: dict[str, dict[str, object]] = {}
+    client_cm = (
+        client_factory(timeout=timeout_seconds)
+        if callable(client_factory)
+        else httpx.AsyncClient(timeout=timeout_seconds)
+    )
+
+    async with client_cm as client:
+        for name, api_key, url, headers in _probe_specs():
+            if not api_key:
+                providers[name] = {
+                    "configured": False,
+                    "reachable": False,
+                    "ready": False,
+                    "status_code": None,
+                    "detail": "missing_api_key",
+                }
+                continue
+
+            try:
+                resp = await client.get(url, headers=headers)
+                code = int(getattr(resp, "status_code", 0) or 0)
+                is_ready = 200 <= code < 300
+                providers[name] = {
+                    "configured": True,
+                    "reachable": True,
+                    "ready": is_ready,
+                    "status_code": code,
+                    "detail": "ok" if is_ready else f"http_{code}",
+                }
+            except Exception as exc:
+                providers[name] = {
+                    "configured": True,
+                    "reachable": False,
+                    "ready": False,
+                    "status_code": None,
+                    "detail": f"probe_error:{type(exc).__name__}",
+                }
+
+    configured_count = sum(1 for item in providers.values() if item["configured"])
+    ready_count = sum(1 for item in providers.values() if item["ready"])
+    _PROVIDER_PREFLIGHT_STATE.update(
+        {
+            "schema_version": "provider_preflight.v1",
+            "checked": True,
+            "checked_at": datetime.now(UTC).isoformat(),
+            "any_provider_ready": ready_count > 0,
+            "configured_count": configured_count,
+            "ready_count": ready_count,
+            "providers": providers,
+        }
+    )
+    return deepcopy(_PROVIDER_PREFLIGHT_STATE)
+

@@ -71,6 +71,7 @@ from ..llm_delegation import (  # noqa: F401
 )
 from .base import (  # noqa: F401
     build_mission_charter,
+    record_agent_activation,
     validate_mission_charter_schema,
 )
 from .lifecycle import (  # noqa: F401
@@ -115,6 +116,7 @@ __all__ = [
     "record_audit_event",
     "storage",
     "v2_map_state_to_v1",
+    "record_agent_activation",
     "v2_phase_index",
     "validate_mission_charter_schema",
 ]

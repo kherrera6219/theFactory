@@ -7,6 +7,7 @@ license = { text = "MIT" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = [".*", "build", "dist", "CVS", "_darcs", "{arch}", "*.egg", "brownfield"]
 # --import-mode=importlib: the default "prepend" mode puts each test file's
 # directory on sys.path, which makes a test subdirectory named after a real
 # package importable *as* that package. tests/services/orchestrator,

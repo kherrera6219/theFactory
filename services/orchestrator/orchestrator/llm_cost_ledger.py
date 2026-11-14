@@ -183,6 +183,56 @@ def _fetch_routing_sources_sync(settings: Any, mission_id: str) -> list[str]:
             return [str(row[0]) for row in cur.fetchall() if row and row[0]]
 
 
+def _fetch_activation_rows_sync(settings: Any, mission_id: str) -> list[dict[str, Any]]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT agent_id, provider, model, input_tokens, output_tokens,
+                       total_tokens, estimated_cost_usd, pricing_known,
+                       call_succeeded, routing_source, created_at
+                FROM llm_usage_events
+                WHERE mission_id = %s
+                ORDER BY created_at ASC
+                """,
+                (mission_id,),
+            )
+            activations: list[dict[str, Any]] = []
+            for row in cur.fetchall():
+                (
+                    agent_id,
+                    provider,
+                    model,
+                    inp,
+                    out,
+                    tot,
+                    cost,
+                    pricing_known,
+                    call_succeeded,
+                    routing_source,
+                    created_at,
+                ) = row
+                activations.append(
+                    {
+                        "agent_id": agent_id,
+                        "provider": provider,
+                        "model": model,
+                        "input_tokens": int(inp or 0),
+                        "output_tokens": int(out or 0),
+                        "total_tokens": int(tot or 0),
+                        "cost_usd": float(cost) if cost is not None else None,
+                        "pricing_known": bool(pricing_known),
+                        "call_succeeded": bool(call_succeeded),
+                        "source": str(routing_source) if routing_source else None,
+                        "routing_source": routing_source,
+                        "created_at": created_at.isoformat()
+                        if hasattr(created_at, "isoformat")
+                        else (str(created_at) if created_at else None),
+                    }
+                )
+            return activations
+
+
 async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str, Any]:
     """Return aggregated token usage summary for a mission."""
     try:
@@ -195,6 +245,12 @@ async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str
         )
     except Exception:  # noqa: BLE001
         routing_sources = []
+    try:
+        activations = await asyncio.to_thread(
+            _fetch_activation_rows_sync, settings, mission_id
+        )
+    except Exception:  # noqa: BLE001
+        activations = []
 
     by_agent: list[dict[str, Any]] = []
     by_provider: dict[str, dict[str, Any]] = {}
@@ -247,4 +303,5 @@ async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str
         "by_provider": list(by_provider.values()),
         "by_agent": by_agent,
         "routing_sources": routing_sources,
+        "activations": activations,
     }

@@ -1,0 +1,16 @@
+{
+  "name": "example/legacy-php7-billing",
+  "description": "MIT brownfield PHP 7 invoice calculation benchmark",
+  "license": "MIT",
+  "require": {
+    "php": "^7.4 || ^8.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "LegacyBilling\\": "src/"
+    }
+  }
+}

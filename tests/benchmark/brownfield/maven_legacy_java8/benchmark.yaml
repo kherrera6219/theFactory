@@ -1,0 +1,30 @@
+id: maven_legacy_java8
+title: Legacy Java 8 Maven Ledger Calculator (Brownfield Refactor)
+license: MIT
+language: java
+target_language: java
+mission_type: REFACTOR
+source_framework: maven-java8
+runtime_version: "8"
+intent: >-
+  Add idempotent transaction deduplication by externalRef to LedgerCalc while
+  preserving Java 8 compatibility, pom.xml JUnit 4 build structure, and existing
+  netBalance / applyMonthlyFee / summarizeByAccount signatures.
+entrypoint: src/main/java/com/example/legacy/LedgerCalc.java
+build_command: "mvn -q -DskipTests compile"
+test_command: "mvn -q test"
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - pom.xml
+  - src/main/java/com/example/legacy/LedgerCalc.java
+  - src/test/java/com/example/legacy/LedgerCalcTest.java
+acceptance_checks:
+  required_symbols:
+    - com.example.legacy.LedgerCalc
+    - netBalance
+    - applyMonthlyFee
+    - summarizeByAccount
+  forbidden_regressions:
+    - "Preserve Java 1.8 source/target in pom.xml and existing public method signatures"

@@ -1,0 +1,33 @@
+id: c_buffer_lib
+title: C99 Dynamic String Buffer Library (Brownfield Debug & Repair)
+license: MIT
+language: c
+target_language: c
+mission_type: DEBUG_REPAIR
+source_framework: c99-make
+runtime_version: "c99"
+intent: >-
+  Fix the off-by-one NUL-terminator bounds bug in strbuf_append in src/strbuf.c
+  without breaking the strbuf.h public API or Makefile targets.
+entrypoint: src/strbuf.c
+build_command: "make build"
+test_command: "make test"
+expected_initial_test_pass: false
+known_defect: >-
+  strbuf_append checks `needed > sb->cap` instead of `needed + 1 > sb->cap`,
+  causing an out-of-bounds 1-byte write and failing exact-capacity growth assertions.
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - Makefile
+  - src/strbuf.h
+  - src/strbuf.c
+  - tests/test_strbuf.c
+acceptance_checks:
+  required_symbols:
+    - strbuf_init
+    - strbuf_append
+    - strbuf_free
+    - strbuf_cstr
+  forbidden_regressions:
+    - "Do not alter strbuf.h function signatures"

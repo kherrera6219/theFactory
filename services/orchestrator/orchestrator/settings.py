@@ -149,6 +149,8 @@ class Settings:
     # "shared" — agents without a dedicated key fall back to the shared service key.
     # "strict" — each agent must have its own key (no shared-identity fallback).
     agent_service_key_mode: str = "shared"
+    provider_preflight_required: bool = False
+    mission_fallback_policy: str = "auto"
 
     @property
     def migration_postgres_url(self) -> str:
@@ -474,4 +476,28 @@ def load_settings() -> Settings:
         ),
         environment=environment,
         agent_service_key_mode=agent_service_key_mode,
+        provider_preflight_required=_as_bool(
+            os.getenv("PROVIDER_PREFLIGHT_REQUIRED", "false"), False
+        ),
+        mission_fallback_policy=resolve_mission_fallback_policy(
+            os.getenv("MISSION_FALLBACK_POLICY"),
+            environment=environment,
+        ),
+    )
+
+
+def resolve_mission_fallback_policy(
+    raw_value: str | None = None,
+    *,
+    environment: str = "development",
+) -> str:
+    """Resolve effective fallback policy ('block', 'warn', or 'allow')."""
+    normalized = str(raw_value or "auto").strip().lower()
+    if not normalized or normalized == "auto":
+        env_norm = str(environment or "development").strip().lower()
+        return "block" if env_norm in {"production", "prod", "staging"} else "warn"
+    if normalized in {"block", "warn", "allow"}:
+        return normalized
+    raise ValueError(
+        f"Invalid MISSION_FALLBACK_POLICY {raw_value!r}; expected auto, block, warn, or allow"
     )

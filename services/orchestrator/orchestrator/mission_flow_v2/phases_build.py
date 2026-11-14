@@ -39,6 +39,7 @@ from .base import (
     _setting_bool,
     _setting_int,
     _validate_agent_id,
+    record_agent_activation,
 )
 from .phases_intake import _persist_metadata
 
@@ -608,6 +609,63 @@ async def _prepare_specialist_plan(
             target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
+        gen_source = str(generated_output.get("source") or "").strip().lower()
+        if gen_source == "fallback":
+            from ..settings import resolve_mission_fallback_policy
+
+            raw_policy = metadata.get("fallback_policy")
+            if not isinstance(raw_policy, str) or not raw_policy.strip():
+                settings_policy = getattr(settings, "mission_fallback_policy", "auto")
+                raw_policy = settings_policy if isinstance(settings_policy, str) else "auto"
+            raw_env = getattr(settings, "environment", "development")
+            env_name = raw_env if isinstance(raw_env, str) else "development"
+            policy = resolve_mission_fallback_policy(
+                raw_policy,
+                environment=env_name,
+            )
+            reason = str(
+                generated_output.get("fallback_reason") or "specialist_codegen_fallback"
+            )
+            metadata["generation_degraded"] = True
+            metadata["generation_degraded_reason"] = reason
+            metadata["generation_fallback_policy"] = policy
+            if policy == "block":
+                metadata["generation_degraded_blocked"] = True
+            degraded_details = {
+                "source": gen_source,
+                "policy": policy,
+                "blocked": policy == "block",
+                "reason": reason,
+            }
+            append_chain_event(
+                metadata,
+                event_type="MISSION_GENERATION_DEGRADED",
+                agent_id=specialist_agent_id,
+                details=degraded_details,
+            )
+            await asyncio.to_thread(
+                _pkg().storage.insert_mission_event,
+                settings,
+                mission.mission_id,
+                mission.state,
+                mission.state,
+                "MISSION_GENERATION_DEGRADED",
+            )
+            record_agent_activation(
+                metadata,
+                agent_id=specialist_agent_id,
+                stage="specialist_codegen_degraded",
+                status="blocked" if policy == "block" else "degraded",
+                event_type="MISSION_GENERATION_DEGRADED",
+                provider=str(generated_output.get("provider"))
+                if generated_output.get("provider")
+                else None,
+                model=str(generated_output.get("model"))
+                if generated_output.get("model")
+                else None,
+                source=gen_source,
+                details=degraded_details,
+            )
         # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
         # This is the primary Beta emission site: generated_output is set here,
         # before fusion ever runs, so by the time _prepare_fusion's own Beta call

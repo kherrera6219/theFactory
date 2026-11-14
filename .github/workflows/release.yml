@@ -29,9 +29,21 @@ jobs:
             *) echo "::error::Release tag must start with 'v'"; exit 1 ;;
           esac
 
+      - name: Verify live-stack gate workflow and strict readiness env support
+        run: |
+          test -f .github/workflows/live-stack-gate.yml
+          grep -q "LIVE_STACK_REQUIRED" .github/workflows/live-stack-gate.yml
+          echo "Live-stack gate workflow verified for staging candidate ${GITHUB_REF_NAME}"
+
+  staging-live-gate:
+    name: Staging Live Stack Gate
+    needs: staging-validation
+    uses: ./.github/workflows/live-stack-gate.yml
+    secrets: inherit
+
   publish-images:
     name: Publish Backend Images to GHCR
-    needs: staging-validation
+    needs: [staging-validation, staging-live-gate]
     runs-on: ubuntu-latest
     # Same production-environment approval gate as the installer release job
     # below -- pushing images to a registry under this account is a real,
@@ -123,7 +135,7 @@ jobs:
 
   release:
     name: Production Release
-    needs: [staging-validation, publish-images]
+    needs: [staging-validation, staging-live-gate, publish-images]
     runs-on: windows-latest
     # Fix 3 (Phase 3): gate production releases behind a GitHub Environment.
     # Configure the `production` environment in repo Settings → Environments with

@@ -1,0 +1,28 @@
+id: php7_legacy_app
+title: Legacy PHP 7 Billing App (Brownfield Modernization)
+license: MIT
+language: php
+target_language: php
+mission_type: MODERNIZATION
+source_framework: composer-php7
+runtime_version: "7.4"
+intent: >-
+  Add multi-currency rounding support and promo-code tier validation to
+  InvoiceCalc while preserving strict_types compatibility and existing
+  calculateTotals behavior.
+entrypoint: src/InvoiceCalc.php
+build_command: "php -l src/InvoiceCalc.php"
+test_command: "vendor/bin/phpunit tests"
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - composer.json
+  - src/InvoiceCalc.php
+  - tests/InvoiceCalcTest.php
+acceptance_checks:
+  required_symbols:
+    - LegacyBilling\\InvoiceCalc
+    - calculateTotals
+  forbidden_regressions:
+    - "Keep namespace LegacyBilling and existing calculateTotals return keys"

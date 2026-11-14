@@ -119,7 +119,7 @@ function MissionDetailPageContent() {
   const [streamErrors, setStreamErrors] = useState(0);
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
   const [tokenUsage, setTokenUsage] = useState<LlmUsageSummary | null>(null);
-  const [activeTab, setActiveTab] = useState<"execution" | "artifacts" | "contracts" | "events">("execution");
+  const [activeTab, setActiveTab] = useState<"execution" | "agents" | "artifacts" | "contracts" | "events">("execution");
   // 6E — Inline name edit state.
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -599,6 +599,17 @@ function MissionDetailPageContent() {
       {pausedMonitor && (
         <p className="warning-box">Live refresh paused locally. Click "Resume Monitor" to continue.</p>
       )}
+      {Boolean(
+        chainTrace?.delivery_summary?.degraded ||
+          (mission?.metadata as Record<string, unknown> | undefined)?.generation_degraded,
+      ) && (
+        <p className="warning-box" role="status">
+          Degraded fallback path detected: specialist generation used fallback output
+          {(mission?.metadata as Record<string, unknown> | undefined)?.generation_degraded_blocked
+            ? " and completion was blocked by MISSION_FALLBACK_POLICY."
+            : " (marked degraded for transparency)."}
+        </p>
+      )}
 
       {mission?.state === "COMPLETE" && deliverySummary && (
         <section className="delivery-banner" aria-label="Mission delivery summary">
@@ -696,7 +707,7 @@ function MissionDetailPageContent() {
 
       {/* Phase 2B — Tabbed progressive disclosure replacing the flat 22-panel grid */}
       <div className="mission-tabs" role="tablist" aria-label="Mission detail sections">
-        {(["execution", "artifacts", "contracts", "events"] as const).map((tab) => (
+        {(["execution", "agents", "artifacts", "contracts", "events"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -738,6 +749,115 @@ function MissionDetailPageContent() {
             }
           />
         </ErrorBoundary>
+      </div>
+
+      {/* Agents tab — per-mission agent activation timeline and live LLM invocations */}
+      <div
+        id="tab-panel-agents"
+        role="tabpanel"
+        aria-labelledby="tab-agents"
+        hidden={activeTab !== "agents"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><ActiveAgentsPanel activeAgents={activeAgents} /></ErrorBoundary>
+        <section className="card" aria-label="Agent Activation Timeline">
+          <div className="card-header">
+            <h2 className="card-title">Agent Activation Timeline</h2>
+            <span className="badge">
+              {(tokenUsage?.activations?.length ?? 0)} LLM calls
+            </span>
+          </div>
+          {(() => {
+            const stageActivations = Array.isArray(
+              (mission?.metadata as Record<string, unknown> | undefined)?.agent_activations,
+            )
+              ? ((mission?.metadata as Record<string, unknown>).agent_activations as Array<{
+                  agent_id?: string;
+                  stage?: string;
+                  status?: string;
+                  event_type?: string | null;
+                  provider?: string | null;
+                  model?: string | null;
+                  source?: string | null;
+                  recorded_at?: string | null;
+                }>)
+              : [];
+            const llmActivations = tokenUsage?.activations ?? [];
+            if (stageActivations.length === 0 && llmActivations.length === 0) {
+              return (
+                <p className="muted">
+                  No agent activations recorded yet for this mission.
+                </p>
+              );
+            }
+            return (
+              <div className="stack">
+                {llmActivations.length > 0 && (
+                  <div>
+                    <h3 className="card-subtitle">LLM Invocations</h3>
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Agent</th>
+                            <th>Provider / Model</th>
+                            <th>Tokens</th>
+                            <th>Route</th>
+                            <th>Status</th>
+                            <th>Timestamp</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {llmActivations.map((act, idx) => (
+                            <tr key={`${act.agent_id}-${act.created_at ?? idx}`}>
+                              <td><code>{act.agent_id}</code></td>
+                              <td>{act.provider} / {act.model}</td>
+                              <td>{act.input_tokens} in / {act.output_tokens} out</td>
+                              <td>{act.routing_source ?? act.source ?? "default"}</td>
+                              <td>{act.call_succeeded === false ? "failed" : "ok"}</td>
+                              <td>{act.created_at ?? "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {stageActivations.length > 0 && (
+                  <div>
+                    <h3 className="card-subtitle">Pipeline Stage Activations</h3>
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Stage</th>
+                            <th>Agent</th>
+                            <th>Event</th>
+                            <th>Source / Model</th>
+                            <th>Status</th>
+                            <th>Recorded At</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stageActivations.map((item, idx) => (
+                            <tr key={`${item.stage ?? "stage"}-${item.agent_id ?? idx}`}>
+                              <td><code>{item.stage ?? "-"}</code></td>
+                              <td><code>{item.agent_id ?? "-"}</code></td>
+                              <td>{item.event_type ?? "-"}</td>
+                              <td>{[item.source, item.provider, item.model].filter(Boolean).join(" / ") || "-"}</td>
+                              <td>{item.status ?? "completed"}</td>
+                              <td>{item.recorded_at ?? "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </section>
       </div>
 
       {/* Artifacts tab — generated output, build artifacts, quality gates, and optional/brownfield stages */}

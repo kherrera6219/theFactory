@@ -731,6 +731,13 @@ async def lifespan(app: FastAPI):
         # readiness probe crash the lifespan — the self-heal loop retries.
         LOGGER.warning("initial ensure_runtime_ready failed at startup", exc_info=True)
 
+    try:
+        from .llm_delegation.health import run_provider_preflight
+
+        app.state.provider_preflight = await run_provider_preflight(app.state.settings)
+    except Exception:
+        LOGGER.warning("initial provider preflight probe failed at startup", exc_info=True)
+
     # Load versioned prompt assets into registry. Non-fatal: a missing or
     # malformed prompt-assets directory must degrade (no prompts registered)
     # rather than crash startup.
@@ -954,6 +961,8 @@ async def health() -> dict[str, Any]:
         except Exception as exc:
             LOGGER.debug("health check: agent heartbeat query failed: %s", exc)
 
+    from .llm_delegation.health import get_provider_preflight_status
+
     return {
         "ok": True,
         "service": "orchestrator",
@@ -982,6 +991,7 @@ async def health() -> dict[str, Any]:
         ),
         "protocol_ready": bool(getattr(app.state, "protocol_ready", False)),
         "protocol_error": getattr(app.state, "protocol_error", None),
+        "provider_preflight": get_provider_preflight_status(),
         "agents_total": len(AGENT_REGISTRY),
         "agents_with_heartbeat": len(agents_with_heartbeat),
         "agents_missing_heartbeat": len(agents_missing_heartbeat),
@@ -1031,10 +1041,19 @@ async def readyz() -> dict[str, Any]:
         object_storage_ready = await asyncio.to_thread(
             object_store.object_storage_ready, app.state.settings
         )
+    from .llm_delegation.health import get_provider_preflight_status
+
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
+    provider_preflight = get_provider_preflight_status()
+    provider_preflight_ready = bool(provider_preflight.get("any_provider_ready", False))
+    provider_preflight_required = bool(
+        getattr(app.state.settings, "provider_preflight_required", False)
+    )
     ready = redis_ready and db_ready and protocol_ready and consumer_running
+    if provider_preflight_required:
+        ready = ready and provider_preflight_ready
     if app.state.settings.qdrant_enabled:
         ready = ready and bool(qdrant_ready)
     if app.state.settings.milvus_enabled:
@@ -1057,6 +1076,9 @@ async def readyz() -> dict[str, Any]:
                 "object_storage_ready": object_storage_ready,
                 "protocol_ready": protocol_ready,
                 "consumer_running": consumer_running,
+                "provider_preflight_ready": provider_preflight_ready,
+                "provider_preflight_required": provider_preflight_required,
+                "provider_preflight": provider_preflight,
                 **_langgraph_runtime_payload(app),
             },
         )
@@ -1077,6 +1099,9 @@ async def readyz() -> dict[str, Any]:
         "object_storage_object_lock_ready": object_store.object_lock_ready(app.state.settings),
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
+        "provider_preflight_ready": provider_preflight_ready,
+        "provider_preflight_required": provider_preflight_required,
+        "provider_preflight": provider_preflight,
         **_langgraph_runtime_payload(app),
     }
 

@@ -1,0 +1,28 @@
+id: csharp_net_console
+title: Legacy C# .NET CSV Parser Console Library (Brownfield Bug Fix)
+license: MIT
+language: csharp
+target_language: csharp
+mission_type: BUG_FIX
+source_framework: dotnet-console
+runtime_version: "8.0"
+intent: >-
+  Extend CsvParser to support custom delimiters and header-indexed dictionary
+  parsing while preserving RFC-4180 escaped-quote handling and SummarizeColumn.
+entrypoint: CsvParser.cs
+build_command: "dotnet build LegacyCsv.csproj --nologo"
+test_command: "dotnet test LegacyCsv.csproj --nologo"
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - LegacyCsv.csproj
+  - CsvParser.cs
+  - CsvParserTests.cs
+acceptance_checks:
+  required_symbols:
+    - LegacyCsv.CsvParser
+    - ParseLine
+    - SummarizeColumn
+  forbidden_regressions:
+    - "Preserve namespace LegacyCsv and public static CsvParser methods"

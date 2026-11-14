@@ -1,0 +1,28 @@
+id: express_cjs_node
+title: Legacy Express CommonJS Inventory Router (Brownfield Feature Add)
+license: MIT
+language: javascript
+target_language: javascript
+mission_type: FEATURE_ADD
+source_framework: express-commonjs
+runtime_version: "20"
+intent: >-
+  Add SKU uniqueness validation and PATCH /inventory/:sku/adjust delta updates
+  to the CommonJS Express router while preserving existing CommonJS module.exports
+  and GET/POST inventory endpoints.
+entrypoint: src/router.js
+build_command: "node --check src/router.js"
+test_command: "node test/router.test.js"
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - package.json
+  - src/router.js
+  - test/router.test.js
+acceptance_checks:
+  required_symbols:
+    - InventoryStore
+    - createInventoryRouter
+  forbidden_regressions:
+    - "Must remain CommonJS (require/module.exports) without switching package.json to ESM"

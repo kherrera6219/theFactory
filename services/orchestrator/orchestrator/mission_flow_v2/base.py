@@ -144,6 +144,54 @@ def _extract_cross_pod_flags(logic_clusters: dict[str, Any]) -> list[str]:
     return sorted(pod_ids) if len(pod_ids) > 1 else []
 
 
+def record_agent_activation(
+    metadata: dict[str, Any],
+    *,
+    agent_id: str,
+    stage: str,
+    status: str = "completed",
+    event_type: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    source: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record or update an agent's activation entry in mission metadata."""
+    activations = metadata.get("agent_activations")
+    if not isinstance(activations, list):
+        activations = []
+
+    now_iso = datetime.now(UTC).isoformat()
+    entry: dict[str, Any] = {
+        "agent_id": agent_id,
+        "stage": stage,
+        "status": status,
+        "event_type": event_type,
+        "provider": provider,
+        "model": model,
+        "source": source,
+        "recorded_at": now_iso,
+        "details": dict(details or {}),
+    }
+
+    for idx, existing in enumerate(activations):
+        if (
+            isinstance(existing, dict)
+            and existing.get("stage") == stage
+            and existing.get("agent_id") == agent_id
+        ):
+            activations[idx] = {
+                **existing,
+                **{k: v for k, v in entry.items() if v is not None},
+            }
+            metadata["agent_activations"] = activations
+            return dict(activations[idx])
+
+    activations.append(entry)
+    metadata["agent_activations"] = activations
+    return dict(entry)
+
+
 def _record_artifact(
     metadata: dict[str, Any],
     *,
@@ -155,13 +203,25 @@ def _record_artifact(
     artifacts = metadata.get("mission_artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
+    detail_map = dict(details or {})
     artifacts[stage] = {
         "event_type": event_type,
         "agent_id": agent_id,
         "recorded_at": datetime.now(UTC).isoformat(),
-        "details": details or {},
+        "details": detail_map,
     }
     metadata["mission_artifacts"] = artifacts
+    record_agent_activation(
+        metadata,
+        agent_id=agent_id,
+        stage=stage,
+        status="completed",
+        event_type=event_type,
+        provider=str(detail_map.get("provider")) if detail_map.get("provider") else None,
+        model=str(detail_map.get("model")) if detail_map.get("model") else None,
+        source=str(detail_map.get("source")) if detail_map.get("source") else None,
+        details=detail_map,
+    )
 
 
 def _validate_agent_id(candidate: Any, *, fallback: str) -> str:

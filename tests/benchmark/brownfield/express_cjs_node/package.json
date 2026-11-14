@@ -1,0 +1,13 @@
+{
+  "name": "legacy-express-cjs-inventory",
+  "version": "1.0.0",
+  "description": "MIT brownfield Express CommonJS inventory router benchmark",
+  "main": "src/router.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "node test/router.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

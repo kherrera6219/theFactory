@@ -1,0 +1,32 @@
+id: flask_legacy_py
+title: Legacy Flask Orders Service (Brownfield Feature Add)
+license: MIT
+language: python
+target_language: python
+mission_type: FEATURE_ADD
+source_framework: flask
+runtime_version: "3.11"
+intent: >-
+  Add query status filtering and limit/offset pagination to GET /items and a
+  PATCH /items/<item_id> status update endpoint while preserving all existing
+  GET /health, GET /items, POST /items, and GET /items/<item_id> contracts.
+entrypoint: app.py
+build_command: "python -m py_compile app.py"
+test_command: "python -m pytest -q test_app.py"
+expected_initial_test_pass: true
+expected_files:
+  - LICENSE
+  - benchmark.yaml
+  - app.py
+  - test_app.py
+acceptance_checks:
+  required_symbols:
+    - create_app
+    - calculate_order_total
+  preserved_routes:
+    - "GET /health"
+    - "GET /items"
+    - "POST /items"
+    - "GET /items/<item_id>"
+  forbidden_regressions:
+    - "Do not rename calculate_order_total or break existing 201/400/404 status codes"
