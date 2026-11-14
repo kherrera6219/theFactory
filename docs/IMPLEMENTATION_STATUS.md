@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.10.27
-Last updated: 2026-10-27
+Document version: 2026.11.13
+Last updated: 2026-11-13
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -40,7 +40,7 @@ The application currently includes:
 - Mission Control Next.js operator UI with Electron desktop packaging and decomposed, modular Chat intake components
 - API gateway decomposed into modular APIRouters (`system.py`, `operations.py`, `missions.py`) with dual-mode auth (API Key + OIDC) and rate limiting
 - Hardened sandbox execution runner with non-root UID 65534, PID limits, ulimits, and `tecnativa/docker-socket-proxy` daemon mediation
-- Full-spectrum LLM provider integration: Gemini 3.8 Flash default, Anthropic Claude, OpenAI, and native air-gapped local models via `OllamaProvider` and vLLM with fail-closed unknown provider rejection
+- Full-spectrum LLM provider integration: Gemini 4 Argon (`gemini-4-argon`) default across all 41 agents, Anthropic Claude (`claude-ops-5.5` / `claude-opus-5.5`), OpenAI (`gpt-6.1-terrea`), and native air-gapped local models via `OllamaProvider` and vLLM with fail-closed unknown provider rejection
 - Centralized language and paradigm pod taxonomy under `thefactory_common.taxonomy` with strict static typing
 - Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
@@ -122,6 +122,10 @@ The application currently includes:
 ---
 
 ## Recent Phase Summary
+
+### Next-Generation Model Fleet, Desktop App Auto-Refresh & Dependency Security Hardening (2026-11-13)
+
+Completed on `main` through `3733489`. Upgraded default LLM routes across all 41 agents, gateway allowlists, cost ledger, and Mission Control vault/settings to **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Ops 5.5** (`claude-ops-5.5` with backward-compatible alias `claude-opus-5.5`). Added `releaseModelDefaults(templatePath)` in `apps/mission-control/electron/env-generator.ts` (wired into `ensureBackendConfigured()`) and fixed inline script CSP (`script-src 'self' 'unsafe-inline'`) in `starting.html` and `setup-wizard.html`. Upgraded `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp` to `1.45.2` (plus instrumentation packages to `0.66b2`) in `services/api-gateway/requirements.txt` and `services/orchestrator/requirements.txt` to resolve `CVE-2026-126360`, rebuilt service images and `theFactory-MissionControl-Setup-0.1.0.exe`, and verified `CI`, `Security Checks`, and `CodeQL` green on `main`.
 
 ### Enterprise Audit, Installer Rebuild & CI/Security Remediation (2026-10-26)
 

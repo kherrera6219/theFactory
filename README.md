@@ -263,6 +263,7 @@ For operators preferring a dedicated desktop interface, theFactory ships a compl
 - **Local Pre-Cached Image Detection**: Automatically inspects local Docker Desktop images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners, skipping multi-gigabyte downloads.
 - **Live Throughput Progress UX**: Real-time download speed in MB/s (`45.2 MB / 180.0 MB • 14.2 MB/s`) rendered in `starting.html`.
 - **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller and keep-data uninstallation.
+- **Automatic Release Model Synchronization**: `releaseModelDefaults()` in [`apps/mission-control/electron/env-generator.ts`](apps/mission-control/electron/env-generator.ts) refreshes `GEMINI_MODEL`, `OPENAI_MODEL`, and `ANTHROPIC_MODEL` in `%APPDATA%\theFactory Mission Control\backend.env` on every startup while preserving all generated secrets and API keys.
 
 ---
 
@@ -293,10 +294,10 @@ python scripts/manage_topology.py --mode dedicated --dry-run
 
 theFactory provides seamless provider flexibility with strict data leakage guards:
 
-- **Cloud Multi-Provider**:
-  - **Google Gemini**: Default provider (`gemini-4-argon`) with 180s deep synthesis timeout.
-  - **Anthropic Claude**: Full support for `claude-ops-5.5` (and legacy `claude-opus-4-8`).
-  - **OpenAI GPT**: Support for `gpt-6.1-terrea` and `gpt-5.6`.
+- **Cloud Multi-Provider (41-Agent Fleet Defaults)**:
+  - **Google Gemini**: Default provider across all 41 agents (`gemini-4-argon`) with 180s deep synthesis timeout.
+  - **Anthropic Claude**: Full support for `claude-ops-5.5` (with `claude-opus-5.5` alias and legacy `claude-opus-4-8` support).
+  - **OpenAI GPT**: Support for `gpt-6.1-terrea` (and legacy `gpt-5.6`).
 - **100% Air-Gapped Local LLMs**:
   - Native **Ollama** and **vLLM** integration via `LLM_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://localhost:11434`.
   - Tested with `deepseek-coder:33b`, `qwen2.5-coder:32b`, and `llama3.3:70b`.

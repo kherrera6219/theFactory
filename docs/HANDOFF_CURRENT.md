@@ -1,21 +1,23 @@
 # Current Handoff
 
-Document version: 2026.11.07
-Last updated: 2026-11-07
+Document version: 2026.11.13
+Last updated: 2026-11-13
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
 
-## Latest session (2026-11-07) — read first
+## Latest session (2026-11-13) — read first
 
-**COMPLETE — 2026-11-07: Next-Generation Model Fleet Upgrade — Gemini 4 Argon, ChatGPT 6.1 Terrea, Claude Ops 5.5.**
+**COMPLETE — 2026-11-13: Next-Generation Model Fleet Upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-ops-5.5`), Desktop App Auto-Refresh, Installer Rebuild & CVE-2026-126360 Fix.**
 - **Default Fleet Upgrade Across All 41 Agents & Orchestrator LLM Delegation (`services/orchestrator/orchestrator/agent_integrations.py`, `agent_personas.py`, `aim_generator.py`, `sow_estimator.py`, `sow_store.py`, `llm_delegation/generators*.py`, `providers.py`):** Upgraded default provider/model configuration to **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Ops 5.5** (`claude-ops-5.5` with backward-compatible alias `claude-opus-5.5`).
 - **Cost Ledger & Pricing Registry (`services/orchestrator/orchestrator/llm_cost_ledger.py`):** Added published ledger rates for `gemini-4-argon`, `gpt-6.1-terrea`, and `claude-ops-5.5` / `claude-opus-5.5` while preserving backward compatibility for previous model revisions.
 - **Gateway Model Validation & Dynamic Pattern Matching (`services/api-gateway/api_gateway/main.py`):** Updated `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GEMINI_MODEL` defaults, expanded `ALLOWED_LLM_MODELS`, and upgraded `_GEMINI_3_MODEL_PATTERN` to support `gemini-4-argon` and future 4.x models for thinking config.
 - **Mission Control Vault & Settings UI (`apps/mission-control/app/lib/server/vault.ts`, `app/(shell)/settings/page.tsx`, `app/lib/server/vault.preflight.test.ts`):** Updated `VaultModel` union, forward-migrated superseded models on read, added Gemini 4 Argon, ChatGPT 6.1 Terrea, and Claude Ops 5.5 options to Settings UI, and updated preflight live verification.
-- **Environment & Deployment Specs (`.env`, `.env.example`, `deploy/docker-compose.yaml`, `docs/evidence/agent_model_inventory_latest.json`):** Synchronized environment variables, compose service defaults, and re-exported the 41-agent model inventory snapshot.
+- **Electron Auto-Refresh & CSP Fix (`apps/mission-control/electron/env-generator.ts`, `electron/main.ts`, `electron/starting.html`, `electron/setup-wizard.html`):** Added `releaseModelDefaults(templatePath)` in `ensureBackendConfigured()` so upgrades refresh `GEMINI_MODEL`, `OPENAI_MODEL`, and `ANTHROPIC_MODEL` in `%APPDATA%\theFactory Mission Control\backend.env` while preserving operator secrets, and fixed `script-src 'self' 'unsafe-inline'` CSP for startup/setup windows (`e9faa4f`, `97b0714`, `c24dc27`).
+- **OpenTelemetry Security Remediation (`services/api-gateway/requirements.txt`, `services/orchestrator/requirements.txt`):** Bumped `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp` from `1.45.1` to `1.45.2` (and `opentelemetry-instrumentation-fastapi`/`httpx` to `0.66b2`) to resolve `CVE-2026-126360` (`3733489`).
+- **Environment, Packaging & Verification (`.env`, `.env.example`, `deploy/docker-compose.yaml`, `docs/evidence/agent_model_inventory_latest.json`):** Synchronized environment specs, rebuilt `orchestrator` / `api-gateway` images and `theFactory-MissionControl-Setup-0.1.0.exe`, cleanly uninstalled/reinstalled Mission Control, verified healthy stack + live test mission, and confirmed green `CI`, `Security Checks`, and `CodeQL` runs on `main`.
 
 **COMPLETE — 2026-11-06: Phase 8 (8-Phase Master Review & Upgrade Plan) — Polyglot Behavioral Equivalence, `tree-sitter` AST & Signed SBOM/Patch Export.**
 - **Polyglot Behavioral & Contract-Oracle Equivalence (`services/orchestrator/orchestrator/contract_oracle.py`, `equivalence_execution.py`):** Expanded `CALL_LANGUAGES` and `SUPPORTED_LANGUAGES` to `{"python", "javascript", "typescript"}`, added `_js_ts_functions` signature extraction and `_build_js_ts_driver` / `_driver_spec_for_language` executing via `sandbox_exec.run_in_sandbox`.

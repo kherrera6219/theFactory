@@ -1,8 +1,8 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.11.07
-Last updated: 2026-11-07
-Status: Implemented and validated end to end on Windows (WQ #9); rebuilt with 8-Phase Master Review upgrades (2026-11-07)
+Document version: 2026.11.13
+Last updated: 2026-11-13
+Status: Implemented and validated end to end on Windows (WQ #9); rebuilt with Gemini 4 Argon / GPT 6.1 Terrea / Claude Ops 5.5 & auto-refreshing `backend.env` (2026-11-13)
 Audience: Maintainers, release managers, operators
 
 `theFactory-MissionControl-Setup-<version>.exe` installs Mission Control as a
@@ -39,7 +39,7 @@ A status window shows five steps with a progress bar and a live log:
 | Step | What happens |
 |---|---|
 | Check Docker Desktop | If missing or stopped: a dialog explains, offers Docker's download page, *Retry*, or *Quit*. |
-| Prepare configuration | First run only: the AI-provider key wizard, then a private `backend.env` with freshly generated secrets. Every run: TLS certificates, the image tag, and the sandbox workspace path are refreshed. |
+| Prepare configuration | First run only: the AI-provider key wizard, then a private `backend.env` with freshly generated secrets. Every run: TLS certificates, the image tag, the sandbox workspace path, and release model defaults (`GEMINI_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL` via `releaseModelDefaults()`) are refreshed without overwriting secrets or API keys. |
 | Download factory images | Each image is pulled if absent -- *Downloading image 4 of 15* -- then the sandbox runners are tagged with the names runtime QC uses. |
 | Start services | `docker compose up -d --no-build` under the project name **`thefactory-app`**. |
 | Wait for healthy | Polls the gateway's `/readyz`. |
@@ -145,6 +145,8 @@ generates its own.
 | 4 | "Mission metrics are unavailable" on a working stack | The embedded server received none of the Mission Control container's keys or URLs | `embeddedServerEnv()` passes the same secrets, host-side gateway/orchestrator URLs, and a vault path in the app's data folder |
 | 5 | Saved provider keys would not persist on a fresh install | Generated secrets were 24 bytes; the vault's AES-256 key must be exactly 64 hex chars | All generated secrets are 32 bytes (what `.env.example` asks for) |
 | 6 | Logs / data in `%APPDATA%\mission-control`, not where docs and the uninstaller look | Electron named userData after package `name` | userData pinned to `%APPDATA%\theFactory Mission Control` |
+| 7 | Startup progress window and first-run wizard inline IPC scripts blocked by CSP | HTML CSP meta tag omitted `'unsafe-inline'` in `script-src` on `starting.html` and `setup-wizard.html` | Updated `script-src 'self' 'unsafe-inline'` in both windows (`e9faa4f`) |
+| 8 | Existing `backend.env` kept outdated `GEMINI_MODEL` / `OPENAI_MODEL` / `ANTHROPIC_MODEL` after app upgrades | `ensureBackendConfigured()` only generated a new `backend.env` when missing, leaving prior release model defaults pinned | Added `releaseModelDefaults(templatePath)` in `env-generator.ts` and hoisted `templatePath` in `ensureBackendConfigured()` (`c24dc27`) |
 
 The install-mode page pre-selecting *all users* is electron-builder's upgrade
 behaviour: it keeps the mode of an existing machine-wide install it finds under

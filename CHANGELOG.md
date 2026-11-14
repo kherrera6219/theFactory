@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Next-Generation Model Fleet Upgrade, Desktop App Auto-Refresh & OpenTelemetry Security Hardening (2026-11-13)
+
+#### Changed
+- **Default 41-Agent Model Fleet Upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-ops-5.5`)**: Promoted **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Ops 5.5** (`claude-ops-5.5`, with backward-compatible alias `claude-opus-5.5`) across all 41 agents, `services/orchestrator`, `services/api-gateway` allowlists, `llm_cost_ledger.py` pricing, `.env`/`.env.example`, `deploy/docker-compose.yaml`, `docs/evidence/agent_model_inventory_latest.json`, and Mission Control Vault & Settings UI (`vault.ts`, `settings/page.tsx`, `vault.preflight.test.ts`).
+- **Desktop Installer & Automatic `backend.env` Model Refresh (`apps/mission-control/electron/`)**: Added `releaseModelDefaults(templatePath)` in `env-generator.ts` wired into `ensureBackendConfigured()` in `main.ts` so upgrades refresh `GEMINI_MODEL`, `OPENAI_MODEL`, and `ANTHROPIC_MODEL` from the bundled `.env.example` without overwriting existing operator secrets or API keys; rebuilt and validated `theFactory-MissionControl-Setup-0.1.0.exe`.
+
+#### Fixed
+- **OpenTelemetry Security Advisory (`CVE-2026-126360`)**: Upgraded `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp` to `1.45.2` and `opentelemetry-instrumentation-fastapi`/`opentelemetry-instrumentation-httpx` to `0.66b2` in `services/api-gateway/requirements.txt` and `services/orchestrator/requirements.txt`, restoring a green `Security Checks` (`pip-audit`) run on `main`.
+- **Electron Startup & Setup Wizard CSP**: Updated Content-Security-Policy in `apps/mission-control/electron/starting.html` and `setup-wizard.html` (`script-src 'self' 'unsafe-inline'`) so inline IPC status/wizard scripts execute cleanly under Chromium.
+
 ### 8-Phase Master Review & Upgrade Plan: Architecture, PM Studio, Multi-File IDE & Polyglot Verification (2026-11-07)
 
 #### Added
