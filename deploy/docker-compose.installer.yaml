@@ -25,6 +25,9 @@ services:
   # Built from the orchestrator Dockerfile; runs the same image in runner mode.
   sandbox-runner:
     image: ${FACTORY_IMAGE_REGISTRY:-ghcr.io/kherrera6219}/thefactory-orchestrator:${FACTORY_IMAGE_TAG:-latest}
+  # Built from the orchestrator Dockerfile; runs the offline dependency provisioner.
+  dependency-provisioner:
+    image: ${FACTORY_IMAGE_REGISTRY:-ghcr.io/kherrera6219}/thefactory-orchestrator:${FACTORY_IMAGE_TAG:-latest}
   api-gateway:
     image: ${FACTORY_IMAGE_REGISTRY:-ghcr.io/kherrera6219}/thefactory-api-gateway:${FACTORY_IMAGE_TAG:-latest}
   protocol-bus-mcp:

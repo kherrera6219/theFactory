@@ -357,6 +357,36 @@ def run_benchmark(
             live_outcome["honest_pass"] = compute_honest_pass(live_outcome)
             results.append(live_outcome)
         else:
+            prov_summary: dict[str, Any] = {}
+            executable_with_cache = False
+            try:
+                import sys as _sys  # noqa: PLC0415
+
+                orch_root = str(ROOT / "services" / "orchestrator")
+                if orch_root not in _sys.path:
+                    _sys.path.insert(0, orch_root)
+                from orchestrator.dependency_provisioner import (  # noqa: PLC0415
+                    provision_workspace_dependencies,
+                )
+
+                prov_manifest = provision_workspace_dependencies(
+                    project.path,
+                    mission_id=f"benchmark-{project.project_id}",
+                    workspace_id=project.project_id,
+                    language=str(project.manifest.get("language") or "python"),
+                    execute_fetch=False,
+                )
+                executable_with_cache = bool(prov_manifest.get("executable_with_cache"))
+                prov_summary = {
+                    "manifests": prov_manifest.get("manifests", []),
+                    "package_count": len(prov_manifest.get("packages") or []),
+                    "provisioned_count": len(prov_manifest.get("provisioned_packages") or []),
+                    "unmet_reasons": prov_manifest.get("unmet_reasons", {}),
+                    "executable_with_cache": executable_with_cache,
+                }
+            except Exception as exc:  # noqa: BLE001
+                prov_summary = {"error": str(exc), "executable_with_cache": False}
+
             offline_entry: dict[str, Any] = {
                 "id": project.project_id,
                 "title": project.manifest.get("title"),
@@ -371,6 +401,8 @@ def run_benchmark(
                 "source": "dry_run",
                 "dry_run": True,
                 "runtime_qc_passed": False,
+                "executable_with_cache": executable_with_cache,
+                "dependency_provisioning": prov_summary,
                 "expected_initial_test_pass": bool(
                     project.manifest.get("expected_initial_test_pass", True)
                 ),
@@ -380,6 +412,9 @@ def run_benchmark(
 
     corpus_valid_count = sum(1 for item in results if item.get("corpus_valid"))
     honest_pass_count = sum(1 for item in results if item.get("honest_pass"))
+    executable_with_cache_count = sum(
+        1 for item in results if item.get("executable_with_cache")
+    )
     effective_mode = "live" if use_live else "offline"
 
     return {
@@ -389,6 +424,7 @@ def run_benchmark(
         "effective_mode": effective_mode,
         "total_projects": len(results),
         "corpus_valid_count": corpus_valid_count,
+        "executable_with_cache_count": executable_with_cache_count,
         "honest_pass_count": honest_pass_count,
         "honest_pass_rate": round(honest_pass_count / len(results), 4) if results else 0.0,
         "dry_run_count": sum(1 for item in results if item.get("status") == "DRY_RUN"),

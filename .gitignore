@@ -51,6 +51,7 @@ out/
 backups/
 MagicMock/
 output/
+.dep-cache/
 
 # Generated test/lint/coverage artifacts (produced by CI and local runs)
 coverage.xml

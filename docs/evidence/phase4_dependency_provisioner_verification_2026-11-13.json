@@ -1,0 +1,40 @@
+{
+  "phase": "Phase 4 — Offline dependency provisioning",
+  "date": "2026-11-13",
+  "status": "complete",
+  "deliverables": {
+    "dependency_provisioner": "services/orchestrator/orchestrator/dependency_provisioner.py",
+    "sandbox_exec": "services/orchestrator/orchestrator/sandbox_exec.py",
+    "sandbox_runner": "services/orchestrator/orchestrator/sandbox_runner.py",
+    "rqca_agent": "services/orchestrator/orchestrator/rqca_agent.py",
+    "deploy_exporter": "services/orchestrator/orchestrator/deploy_exporter.py",
+    "dependency_absorption": "services/orchestrator/orchestrator/dependency_absorption.py",
+    "compose": "deploy/docker-compose.yaml",
+    "installer_compose": "deploy/docker-compose.installer.yaml"
+  },
+  "verifications": {
+    "phase4_and_sandbox_pytest": {
+      "passed": 189,
+      "failed": 0,
+      "coverage": {
+        "dependency_provisioner.py": "89%",
+        "sandbox_exec.py": "90%",
+        "sandbox_runner.py": "100%",
+        "combined_branch_and_line": "89.77%"
+      }
+    },
+    "compose_topology_and_audit_pytest": {
+      "passed": 57,
+      "failed": 0
+    },
+    "brownfield_benchmark_offline": {
+      "corpus_valid": "7/7",
+      "executable_with_cache": "5/7",
+      "evidence_latest": "docs/evidence/brownfield_benchmark_latest.json"
+    },
+    "ruff_lint": "passed",
+    "documentation_validation": "passed (90 metadata files)",
+    "schema_validation": "passed",
+    "production_review_audit": "23/23 checks passed"
+  }
+}

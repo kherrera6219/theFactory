@@ -1,6 +1,6 @@
 # Brownfield Benchmark Scorecard
 
-- **Generated at**: `2026-11-14T05:27:16.670519+00:00`
+- **Generated at**: `2026-11-14T06:26:37.334473+00:00`
 - **Effective mode**: `offline` (requested: `offline`)
 - **Corpus integrity**: `7/7` valid MIT fixtures
 - **Honest mission passes**: `0/7` (DRY_RUN / ADVISORY / started_only / fallback excluded)

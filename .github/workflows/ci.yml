@@ -146,7 +146,11 @@ jobs:
             --module-threshold services/orchestrator/orchestrator/rqca_agent.py=80 \
             --module-threshold services/orchestrator/orchestrator/contract_oracle.py=80 \
             --module-threshold services/orchestrator/orchestrator/equivalence_execution.py=80 \
-            --module-threshold services/orchestrator/orchestrator/storage_projects.py=80
+            --module-threshold services/orchestrator/orchestrator/storage_projects.py=80 \
+            --module-threshold services/orchestrator/orchestrator/workspace.py=80 \
+            --module-threshold services/orchestrator/orchestrator/agent_harness.py=80 \
+            --module-threshold services/orchestrator/orchestrator/agent_tools.py=80 \
+            --module-threshold services/orchestrator/orchestrator/dependency_provisioner.py=80
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

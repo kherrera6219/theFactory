@@ -55,9 +55,11 @@ import asyncio
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -117,6 +119,26 @@ def daemon_workspace_path(workspace_dir: str | Path) -> str:
         )
         return raw
     host_root = _WORKSPACE_HOST_ROOT.replace("\\", "/").rstrip("/")
+    return f"{host_root}/{relative.as_posix()}" if relative.parts else host_root
+
+
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def daemon_deps_path(deps_dir: str | Path) -> str:
+    """Translate a provisioned dependency cache path for the host Docker daemon."""
+    raw = str(deps_dir)
+    deps_root = os.getenv("SANDBOX_DEPS_ROOT", "").strip()
+    deps_host_root = os.getenv("SANDBOX_DEPS_HOST_ROOT", "").strip()
+    if not deps_root or not deps_host_root:
+        return raw
+    try:
+        relative = PurePosixPath(raw.replace("\\", "/")).relative_to(
+            PurePosixPath(deps_root.replace("\\", "/"))
+        )
+    except ValueError:
+        return raw
+    host_root = deps_host_root.replace("\\", "/").rstrip("/")
     return f"{host_root}/{relative.as_posix()}" if relative.parts else host_root
 
 # Hard ceilings. A caller may request less, never more.
@@ -217,6 +239,8 @@ def build_sandbox_args(
     timeout_seconds: int,
     memory_mb: int,
     container_name: str | None = None,
+    deps_dir: str | Path | None = None,
+    env_vars: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Return the full ``docker run`` argv for a hardened sandbox execution.
 
@@ -240,6 +264,17 @@ def build_sandbox_args(
             # Translated, not raw: the daemon resolves this on the host. See
             # daemon_workspace_path.
             f"--volume={daemon_workspace_path(workspace_dir)}:/workspace:ro",
+        ]
+    )
+    if deps_dir is not None and str(deps_dir).strip():
+        # Provisioned dependencies are always read-only inside the offline sandbox.
+        args.append(f"--volume={daemon_deps_path(deps_dir)}:/deps:ro")
+    for env_key, env_val in (env_vars or {}).items():
+        clean_key = str(env_key).strip()
+        if _ENV_KEY_RE.fullmatch(clean_key):
+            args.append(f"--env={clean_key}={env_val}")
+    args.extend(
+        [
             # Run the command under a plain shell regardless of what the image
             # declares. Without this, an image with its own ENTRYPOINT wraps our
             # command in it: ocaml/opam prefixes `opam exec --`, which tries to
@@ -331,20 +366,25 @@ async def run_in_sandbox_remote(
     timeout_seconds: int = 30,
     memory_mb: int = 256,
     docker_bin: str = "docker",
+    deps_dir: str | Path | None = None,
+    env_vars: Mapping[str, str] | None = None,
 ) -> SandboxResult:
     """POST a sandbox job to the privileged runner. No local docker.sock."""
     timeout = clamp_timeout(timeout_seconds)
     memory = clamp_memory_mb(memory_mb)
-    body = json.dumps(
-        {
-            "workspace_dir": str(workspace_dir),
-            "base_image": str(base_image),
-            "command": str(command),
-            "timeout_seconds": timeout,
-            "memory_mb": memory,
-            "docker_bin": str(docker_bin or "docker"),
-        }
-    ).encode("utf-8")
+    payload_dict: dict[str, object] = {
+        "workspace_dir": str(workspace_dir),
+        "base_image": str(base_image),
+        "command": str(command),
+        "timeout_seconds": timeout,
+        "memory_mb": memory,
+        "docker_bin": str(docker_bin or "docker"),
+    }
+    if deps_dir is not None and str(deps_dir).strip():
+        payload_dict["deps_dir"] = str(deps_dir)
+    if env_vars:
+        payload_dict["env_vars"] = {str(k): str(v) for k, v in env_vars.items()}
+    body = json.dumps(payload_dict).encode("utf-8")
     request = urllib.request.Request(
         f"{executor_url.rstrip('/')}/internal/sandbox/execute",
         data=body,
@@ -463,6 +503,8 @@ async def run_in_sandbox_local(
     command: str,
     timeout_seconds: int = 30,
     memory_mb: int = 256,
+    deps_dir: str | Path | None = None,
+    env_vars: Mapping[str, str] | None = None,
 ) -> SandboxResult:
     """Execute *command* against *workspace_dir* with a local ``docker run``.
 
@@ -498,6 +540,8 @@ async def run_in_sandbox_local(
         timeout_seconds=timeout,
         memory_mb=memory,
         container_name=container_name,
+        deps_dir=deps_dir,
+        env_vars=env_vars,
     )
 
     proc = await asyncio.create_subprocess_exec(
@@ -559,6 +603,8 @@ async def run_in_sandbox(
     command: str,
     timeout_seconds: int = 30,
     memory_mb: int = 256,
+    deps_dir: str | Path | None = None,
+    env_vars: Mapping[str, str] | None = None,
 ) -> SandboxResult:
     """Execute *command* against *workspace_dir* inside the hardened sandbox.
 
@@ -583,6 +629,8 @@ async def run_in_sandbox(
             timeout_seconds=timeout_seconds,
             memory_mb=memory_mb,
             docker_bin=docker_bin,
+            deps_dir=deps_dir,
+            env_vars=env_vars,
         )
     return await run_in_sandbox_local(
         docker_bin=docker_bin,
@@ -591,6 +639,8 @@ async def run_in_sandbox(
         command=command,
         timeout_seconds=timeout_seconds,
         memory_mb=memory_mb,
+        deps_dir=deps_dir,
+        env_vars=env_vars,
     )
 
 

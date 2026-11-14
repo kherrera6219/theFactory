@@ -398,6 +398,8 @@ services:
       SANDBOX_RUNNER_MODE: "true"
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
+      SANDBOX_DEPS_ROOT: /dep-cache
+      SANDBOX_DEPS_HOST_ROOT: ${SANDBOX_DEPS_HOST_ROOT:-dep-cache}
       WORKSPACE_ROOT: ${WORKSPACE_ROOT:-/sandbox-workspace/workspaces}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       DOCKER_HOST: tcp://docker-proxy:2375
@@ -412,6 +414,7 @@ services:
       # Scoped to this service only. Every container it launches carries
       # SANDBOX_SECURITY_FLAGS. Do not extend this pattern to other services.
       - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
+      - dep-cache:/dep-cache:ro
     healthcheck:
       test:
         [
@@ -423,6 +426,42 @@ services:
       interval: 10s
       timeout: 5s
       retries: 8
+      start_period: 10s
+
+  dependency-provisioner:
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
+    build:
+      context: ..
+      dockerfile: services/orchestrator/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "orchestrator.dependency_provisioner:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8025",
+      ]
+    environment:
+      DEP_CACHE_ROOT: /dep-cache
+      DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL: ${DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL:-}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
+    networks:
+      - hgr-network
+    volumes:
+      - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace:ro
+      - dep-cache:/dep-cache
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8025/livez')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 10s
 
   orchestrator:
@@ -507,6 +546,9 @@ services:
       WORKSPACE_ROOT: ${WORKSPACE_ROOT:-/sandbox-workspace/workspaces}
       # Privilege boundary: docker.sock lives on sandbox-runner, not here.
       SANDBOX_EXECUTOR_URL: ${SANDBOX_EXECUTOR_URL:-http://sandbox-runner:8020}
+      DEPENDENCY_PROVISIONER_URL: ${DEPENDENCY_PROVISIONER_URL:-http://dependency-provisioner:8025}
+      DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL: ${DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL:-}
+      DEP_CACHE_ROOT: ${DEP_CACHE_ROOT:-/dep-cache}
       # Equivalence verification. Correctness (contract-conformance) checks always
       # run; these two control what they can do and whether behavioural
       # verification executes at all.
@@ -572,6 +614,7 @@ services:
       # Workspace only — docker.sock is mounted on sandbox-runner, not here.
       # Must resolve to the same directory as SANDBOX_WORKSPACE_HOST_ROOT.
       - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
+      - dep-cache:/dep-cache:ro
     ports:
       - "${ORCHESTRATOR_HOST_BIND:-127.0.0.1}:${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
@@ -1261,6 +1304,7 @@ volumes:
   object-store-data:
   milvus-data:
   mission-control-vault:
+  dep-cache:
 
 networks:
   hgr-network:

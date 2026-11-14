@@ -1,10 +1,11 @@
 {
   "schema_version": "brownfield_benchmark.v1",
-  "generated_at": "2026-11-14T05:27:16.670519+00:00",
+  "generated_at": "2026-11-14T06:26:37.334473+00:00",
   "requested_mode": "offline",
   "effective_mode": "offline",
   "total_projects": 7,
   "corpus_valid_count": 7,
+  "executable_with_cache_count": 5,
   "honest_pass_count": 0,
   "honest_pass_rate": 0.0,
   "dry_run_count": 7,
@@ -24,6 +25,14 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": true,
+      "dependency_provisioning": {
+        "manifests": [],
+        "package_count": 0,
+        "provisioned_count": 0,
+        "unmet_reasons": {},
+        "executable_with_cache": true
+      },
       "expected_initial_test_pass": false,
       "honest_pass": false
     },
@@ -41,6 +50,16 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": true,
+      "dependency_provisioning": {
+        "manifests": [
+          "LegacyCsv.csproj"
+        ],
+        "package_count": 3,
+        "provisioned_count": 3,
+        "unmet_reasons": {},
+        "executable_with_cache": true
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     },
@@ -58,6 +77,18 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": false,
+      "dependency_provisioning": {
+        "manifests": [
+          "package.json"
+        ],
+        "package_count": 1,
+        "provisioned_count": 0,
+        "unmet_reasons": {
+          "express": "not_in_registry"
+        },
+        "executable_with_cache": false
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     },
@@ -75,6 +106,16 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": false,
+      "dependency_provisioning": {
+        "manifests": [],
+        "package_count": 1,
+        "provisioned_count": 0,
+        "unmet_reasons": {
+          "flask": "not_in_registry"
+        },
+        "executable_with_cache": false
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     },
@@ -92,6 +133,16 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": true,
+      "dependency_provisioning": {
+        "manifests": [
+          "pom.xml"
+        ],
+        "package_count": 1,
+        "provisioned_count": 1,
+        "unmet_reasons": {},
+        "executable_with_cache": true
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     },
@@ -109,6 +160,16 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": true,
+      "dependency_provisioning": {
+        "manifests": [
+          "composer.json"
+        ],
+        "package_count": 1,
+        "provisioned_count": 1,
+        "unmet_reasons": {},
+        "executable_with_cache": true
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     },
@@ -126,6 +187,16 @@
       "source": "dry_run",
       "dry_run": true,
       "runtime_qc_passed": false,
+      "executable_with_cache": true,
+      "dependency_provisioning": {
+        "manifests": [
+          "reference_go/go.mod"
+        ],
+        "package_count": 0,
+        "provisioned_count": 0,
+        "unmet_reasons": {},
+        "executable_with_cache": true
+      },
       "expected_initial_test_pass": true,
       "honest_pass": false
     }

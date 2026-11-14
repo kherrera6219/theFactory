@@ -245,6 +245,16 @@ def build_dependency_inventory(
 
     package_metadata = _dict_value(metadata.get("package_metadata"))
     _add_package_metadata(package_metadata, add)
+    provisioning_manifest = _dict_value(metadata.get("provisioning_manifest"))
+    for pkg in provisioning_manifest.get("packages") or []:
+        if not isinstance(pkg, dict):
+            continue
+        add(
+            pkg.get("name"),
+            source="provisioning_manifest.packages",
+            ecosystem=str(pkg.get("ecosystem") or "unknown"),
+            version=pkg.get("version"),
+        )
     source_code = str(metadata.get("source_code") or "")
     _add_source_bundle_manifests(source_code, add)
 

@@ -6,6 +6,7 @@ import json
 import re
 import shlex
 import tempfile
+from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -740,23 +741,106 @@ def _split_test_dependencies(
     return runtime, test_only
 
 
-def _unmet_dependencies(language: str, dependencies: Any) -> list[str]:
+def _provisioned_package_index(
+    provisioning_manifest: Mapping[str, Any] | None,
+) -> tuple[set[str], dict[str, str]]:
+    """Return ``(provisioned_names, unmet_reasons)`` from a provisioning manifest."""
+    if not isinstance(provisioning_manifest, Mapping):
+        return set(), {}
+    provisioned: set[str] = set()
+    reasons: dict[str, str] = {}
+
+    def _norm_keys(raw_name: Any) -> set[str]:
+        s = str(raw_name or "").strip().lower()
+        if not s:
+            return set()
+        base = s.split("==")[0].split(">=")[0].split("<=")[0].split("[")[0].strip()
+        return {s, base, base.replace("_", "-"), base.replace("-", "_")}
+
+    for raw in provisioning_manifest.get("provisioned_packages") or []:
+        provisioned.update(_norm_keys(raw))
+    for pkg in provisioning_manifest.get("packages") or []:
+        if not isinstance(pkg, Mapping):
+            continue
+        name = pkg.get("name")
+        status = str(pkg.get("status") or "").strip().lower()
+        reason = str(pkg.get("reason") or status or "not_in_registry").strip()
+        if status == "provisioned":
+            provisioned.update(_norm_keys(name))
+        else:
+            for key in _norm_keys(name):
+                reasons.setdefault(key, reason)
+    raw_reasons = provisioning_manifest.get("unmet_reasons")
+    if isinstance(raw_reasons, Mapping):
+        for k, v in raw_reasons.items():
+            for key in _norm_keys(k):
+                reasons.setdefault(key, str(v or "not_in_registry"))
+    return provisioned, reasons
+
+
+def classify_unmet_dependencies(
+    language: str,
+    dependencies: Any,
+    provisioning_manifest: Mapping[str, Any] | None = None,
+) -> dict[str, str]:
+    """Map each unmet dependency to not_in_registry, needs_build, or blocked_by_policy."""
+    unmet = _unmet_dependencies(
+        language, dependencies, provisioning_manifest=provisioning_manifest
+    )
+    _, known_reasons = _provisioned_package_index(provisioning_manifest)
+    if (
+        isinstance(provisioning_manifest, Mapping)
+        and provisioning_manifest.get("policy_allowed") is False
+    ):
+        default_reason = "blocked_by_policy"
+    else:
+        default_reason = "not_in_registry"
+    result: dict[str, str] = {}
+    for dep in unmet:
+        low = dep.lower()
+        base = low.split("==")[0].split("[")[0].strip()
+        reason = (
+            known_reasons.get(low)
+            or known_reasons.get(base)
+            or known_reasons.get(base.replace("_", "-"))
+            or default_reason
+        )
+        if reason not in {"not_in_registry", "needs_build", "blocked_by_policy"}:
+            reason = default_reason
+        result[dep] = reason
+    return result
+
+
+def _unmet_dependencies(
+    language: str,
+    dependencies: Any,
+    provisioning_manifest: Mapping[str, Any] | None = None,
+) -> list[str]:
     """Dependencies the offline sandbox cannot provide.
 
     The sandbox runs ``--network=none`` by design, so nothing can be fetched at
     run time -- that is a property to preserve, not a misconfiguration. An
-    artifact needing a third-party package therefore cannot be executed at all,
-    and saying so is the honest outcome. Previously the manifest emitted
-    ``pip install PyQt6`` into that container, the install died on DNS, the
-    application never started, and the run was still recorded as a PASS.
+    artifact needing a third-party package that is missing from the mission's
+    provisioned cache cannot be executed at all, and saying so is the honest
+    outcome.
 
-    Languages without a known stdlib table treat every declared dependency as
-    unmet. Guessing they are "probably fine" is how a Java/Rust artifact with
-    third-party packages used to be executed against an empty offline image.
+    Languages without a known stdlib table treat every non-provisioned
+    dependency as unmet.
     """
     names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
     if not names:
         return []
+    provisioned, _ = _provisioned_package_index(provisioning_manifest)
+    if provisioned:
+        names = [
+            n
+            for n in names
+            if n.lower() not in provisioned
+            and n.split("==")[0].split("[")[0].strip().lower() not in provisioned
+            and n.split("==")[0].split("[")[0].strip().lower().replace("_", "-") not in provisioned
+        ]
+        if not names:
+            return []
     normalized = str(language or "").strip().lower()
 
     if normalized == "python":
@@ -1216,6 +1300,14 @@ async def run_runtime_qc(
             reason="Docker not available.",
             artifact_smoke=artifact_smoke,
         )
+    prov_manifest: Mapping[str, Any] | None = None
+    if isinstance(generated_output.get("provisioning_manifest"), Mapping):
+        prov_manifest = generated_output["provisioning_manifest"]
+    elif isinstance(testdata_manifest.get("provisioning_manifest"), Mapping):
+        prov_manifest = testdata_manifest["provisioning_manifest"]
+    if prov_manifest is not None and "provisioning_manifest" not in testdata_manifest:
+        testdata_manifest = {**testdata_manifest, "provisioning_manifest": dict(prov_manifest)}
+
     # GUI/library/server/interactive cannot be judged by run-to-exit. Prefer
     # unit tests when present; otherwise parse-or-compile, or DRY_RUN.
     declared_dependencies, test_only_dependencies = _split_test_dependencies(
@@ -1232,7 +1324,11 @@ async def run_runtime_qc(
     # which tests were set aside and why rather than silently dropping them.
     unavailable_test_dependencies = [
         dependency
-        for dependency in _unmet_dependencies(normalized_language, test_only_dependencies)
+        for dependency in _unmet_dependencies(
+            normalized_language,
+            test_only_dependencies,
+            provisioning_manifest=prov_manifest,
+        )
         if not _vendored_framework_satisfies(normalized_language, dependency, settings)
     ]
     if unavailable_test_dependencies and test_code.strip():
@@ -1287,10 +1383,21 @@ async def run_runtime_qc(
 
     # An artifact needing a third-party package cannot run here at all: the
     # sandbox is --network=none by design and nothing can be fetched. Saying so
-    # is the honest outcome. The previous behaviour emitted `pip install PyQt6`
-    # into that container, watched it die on DNS, never started the program, and
-    # still recorded PASS.
-    elif unmet := _unmet_dependencies(normalized_language, declared_dependencies):
+    # is the honest outcome unless the dependency provisioner supplied it.
+    elif unmet := _unmet_dependencies(
+        normalized_language,
+        declared_dependencies,
+        provisioning_manifest=prov_manifest,
+    ):
+        unmet_reasons = classify_unmet_dependencies(
+            normalized_language,
+            unmet,
+            provisioning_manifest=prov_manifest,
+        )
+        formatted = ", ".join(
+            f"{name} ({unmet_reasons.get(name, 'not_in_registry')})"
+            for name in sorted(unmet)
+        )
         return _dry_run_report(
             mission_id=mission_id,
             language=normalized_language,
@@ -1298,9 +1405,10 @@ async def run_runtime_qc(
             testdata_manifest=testdata_manifest,
             reason=(
                 "artifact requires dependencies that cannot be installed in an "
-                f"offline sandbox: {', '.join(sorted(unmet))}"
+                f"offline sandbox: {formatted}"
             ),
             artifact_smoke=artifact_smoke,
+            unmet_dependency_reasons=unmet_reasons,
         )
 
     # Fill in the runtime for this language when the manifest does not pin one.
@@ -1664,14 +1772,25 @@ async def _execute_in_sandbox(
             # UPG-50: the hardened docker-run invocation now lives in
             # sandbox_exec so RQCA and behavioural equivalence share exactly one
             # set of security flags. Do not re-inline a docker command here.
-            sandbox_result = await run_in_sandbox(
-                docker_bin=docker_bin,
-                workspace_dir=tmpdir,
-                base_image=base_image,
-                command=full_command,
-                timeout_seconds=timeout,
-                memory_mb=memory_mb,
-            )
+            prov_manifest = testdata_manifest.get("provisioning_manifest")
+            sandbox_kwargs: dict[str, Any] = {
+                "docker_bin": docker_bin,
+                "workspace_dir": tmpdir,
+                "base_image": base_image,
+                "command": full_command,
+                "timeout_seconds": timeout,
+                "memory_mb": memory_mb,
+            }
+            if isinstance(prov_manifest, Mapping):
+                cache_dir = str(prov_manifest.get("dep_cache_dir") or "").strip()
+                if cache_dir:
+                    sandbox_kwargs["deps_dir"] = cache_dir
+                offline_env = prov_manifest.get("offline_env")
+                if isinstance(offline_env, Mapping) and offline_env:
+                    sandbox_kwargs["env_vars"] = {
+                        str(k): str(v) for k, v in offline_env.items()
+                    }
+            sandbox_result = await run_in_sandbox(**sandbox_kwargs)
             if sandbox_result.infrastructure_error:
                 # The artifact never ran. Not a PASS, and never a FAIL of the
                 # generated code: see sandbox_exec.ensure_sandbox_image.
@@ -1776,11 +1895,12 @@ def _dry_run_report(
     testdata_manifest: dict[str, Any],
     reason: str,
     artifact_smoke: dict[str, Any] | None = None,
+    unmet_dependency_reasons: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     manifest_valid = bool(
         testdata_manifest.get("base_image") and testdata_manifest.get("run_command")
     )
-    return {
+    report: dict[str, Any] = {
         "schema_version": RQCA_SCHEMA_VERSION,
         "mission_id": mission_id,
         "verdict": "DRY_RUN",
@@ -1800,6 +1920,9 @@ def _dry_run_report(
         "source": "dry_run",
         "generated_at": datetime.now(UTC).isoformat(),
     }
+    if unmet_dependency_reasons:
+        report["unmet_dependency_reasons"] = dict(unmet_dependency_reasons)
+    return report
 
 
 def _artifact_smoke_failure_report(

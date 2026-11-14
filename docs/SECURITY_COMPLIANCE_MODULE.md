@@ -49,6 +49,12 @@ should_block = bool(failed_required) and (enforcement_enabled or regulated_conte
 
 The report is signed via `shared_runtime.crypto_signing.sign_payload` (ECDSA P-256/SHA-256) before being stored, producing a `signature_record` field. Signing failures are caught and logged — the report is still stored and still gates delivery, just without a `signature_record`. `get_build_artifact`'s equivalent artifact-verification re-check pattern (see `STORAGE_LAYER.md`) is the model for how a consumer should independently re-verify a report's integrity rather than trusting a stored `verified`/`passed` flag at face value.
 
+## Phase 4 Threat Model Note — Offline Dependency Provisioner
+
+- **Separation of network from project code execution (`dependency_provisioner.py`):** Package acquisition runs in `dependency-provisioner` using static manifest/lockfile parsing and strict no-exec flags (`pip download --no-deps --only-binary=:all:`, `npm ci/pack --ignore-scripts`, `composer install --no-scripts --no-plugins`). Malicious `setup.py`, npm `postinstall` hooks, or imperative Gradle scripts are never executed during provisioning, and source distributions requiring builds are recorded as `needs_build` rather than compiled.
+- **Egress allow-list & `TIER_3_REGULATED` data classification policy:** `validate_registry_url` restricts outbound HTTPS lookups to `ALLOWED_REGISTRIES` (`pypi.org`, `files.pythonhosted.org`, `registry.npmjs.org`, `repo.maven.apache.org`, `api.nuget.org`, `proxy.golang.org`, `sum.golang.org`, `crates.io`, `static.crates.io`, `repo.packagist.org`, `rubygems.org`). For `TIER_3_REGULATED` missions, external registry lookups are blocked (`blocked_by_policy`) unless an operator configures `DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL`.
+- **Immutable read-only sandbox mount (`sandbox_exec.py`):** Execution containers retain all `SANDBOX_SECURITY_FLAGS` (`--network=none`, `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges:true`) and mount provisioned dependency caches strictly read-only at `/deps:ro`.
+
 ---
 
 ## Related Docs

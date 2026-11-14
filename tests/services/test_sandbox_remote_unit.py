@@ -435,6 +435,23 @@ def test_build_sandbox_args_includes_container_name() -> None:
         assert flag in args
 
 
+def test_build_sandbox_args_mounts_deps_read_only_and_keeps_security_flags() -> None:
+    args = sandbox_exec.build_sandbox_args(
+        docker_bin="docker",
+        workspace_dir="/workspace/job-1",
+        base_image="python:3.12-slim",
+        command="pytest -q",
+        timeout_seconds=10,
+        memory_mb=256,
+        deps_dir="/dep-cache/job-1",
+        env_vars={"PIP_NO_INDEX": "1"},
+    )
+    for flag in sandbox_exec.SANDBOX_SECURITY_FLAGS:
+        assert flag in args
+    assert "--volume=/dep-cache/job-1:/deps:ro" in args
+    assert "--env=PIP_NO_INDEX=1" in args
+
+
 def test_run_in_sandbox_local_timeout_kills_and_removes_named_container(
     monkeypatch, tmp_path
 ) -> None:

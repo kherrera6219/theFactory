@@ -39,6 +39,8 @@ class SandboxExecuteRequest(BaseModel):
     timeout_seconds: int = 30
     memory_mb: int = 256
     docker_bin: str = Field(default="docker", max_length=128)
+    deps_dir: str | None = Field(default=None, max_length=1024)
+    env_vars: dict[str, str] = Field(default_factory=dict)
 
 
 def _expected_key() -> str:
@@ -138,6 +140,8 @@ async def sandbox_execute(
         command=payload.command,
         timeout_seconds=timeout,
         memory_mb=memory,
+        deps_dir=payload.deps_dir,
+        env_vars=payload.env_vars or None,
     )
     record_warm_image(payload.base_image)
     return result_to_payload(result)

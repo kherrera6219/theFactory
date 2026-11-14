@@ -237,11 +237,21 @@ def generate_cyclonedx_sbom(
     generated_output: dict[str, Any] | None = None,
     dependency_inventory: dict[str, Any] | None = None,
     sbom_delta: dict[str, Any] | None = None,
+    provisioning_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate a CycloneDX 1.5 JSON SBOM with cryptographic provenance attestation."""
     output_dict = generated_output if isinstance(generated_output, dict) else {}
     inv_dict = dependency_inventory if isinstance(dependency_inventory, dict) else {}
     delta_dict = sbom_delta if isinstance(sbom_delta, dict) else {}
+    prov_dict = (
+        provisioning_manifest
+        if isinstance(provisioning_manifest, dict)
+        else (
+            output_dict.get("provisioning_manifest")
+            if isinstance(output_dict.get("provisioning_manifest"), dict)
+            else {}
+        )
+    )
 
     language = str(output_dict.get("language") or "python").strip().lower()
     ecosystem = {
@@ -252,13 +262,30 @@ def generate_cyclonedx_sbom(
         "rust": "cargo",
         "java": "maven",
         "csharp": "nuget",
+        "c#": "nuget",
+        "php": "composer",
         "ruby": "gem",
     }.get(language, "generic")
+
+    provisioned_meta: dict[str, dict[str, str]] = {}
+    for pkg in prov_dict.get("packages") or []:
+        if not isinstance(pkg, dict):
+            continue
+        pname = str(pkg.get("name") or "").strip()
+        if not pname:
+            continue
+        provisioned_meta[pname.lower()] = {
+            "name": pname,
+            "version": str(pkg.get("version") or "latest").strip() or "latest",
+            "ecosystem": str(pkg.get("ecosystem") or ecosystem).strip() or ecosystem,
+            "sha256": str(pkg.get("sha256") or "").strip(),
+        }
 
     dep_names: list[str] = []
     seen: set[str] = set()
 
     for candidate in (
+        prov_dict.get("packages"),
         output_dict.get("dependencies"),
         delta_dict.get("remaining"),
         inv_dict.get("dependencies"),
@@ -283,15 +310,19 @@ def generate_cyclonedx_sbom(
             pkg_name, pkg_ver = raw_dep, "latest"
         pkg_name = pkg_name.strip()
         pkg_ver = pkg_ver.strip() or "latest"
-        components.append(
-            {
-                "type": "library",
-                "bom-ref": f"pkg:{ecosystem}/{pkg_name}@{pkg_ver}",
-                "name": pkg_name,
-                "version": pkg_ver,
-                "purl": f"pkg:{ecosystem}/{pkg_name}@{pkg_ver}",
-            }
-        )
+        meta = provisioned_meta.get(pkg_name.lower()) or provisioned_meta.get(raw_dep.lower()) or {}
+        resolved_ver = meta.get("version") if pkg_ver == "latest" and meta.get("version") else pkg_ver
+        resolved_eco = meta.get("ecosystem") or ecosystem
+        component: dict[str, Any] = {
+            "type": "library",
+            "bom-ref": f"pkg:{resolved_eco}/{pkg_name}@{resolved_ver}",
+            "name": pkg_name,
+            "version": resolved_ver,
+            "purl": f"pkg:{resolved_eco}/{pkg_name}@{resolved_ver}",
+        }
+        if meta.get("sha256"):
+            component["hashes"] = [{"alg": "SHA-256", "content": meta["sha256"]}]
+        components.append(component)
 
     code_text = str(output_dict.get("code") or "")
     artifact_sha256 = hashlib.sha256(code_text.encode("utf-8")).hexdigest()

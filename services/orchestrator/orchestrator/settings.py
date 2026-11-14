@@ -153,6 +153,9 @@ class Settings:
     provider_preflight_required: bool = False
     mission_fallback_policy: str = "auto"
     agent_harness_enabled_roles: str = ""
+    dependency_provisioner_url: str = ""
+    dependency_provisioner_internal_mirror_url: str = ""
+    dep_cache_root: str = ""
 
     @property
     def migration_postgres_url(self) -> str:
@@ -487,6 +490,12 @@ def load_settings() -> Settings:
             environment=environment,
         ),
         agent_harness_enabled_roles=os.getenv("AGENT_HARNESS_ENABLED_ROLES", "").strip(),
+        dependency_provisioner_url=os.getenv("DEPENDENCY_PROVISIONER_URL", "").strip(),
+        dependency_provisioner_internal_mirror_url=os.getenv(
+            "DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL", ""
+        ).strip(),
+        dep_cache_root=os.getenv("DEP_CACHE_ROOT", "").strip()
+        or os.getenv("SANDBOX_DEPS_ROOT", "").strip(),
     )
 
 
