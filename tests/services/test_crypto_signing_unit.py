@@ -230,3 +230,16 @@ def test_verify_artifact_malformed_sidecar_returns_false(tmp_path) -> None:
         "not json", encoding="utf-8"
     )
     assert signing.verify_artifact(artifact) is False
+
+
+def test_keystore_path_falls_back_to_writable_tempdir_when_default_unwritable(
+    monkeypatch,
+) -> None:
+    import tempfile
+
+    monkeypatch.delenv("ARTIFACT_SIGNING_KEY_PATH", raising=False)
+    resolved = Path(signing._keystore_path())
+    expected = Path(tempfile.gettempdir()) / "thefactory-secrets" / "artifact-signing-key.pem"
+    assert resolved == expected
+    assert r"C:\app" not in str(resolved)
+    assert "/app/secrets" not in resolved.as_posix()

@@ -24,6 +24,8 @@ import hmac
 import json
 import logging
 import os
+import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -149,7 +151,16 @@ def verify_payload(payload: Any, signature_record: dict[str, Any]) -> bool:
 
 
 def _keystore_path() -> str:
-    return os.getenv("ARTIFACT_SIGNING_KEY_PATH", "").strip() or _DEFAULT_KEYSTORE_PATH
+    explicit = os.getenv("ARTIFACT_SIGNING_KEY_PATH", "").strip()
+    if explicit:
+        return explicit
+    if sys.platform != "win32":
+        default_path = Path(_DEFAULT_KEYSTORE_PATH)
+        if default_path.exists() or (
+            default_path.parent.is_dir() and os.access(default_path.parent, os.W_OK)
+        ):
+            return _DEFAULT_KEYSTORE_PATH
+    return str(Path(tempfile.gettempdir()) / "thefactory-secrets" / "artifact-signing-key.pem")
 
 
 def sign_artifact(
