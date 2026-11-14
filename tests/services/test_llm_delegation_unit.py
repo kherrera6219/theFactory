@@ -2570,3 +2570,74 @@ def test_security_compliance_checks_sow_deliverable_completeness_and_dangerous_a
     assert "src/cli.py" in comp_checks["sow_deliverable_completeness"]["evidence"]["missing_files"]
 
 
+def test_call_anthropic_respects_max_tokens_and_codegen_passes_16384(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F4: Anthropic must default max_tokens=900 for small calls and allow 16384 for codegen."""
+    llm_cfg = importlib.import_module("orchestrator.llm_delegation.config")
+    captured_payloads: list[dict[str, Any]] = []
+
+    class _Resp:
+        status_code = 200
+
+        def __init__(self, content_obj: dict[str, Any]) -> None:
+            self._obj = content_obj
+
+        def json(self) -> dict[str, Any]:
+            return {
+                "content": [{"type": "text", "text": json.dumps(self._obj)}],
+                "usage": {"input_tokens": 10, "output_tokens": 20},
+            }
+
+    async def _fake_post(_url: str, *, json_payload: dict[str, Any], **_kwargs: Any) -> _Resp:
+        captured_payloads.append(json_payload)
+        if len(captured_payloads) == 1:
+            return _Resp({"ok": True})
+        return _Resp(
+            {
+                "filename": "src/app.py",
+                "description": "Generated CLI",
+                "generated_code": "## FILE src/app.py\ndef main():\n    return 1\n",
+                "dependencies": [],
+                "usage_example": "python src/app.py",
+            }
+        )
+
+    monkeypatch.setattr(llm_delegation, "_post_with_retry", _fake_post)
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _aid: {"provider": "anthropic", "model": "claude-opus-5-5"},
+    )
+
+    token = llm_cfg.current_vault_secrets.set(
+        {"anthropic_api_key": "sk-ant-test-unit", "llm_provider": "anthropic", "llm_model": "claude-opus-5-5"}
+    )
+    try:
+        # 1. Default lightweight call keeps max_tokens=900
+        res1 = asyncio.run(
+            llm_delegation._call_anthropic("claude-opus-5-5", "ping", call_context="unit")
+        )
+        assert res1 is not None and res1["ok"] is True
+
+        # 2. Codegen passes max_tokens=16384
+        res2 = asyncio.run(
+            llm_delegation.generate_code_from_contract(
+                mission_context={"mission_id": "m-ant-1", "prompt": "Build CLI"},
+                specialist_agent_id="AGENT-14-PYTHON",
+                mission_contract={"contract_summary": "Build CLI"},
+                logicnodes=[],
+                target_language="python",
+            )
+        )
+        assert res2["source"] == "llm"
+    finally:
+        llm_cfg.current_vault_secrets.reset(token)
+
+    assert len(captured_payloads) == 2
+    assert captured_payloads[0]["max_tokens"] == 900
+    assert captured_payloads[1]["max_tokens"] == 16384
+    assert captured_payloads[1]["model"] == "claude-opus-5-5"
+
+
+

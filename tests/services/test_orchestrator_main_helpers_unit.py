@@ -457,6 +457,17 @@ def test_probe_agent_health_and_process_rss() -> None:
     assert bad_probe["live_health_probe"] is True
     assert bad_probe["is_healthy"] is False
 
+    class _SynthesizedAgent:
+        agent_id = "AGENT-98-SYNTH"
+        name = "Synthesized Agent"
+        tier = "support"
+        runtime_class = "synthesized_heartbeat"
+
+    synth_probe = probe_agent_health(_SynthesizedAgent())
+    assert synth_probe["live_health_probe"] is False
+    assert synth_probe["latency_ms"] is None
+    assert synth_probe["rss_bytes"] is None
+
 
 def test_state_for_agent_branches() -> None:
     from orchestrator.heartbeat_service import _state_for_agent

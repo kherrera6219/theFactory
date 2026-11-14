@@ -40,7 +40,7 @@ The application currently includes:
 - Mission Control Next.js operator UI with Electron desktop packaging and decomposed, modular Chat intake components
 - API gateway decomposed into modular APIRouters (`system.py`, `operations.py`, `missions.py`) with dual-mode auth (API Key + OIDC) and rate limiting
 - Hardened sandbox execution runner with non-root UID 65534, PID limits, ulimits, and `tecnativa/docker-socket-proxy` daemon mediation
-- Full-spectrum LLM provider integration: Gemini 4 Argon (`gemini-4-argon`) default across all 41 agents, Anthropic Claude (`claude-ops-5.5` / `claude-opus-5.5`), OpenAI (`gpt-6.1-terrea`), and native air-gapped local models via `OllamaProvider` and vLLM with fail-closed unknown provider rejection
+- Full-spectrum LLM provider integration: Gemini 4 Argon (`gemini-4-argon`) default across all 41 agents, Anthropic Claude (`claude-opus-5-5`, with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), OpenAI (`gpt-6.1-terrea`), and native air-gapped local models via `OllamaProvider` and vLLM with fail-closed unknown provider rejection
 - Centralized language and paradigm pod taxonomy under `thefactory_common.taxonomy` with strict static typing
 - Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
@@ -114,7 +114,7 @@ The application currently includes:
 | `LLM_PROVIDER` | `gemini` | Default provider route |
 | `GEMINI_MODEL` | `gemini-4-argon` | Default model for all agent routes (compose / gateway / vault). |
 | `OPENAI_MODEL` | `gpt-6.1-terrea` | Selectable non-default route |
-| `ANTHROPIC_MODEL` | `claude-ops-5.5` | Selectable non-default route |
+| `ANTHROPIC_MODEL` | `claude-opus-5-5` | Selectable non-default route (`claude-ops-5.5` / `claude-opus-5.5` aliases) |
 | `MILVUS_ENABLED` | `true` | Extended vector store enabled in base stack |
 | `NEO4J_ENABLED` | `true` | Knowledge graph adapter enabled in base stack |
 | `OBJECT_STORAGE_ENABLED` | `true` | SeaweedFS/S3 artifact storage (`object-store`) enabled in base stack |
@@ -125,7 +125,7 @@ The application currently includes:
 
 ### Next-Generation Model Fleet, Desktop App Auto-Refresh & Dependency Security Hardening (2026-11-13)
 
-Completed on `main` through `3733489`. Upgraded default LLM routes across all 41 agents, gateway allowlists, cost ledger, and Mission Control vault/settings to **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Ops 5.5** (`claude-ops-5.5` with backward-compatible alias `claude-opus-5.5`). Added `releaseModelDefaults(templatePath)` in `apps/mission-control/electron/env-generator.ts` (wired into `ensureBackendConfigured()`) and fixed inline script CSP (`script-src 'self' 'unsafe-inline'`) in `starting.html` and `setup-wizard.html`. Upgraded `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp` to `1.45.2` (plus instrumentation packages to `0.66b2`) in `services/api-gateway/requirements.txt` and `services/orchestrator/requirements.txt` to resolve `CVE-2026-126360`, rebuilt service images and `theFactory-MissionControl-Setup-0.1.0.exe`, and verified `CI`, `Security Checks`, and `CodeQL` green on `main`.
+Completed on `main` through `3733489` and the subsequent review remediation (`F1`–`F11`). Upgraded default LLM routes across all 41 agents, gateway allowlists, cost ledger, and Mission Control vault/settings to **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Opus 5.5** (`claude-opus-5-5`, with `claude-ops-5.5` and `claude-opus-5.5` compatibility aliases). Added `releaseModelDefaults(templatePath)` in `apps/mission-control/electron/env-generator.ts` (wired into `ensureBackendConfigured()`) and fixed inline script CSP (`script-src 'self' 'unsafe-inline'`) in `starting.html` and `setup-wizard.html`. Upgraded `opentelemetry-api`, `opentelemetry-sdk`, and `opentelemetry-exporter-otlp` to `1.45.2` (plus instrumentation packages to `0.66b2`) in `services/api-gateway/requirements.txt` and `services/orchestrator/requirements.txt` to resolve `CVE-2026-126360`, rebuilt service images and `theFactory-MissionControl-Setup-0.1.0.exe`, and verified `CI`, `Security Checks`, and `CodeQL` green on `main`.
 
 ### Enterprise Audit, Installer Rebuild & CI/Security Remediation (2026-10-26)
 

@@ -275,3 +275,121 @@ def test_multi_turn_self_repair_stops_early_on_duplicate_error_signature(monkeyp
     assert repair_calls == 1
     assert qc_calls == 2
     assert metadata["runtime_qc_report"]["repair_stop_reason"] == "duplicate_error_signature"
+
+
+def test_merge_repaired_files_blocks_modifications_to_existing_test_files() -> None:
+    """F8: Self-repair must not weaken or overwrite pre-existing test files."""
+    original = (
+        "## FILE src/app.py\ndef add(a, b):\n    return 0\n\n"
+        "## FILE tests/test_app.py\ndef test_real():\n    assert add(1, 2) == 3\n\n"
+        "## FILE app.test.ts\nexpect(add(1, 2)).toBe(3);\n"
+    )
+    tainted_repair = (
+        "## FILE src/app.py\ndef add(a, b):\n    return a + b\n\n"
+        "## FILE tests/test_app.py\ndef test_real():\n    assert True\n\n"
+        "## FILE app.test.ts\nexpect(true).toBe(true);\n"
+    )
+    merged = rqca_repair.merge_repaired_files(original, tainted_repair)
+    assert "return a + b" in merged
+    assert "assert add(1, 2) == 3" in merged
+    assert "assert True" not in merged
+    assert "expect(add(1, 2)).toBe(3);" in merged
+    assert "expect(true).toBe(true);" not in merged
+
+
+def test_prepare_runtime_qc_rolls_back_repaired_artifacts_when_repair_does_not_pass(
+    monkeypatch: Any,
+) -> None:
+    """F8: Failed/blocked repair must roll back generated_output and execution to pre-repair state."""
+    qc_calls = 0
+
+    async def fake_run_runtime_qc(**_kwargs: Any) -> dict[str, Any]:
+        nonlocal qc_calls
+        qc_calls += 1
+        if qc_calls == 1:
+            return {
+                "verdict": "FAIL",
+                "passed": False,
+                "exit_code": 1,
+                "stderr_preview": "original failing stderr",
+                "stdout_preview": "",
+                "command": "pytest -q",
+                "execution_type": "single_container",
+                "verified_scope_detail": "tests",
+                "source": "sandbox",
+            }
+        return {
+            "verdict": "BLOCKED",
+            "passed": False,
+            "exit_code": 125,
+            "stderr_preview": "repaired run blocked",
+            "stdout_preview": "",
+            "command": "pytest -q",
+            "execution_type": "single_container",
+            "verified_scope_detail": "tests",
+            "source": "sandbox",
+        }
+
+    async def fake_generate_code_from_contract(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "generated_code": "def worse_repair():\n    raise RuntimeError('broken')\n",
+            "filename": "app.py",
+            "language": "python",
+            "source": "llm",
+        }
+
+    async def fake_record_audit(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(phases_runtime, "run_runtime_qc", fake_run_runtime_qc)
+    monkeypatch.setattr(mission_flow_v2, "generate_code_from_contract", fake_generate_code_from_contract)
+    monkeypatch.setattr(mission_flow_v2, "record_audit_event", fake_record_audit)
+    monkeypatch.setattr(mission_flow_v2.storage, "insert_runtime_qc_report", lambda *_a, **_k: None)
+
+    class _DummyMission:
+        mission_id = "m-rollback"
+        project_id = "p-1"
+        title = "Rollback test"
+        objective = "Test rollback on failed repair"
+        status = "GATING"
+        state = "GATING"
+        prompt = "test"
+        correlation_id = "c-1"
+        requested_target_language = "python"
+        metadata: dict[str, Any] = {}
+
+    metadata: dict[str, Any] = {
+        "requested_target_language": "python",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        "generated_output": {
+            "generated_code": "def original_code():\n    return 1\n",
+            "filename": "app.py",
+            "language": "python",
+            "source": "llm",
+        },
+        "testdata_manifest": {"multi_container": False, "fixtures": []},
+        "integration_tests": {"test_code": "def test_x(): assert True\n", "source": "llm"},
+        "mission_contract": {"summary": "test"},
+    }
+    _DummyMission.metadata = metadata
+    monkeypatch.setattr(
+        mission_flow_v2.storage,
+        "update_mission_metadata",
+        lambda _s, _m_id, meta: metadata.update(meta) or _DummyMission(),
+    )
+    settings = SimpleNamespace(
+        rqca_agent_enabled=True,
+        rqca_enforcement_enabled=True,
+        testdata_agent_enabled=False,
+        runtime_qc_max_repair_attempts=2,
+    )
+    asyncio.run(phases_runtime._prepare_runtime_qc(app=object(), settings=settings, mission=_DummyMission()))
+
+    assert metadata["generated_output"]["generated_code"] == "def original_code():\n    return 1\n"
+    report = metadata["runtime_qc_report"]
+    assert report["verdict"] == "FAIL"
+    assert report["stderr_preview"] == "original failing stderr"
+    assert report["repair_attempted"] is True
+    assert report["repair_succeeded"] is False
+    assert report["repair_rolled_back"] is True
+

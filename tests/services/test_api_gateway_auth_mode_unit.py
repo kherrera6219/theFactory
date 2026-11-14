@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -512,3 +513,102 @@ def test_rate_limit_bucket_is_part_of_the_redis_key() -> None:
 
     asyncio.run(_exercise())
     assert len(keys) == 2 and keys[0] != keys[1], keys
+
+
+def test_knowledge_graph_route_returns_list_payload(monkeypatch) -> None:
+    """F11: /v1/missions/{id}/knowledge-graph must accept list[dict] from orchestrator without ResponseValidationError."""
+    async def _fake_get_internal(path: str, *, params: dict[str, Any] | None = None):
+        assert path == "/internal/missions/mission-kg-1/knowledge-graph"
+        return [{"mission_id": "mission-kg-1", "target_properties": {"knowledge_id": "k-1"}}]
+
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fake_get_internal)
+
+    with TestClient(api_app) as client:
+        resp = client.get("/v1/missions/mission-kg-1/knowledge-graph")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert isinstance(body, list)
+        assert body[0]["mission_id"] == "mission-kg-1"
+
+
+def test_mutation_and_maintenance_routes_enforce_least_privilege_roles(monkeypatch) -> None:
+    """F5: Mission/preview mutations require mutate; maintenance routes require admin."""
+    async def _fake_post_internal(path: str, *, json_body=None, params=None):
+        return {"ok": True, "path": path}
+
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(
+        api_gateway_main,
+        "_gateway_api_key_roles",
+        lambda: {
+            "read-key": {"read"},
+            "mutate-key": {"mutate", "read"},
+            "admin-key": {"admin", "mutate", "read"},
+        },
+    )
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _fake_post_internal)
+
+    with TestClient(api_app) as client:
+        # Read-only key cannot create missions or invoke LLM builder preview
+        resp = client.post(
+            "/v1/missions",
+            json={"prompt": "Build API"},
+            headers={"x-api-key": "read-key"},
+        )
+        assert resp.status_code == 403
+
+        resp = client.post(
+            "/v1/builder/preview",
+            json={"request": "   "},
+            headers={"x-api-key": "read-key"},
+        )
+        assert resp.status_code == 403
+
+        # Mutate key passes auth on mission creation & preview, but is denied maintenance
+        resp = client.post(
+            "/v1/missions",
+            json={"prompt": "Build API"},
+            headers={"x-api-key": "mutate-key"},
+        )
+        assert resp.status_code not in {401, 403}
+
+        resp = client.post(
+            "/v1/builder/preview",
+            json={"request": "   "},
+            headers={"x-api-key": "mutate-key"},
+        )
+        assert resp.status_code == 400
+
+        for path in ("/v1/maintenance/diagnostics", "/v1/maintenance/backup"):
+            denied_read = client.post(path, headers={"x-api-key": "read-key"})
+            assert denied_read.status_code == 403
+            denied_mutate = client.post(path, headers={"x-api-key": "mutate-key"})
+            assert denied_mutate.status_code == 403
+            allowed_admin = client.post(path, headers={"x-api-key": "admin-key"})
+            assert allowed_admin.status_code == 200
+
+        # Hybrid mode with OIDC_ENFORCE_OPERATOR_ROUTES=False must still enforce mutation/admin auth
+        monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+        monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", False)
+        assert client.post("/v1/missions", json={"prompt": "Build API"}).status_code == 401
+        assert client.post("/v1/maintenance/diagnostics").status_code == 401
+
+
+def test_validate_startup_auth_config_rejects_disabled_oidc_operator_routes_in_production(
+    monkeypatch,
+) -> None:
+    """F5: Production hybrid/oidc modes cannot disable OIDC_ENFORCE_OPERATOR_ROUTES."""
+    monkeypatch.setattr(api_gateway_main, "ENVIRONMENT", "production")
+    monkeypatch.setattr(api_gateway_main, "CORS_ALLOW_ORIGINS", "https://app.example")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", False)
+
+    for mode in ("hybrid", "oidc"):
+        monkeypatch.setattr(api_gateway_main, "AUTH_MODE", mode)
+        with pytest.raises(RuntimeError, match="OIDC_ENFORCE_OPERATOR_ROUTES"):
+            api_gateway_main._validate_startup_auth_config()
+

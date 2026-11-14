@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-11-13. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-ops-5.5`), Electron `releaseModelDefaults()` `backend.env` auto-refresh, and `opentelemetry` `1.45.2` / `0.66b2` (`CVE-2026-126360`) remediation: out-of-band vault transit (`shared_runtime/mission_vault.py`), gateway evidence & `.zip`/`.patch`/CycloneDX SBOM export routes, conversational PM Studio (`AGENT-01-PM`) with structured option pills and loss-free SOW-to-codegen pipeline, fast-path SOW routing, contract-driven `AGENT-40-TESTDATA` & adversarial `AGENT-10-TESTER`, surgical file-level multi-turn self-repair (`rqca_repair.py`), Multi-File IDE Workspace & LCS diff viewer, terminal-state stream auto-stop, polyglot behavioral equivalence (`Python`, `JavaScript`, `TypeScript`), and comment-stripped structural/tree-sitter AST extraction (`treesitter_extractor.py`). See `docs/CURRENT_TODO.md` (2026-11-13).
+> Last validated: 2026-11-13. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), `F1`–`F11` engineering/security remediation, Electron `releaseModelDefaults()` `backend.env` auto-refresh, and `opentelemetry` `1.45.2` / `0.66b2` (`CVE-2026-126360`) remediation. See `docs/CURRENT_TODO.md` (2026-11-13).
 
 ---
 
@@ -46,7 +46,7 @@ plan statement — rule 1 below is not a formality here.
   closed, object store is SeaweedFS, every language has sandbox execution.
 - Done 2026-09-27: local object-store migration; Windows installer (#9) built,
   installed and validated (`docs/ELECTRON_INSTALLER.md`); all agents on
-  `gemini-4-argon` (and `gpt-6.1-terrea` / `claude-ops-5.5`).
+  `gemini-4-argon` (and `gpt-6.1-terrea` / `claude-opus-5-5`, with `claude-ops-5.5` alias).
 - Next: stuck missions + coverage re-run; first `v*` release with public GHCR
   images. Electron preloads run sandboxed -- they must stay esbuild-bundled
   (build-electron.mjs fails otherwise).

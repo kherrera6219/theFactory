@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -18,6 +21,8 @@ from orchestrator import deploy_exporter as de  # noqa: E402
 from orchestrator import equivalence_execution as ee  # noqa: E402
 from pod_worker import treesitter_extractor as te  # noqa: E402
 from pod_worker.language_extractor import get_extractor  # noqa: E402
+
+from shared_runtime import crypto_signing  # noqa: E402
 
 
 def test_js_ts_interface_for_oracle_extracts_signatures_without_bodies() -> None:
@@ -170,7 +175,11 @@ pub fn apply_delta(current: i64, delta: i64) -> i64 {
     assert [f.name for f in result.functions] == ["apply_delta"]
 
 
-def test_generate_unified_patch_bundle_and_signed_cyclonedx_sbom() -> None:
+def test_generate_unified_patch_bundle_and_signed_cyclonedx_sbom(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_PATH", str(tmp_path / "keys" / "signing.key"))
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_SOURCE", "auto")
     source_bundle = "## FILE src/app.py\ndef greet():\n    return 'hi'\n"
     generated_bundle = {
         "filename": "src/app.py",
@@ -198,5 +207,17 @@ def test_generate_unified_patch_bundle_and_signed_cyclonedx_sbom() -> None:
     assert {"fastapi", "pydantic", "uvicorn"} <= comp_names
     props = {p["name"]: p["value"] for p in sbom["metadata"]["properties"]}
     assert props["thefactory:mission_id"] == "mission-sbom-001"
+    assert props["thefactory:signed"] == "true"
+    assert props["thefactory:signing_algorithm"] == "ECDSA-P256-SHA256"
     assert len(props["thefactory:signature"]) >= 32
     assert len(props["thefactory:artifact_sha256"]) == 64
+
+    sig_record = sbom["metadata"]["signature_record"]
+    sbom_core = {
+        "bomFormat": sbom["bomFormat"],
+        "specVersion": sbom["specVersion"],
+        "serialNumber": sbom["serialNumber"],
+        "version": sbom["version"],
+        "components": sbom["components"],
+    }
+    assert crypto_signing.verify_payload(json.dumps(sbom_core, sort_keys=True), sig_record) is True

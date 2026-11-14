@@ -16,7 +16,7 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 - All 41 agents default to `gemini-4-argon` with high thinking for the
   Gemini-first local test path.
 - Mission Control exposes operator-selectable model routes:
-  `gemini-4-argon`, `gpt-6.1-terrea`, and `claude-ops-5.5`. These routes are
+  `gemini-4-argon`, `gpt-6.1-terrea`, and `claude-opus-5-5` (`claude-ops-5.5` / `claude-opus-5.5` compatibility aliases). These routes are
   allowed for vault-slot testing, but only Gemini 4 Argon is assigned as an
   agent default.
 - `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview

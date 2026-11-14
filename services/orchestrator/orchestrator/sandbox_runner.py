@@ -67,8 +67,15 @@ def record_warm_image(image: str) -> None:
 
 
 def get_warm_pool_status() -> dict[str, Any]:
+    """Report locally verified sandbox image tags cached by the runner.
+
+    This reflects the in-process image-tag cache (`_PRESENT_IMAGES` /
+    seen tags); every sandbox call still launches an ephemeral
+    ``docker run --rm`` container rather than reusing a live container.
+    """
     return {
         "ok": True,
+        "mode": "image_tag_cache",
         "pool_size": len(_WARM_POOL_IMAGES),
         "warm_images": sorted(_WARM_POOL_IMAGES),
     }

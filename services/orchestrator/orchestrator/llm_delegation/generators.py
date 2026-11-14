@@ -341,12 +341,23 @@ async def generate_code_from_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
-        recommendation=recommendation,
-        prompt=prompt,
-        call_context=f"specialist codegen {specialist_agent_id}",
-        agent_id=specialist_agent_id,
-    )
+    try:
+        parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
+            recommendation=recommendation,
+            prompt=prompt,
+            call_context=f"specialist codegen {specialist_agent_id}",
+            agent_id=specialist_agent_id,
+            max_tokens=16384,
+        )
+    except TypeError as exc:
+        if "max_tokens" not in str(exc):
+            raise
+        parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
+            recommendation=recommendation,
+            prompt=prompt,
+            call_context=f"specialist codegen {specialist_agent_id}",
+            agent_id=specialist_agent_id,
+        )
     contract_summary = str(mission_contract.get("contract_summary", "mission"))
     if not isinstance(parsed, dict):
         return _fallback_codegen(

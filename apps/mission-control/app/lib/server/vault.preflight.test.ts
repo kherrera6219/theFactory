@@ -77,7 +77,7 @@ describe("preflightProviderCall", () => {
     expect(init.headers["x-api-key"]).toBe("sk-ant-test-123456");
     expect(init.headers["anthropic-version"]).toBe("2023-06-01");
     const body = JSON.parse(init.body as string);
-    expect(body.model).toBe("claude-ops-5.5");
+    expect(body.model).toBe("claude-opus-5-5");
     expect(body.max_tokens).toBe(1);
   });
 

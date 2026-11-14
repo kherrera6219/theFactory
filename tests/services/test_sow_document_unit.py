@@ -6,6 +6,7 @@ import inspect
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,6 +15,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 sys.path.insert(0, str(ROOT))
 
 from orchestrator.sow_store import (  # noqa: E402
+    _sow_root,
     load_approved_sow,
     save_approved_sow,
     validate_sow_for_accept,
@@ -136,3 +138,31 @@ def test_intake_may_add_execution_assumptions_only() -> None:
 
     source = inspect.getsource(phases_intake._prepare_pm_intake)
     assert "approved_sow_digest" in source
+
+
+def test_sow_root_and_write_artifact_ignore_non_string_settings_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F10: MagicMock settings must never create literal ./MagicMock directories or crash on Path(MagicMock)."""
+    from orchestrator.mission_flow_v2 import phases_build
+
+    monkeypatch.chdir(tmp_path)
+    mock_settings = MagicMock()
+    mock_settings.delivery_dir = MagicMock()
+
+    # _sow_root must fall back cleanly to Path("output/.sow") instead of using a MagicMock delivery_dir.
+    root = _sow_root(mock_settings)
+    assert root == Path("output") / ".sow"
+    assert not (tmp_path / "MagicMock").exists()
+
+    # Even if a mock defines __fspath__ returning "MagicMock", non-(str, Path) must be ignored.
+    fspath_mock = MagicMock()
+    fspath_mock.__fspath__.return_value = "MagicMock"
+    phases_build._write_artifact_to_disk(
+        SimpleNamespace(delivery_dir=fspath_mock),
+        "m-mock",
+        {"artifact_type": "generated_code", "artifact_text": "print(1)\n"},
+    )
+    assert not (tmp_path / "MagicMock").exists()
+

@@ -838,7 +838,7 @@ export default function AgentsPage() {
 
 const RUNTIME_CLASS_LABELS: Record<AgentRuntimeClass, string> = {
   shared_worker: "Worker",
-  synthesized_heartbeat: "Managed",
+  synthesized_heartbeat: "Synthesized",
 };
 
 const RUNTIME_CLASS_CHIP_CLASS: Record<AgentRuntimeClass, string> = {

@@ -10,16 +10,17 @@ from __future__ import annotations
 
 import difflib
 import hashlib
-import hmac
 import io
 import json
-import os
+import logging
 import tarfile
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from .file_tree import parse_file_tree
+
+LOGGER = logging.getLogger(__name__)
 
 
 def generate_helm_chart_archive(mission_id: str, mission_data: dict[str, Any]) -> bytes:
@@ -304,18 +305,32 @@ def generate_cyclonedx_sbom(
         "components": components,
     }
     canonical_payload = json.dumps(sbom_core, sort_keys=True)
+    signature_record: dict[str, str] | None = None
     try:
-        from shared_runtime.crypto_signing import sign_payload
+        from shared_runtime.crypto_keystore import load_or_create_signing_key
+        from shared_runtime.crypto_signing import _keystore_path, sign_payload
 
-        signature_record = sign_payload(canonical_payload)
+        signing_key = load_or_create_signing_key(_keystore_path())
+        signature_record = sign_payload(signing_key, canonical_payload)
+    except Exception as exc:
+        LOGGER.warning("Failed to sign CycloneDX SBOM with ECDSA signing key: %s", exc)
+        signature_record = None
+
+    if signature_record is not None:
         signature_value = str(signature_record.get("signature") or "")
-        signing_algorithm = str(signature_record.get("algorithm") or "HMAC-SHA256")
-    except Exception:
-        secret = os.getenv("ARTIFACT_SIGNING_SECRET", "thefactory-local-dev-signing-key")
-        signature_value = hmac.new(
-            secret.encode("utf-8"), canonical_payload.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
-        signing_algorithm = "HMAC-SHA256"
+        signing_algorithm = str(signature_record.get("algorithm") or "ECDSA-P256-SHA256")
+        signed_flag = "true"
+        top_signature: dict[str, Any] | None = {
+            "algorithm": signing_algorithm,
+            "value": signature_value,
+            "publicKey": {"pem": str(signature_record.get("public_key_pem") or "")},
+            "digestSha256": str(signature_record.get("digest_sha256") or ""),
+        }
+    else:
+        signature_value = ""
+        signing_algorithm = "unsigned"
+        signed_flag = "false"
+        top_signature = None
 
     return {
         **sbom_core,
@@ -334,13 +349,16 @@ def generate_cyclonedx_sbom(
                 "name": str(output_dict.get("filename") or mission_id),
                 "hashes": [{"alg": "SHA-256", "content": artifact_sha256}],
             },
+            "signature_record": signature_record,
             "properties": [
                 {"name": "thefactory:mission_id", "value": mission_id},
                 {"name": "thefactory:language", "value": language},
                 {"name": "thefactory:artifact_sha256", "value": artifact_sha256},
+                {"name": "thefactory:signed", "value": signed_flag},
                 {"name": "thefactory:signing_algorithm", "value": signing_algorithm},
                 {"name": "thefactory:signature", "value": signature_value},
             ],
         },
+        "signature": top_signature,
     }
 

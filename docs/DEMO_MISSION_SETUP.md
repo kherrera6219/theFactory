@@ -74,7 +74,7 @@ Mission Control Settings still lets you select one of three vault-slot model rou
 ```
 OPENAI_MODEL=gpt-6.1-terrea
 OPENAI_REASONING_EFFORT=high
-ANTHROPIC_MODEL=claude-ops-5.5
+ANTHROPIC_MODEL=claude-opus-5-5
 GEMINI_MODEL=gemini-4-argon
 GEMINI_THINKING_LEVEL=high
 ```
@@ -85,7 +85,7 @@ All 41 agents default to Gemini 4 Argon (`gemini-4-argon`) with high thinking.
 
 The current model assignments in `agent_integrations.py` are:
 - All agents: `gemini-4-argon` (Gemini, high thinking)
-- Settings dropdown choices: `gpt-6.1-terrea`, `claude-ops-5.5`, `gemini-4-argon`
+- Settings dropdown choices: `gpt-6.1-terrea`, `claude-opus-5-5` (`claude-ops-5.5` / `claude-opus-5.5` aliases), `gemini-4-argon`
 
 If any of these model strings are invalid for your account, the agent falls back
 to deterministic routing — the mission will complete but output will be a stub.

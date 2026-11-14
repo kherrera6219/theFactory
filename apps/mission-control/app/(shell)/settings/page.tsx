@@ -22,6 +22,7 @@ type ModelOption = {
   model:
     | "gpt-6.1-terrea"
     | "gpt-5.6"
+    | "claude-opus-5-5"
     | "claude-ops-5.5"
     | "claude-opus-5.5"
     | "claude-opus-4-8"
@@ -47,9 +48,9 @@ const MODEL_OPTIONS: ModelOption[] = [
     effort: "high",
   },
   {
-    label: "Claude Ops 5.5",
+    label: "Claude Opus 5.5",
     provider: "anthropic",
-    model: "claude-ops-5.5",
+    model: "claude-opus-5-5",
     endpoint: "POST /v1/messages",
     effort: "high",
   },

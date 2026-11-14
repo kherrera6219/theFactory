@@ -255,22 +255,23 @@ def _wait_for_mirrors(mission_id: str, knowledge_id: str, audit_id: str) -> None
             "GET",
             f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/audit-artifacts?limit=100",
         )
-        if graph_status == 200 and artifacts_status == 200:
+        if graph_status == 200:
             graph_records = graph_payload if isinstance(graph_payload, list) else []
-            artifact_records = artifacts_payload if isinstance(artifacts_payload, list) else []
             has_knowledge = any(
                 isinstance(record, dict)
                 and isinstance(record.get("target_properties"), dict)
                 and record["target_properties"].get("knowledge_id") == knowledge_id
                 for record in graph_records
             )
+        if artifacts_status == 200:
+            artifact_records = artifacts_payload if isinstance(artifacts_payload, list) else []
             has_artifact = any(
                 isinstance(record, dict)
                 and str(record.get("key", "")).endswith(f"/{audit_id}.json")
                 for record in artifact_records
             )
-            if has_knowledge and has_artifact:
-                return
+        if has_knowledge and has_artifact:
+            return
         time.sleep(1.0)
 
     raise AssertionError(

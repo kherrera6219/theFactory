@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import logging
 import os
 import re
@@ -382,6 +383,7 @@ async def _call_anthropic(
     *,
     call_context: str,
     system_prompt: str | None = None,
+    max_tokens: int = 900,
 ) -> dict[str, Any] | None:
     # Per-mission vault keys set by runtime.py from the Mission Control vault take
     # precedence over the process-level .env keys. This is what lets operators
@@ -405,7 +407,7 @@ async def _call_anthropic(
         user_content = prompt
     payload: dict[str, Any] = {
         "model": model,
-        "max_tokens": 900,
+        "max_tokens": max(1, int(max_tokens)),
         "messages": [{"role": "user", "content": user_content}],
     }
     if system_prompt:
@@ -572,6 +574,17 @@ def _extract_gemini_grounding_sources(body: dict[str, Any]) -> list[dict[str, st
     return sources
 
 
+def _accepts_kwarg(func: Any, name: str) -> bool:
+    try:
+        sig = inspect.signature(func)
+    except (TypeError, ValueError):
+        return False
+    return any(
+        param.name == name or param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in sig.parameters.values()
+    )
+
+
 async def _call_provider(
     *,
     provider: str,
@@ -579,21 +592,17 @@ async def _call_provider(
     prompt: str,
     call_context: str,
     system_prompt: str | None = None,
+    max_tokens: int | None = None,
 ) -> dict[str, Any] | None:
     normalized = provider.strip().lower()
 
     async def _call_backend(func: Any) -> dict[str, Any] | None:
-        try:
-            return await func(
-                model,
-                prompt,
-                call_context=call_context,
-                system_prompt=system_prompt,
-            )
-        except TypeError as exc:
-            if "system_prompt" not in str(exc):
-                raise
-            return await func(model, prompt, call_context=call_context)
+        kwargs: dict[str, Any] = {"call_context": call_context}
+        if _accepts_kwarg(func, "system_prompt"):
+            kwargs["system_prompt"] = system_prompt
+        if max_tokens is not None and _accepts_kwarg(func, "max_tokens"):
+            kwargs["max_tokens"] = max_tokens
+        return await func(model, prompt, **kwargs)
 
     pkg = _pkg()
     started = time.perf_counter()
@@ -641,6 +650,7 @@ async def _call_with_recommendation(
     prompt: str,
     call_context: str,
     system_prompt: str | None = None,
+    max_tokens: int | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
     model = str(recommendation.get("model", "gemini-4-argon")).strip()
@@ -677,23 +687,17 @@ async def _call_with_recommendation(
         route_context: str,
     ) -> dict[str, Any] | None:
         call_provider = _pkg()._call_provider
-        try:
-            return await call_provider(
-                provider=route_provider,
-                model=route_model,
-                prompt=prompt,
-                call_context=route_context,
-                system_prompt=system_prompt,
-            )
-        except TypeError as exc:
-            if "system_prompt" not in str(exc):
-                raise
-            return await call_provider(
-                provider=route_provider,
-                model=route_model,
-                prompt=prompt,
-                call_context=route_context,
-            )
+        kwargs: dict[str, Any] = {
+            "provider": route_provider,
+            "model": route_model,
+            "prompt": prompt,
+            "call_context": route_context,
+        }
+        if _accepts_kwarg(call_provider, "system_prompt"):
+            kwargs["system_prompt"] = system_prompt
+        if max_tokens is not None and _accepts_kwarg(call_provider, "max_tokens"):
+            kwargs["max_tokens"] = max_tokens
+        return await call_provider(**kwargs)
 
     # Circuit breaker: skip the primary provider entirely while its circuit is
     # open, routing straight to the fallback instead of issuing a doomed call.
@@ -781,6 +785,7 @@ async def _call_with_agent_system(
     prompt: str,
     call_context: str,
     agent_id: str,
+    max_tokens: int | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     """Call the recommendation helper with persona system prompt when supported."""
     # PII redaction and OWASP LLM01 prompt-injection scanning happen at the
@@ -788,21 +793,16 @@ async def _call_with_agent_system(
     call_with_recommendation = _pkg()._call_with_recommendation
     token = current_agent_id.set(agent_id)
     try:
-        try:
-            return await call_with_recommendation(
-                recommendation=recommendation,
-                prompt=prompt,
-                call_context=call_context,
-                system_prompt=_system_prompt_for_agent(agent_id),
-            )
-        except TypeError as exc:
-            if "system_prompt" not in str(exc):
-                raise
-            return await call_with_recommendation(
-                recommendation=recommendation,
-                prompt=prompt,
-                call_context=call_context,
-            )
+        kwargs: dict[str, Any] = {
+            "recommendation": recommendation,
+            "prompt": prompt,
+            "call_context": call_context,
+        }
+        if _accepts_kwarg(call_with_recommendation, "system_prompt"):
+            kwargs["system_prompt"] = _system_prompt_for_agent(agent_id)
+        if max_tokens is not None and _accepts_kwarg(call_with_recommendation, "max_tokens"):
+            kwargs["max_tokens"] = max_tokens
+        return await call_with_recommendation(**kwargs)
     finally:
         current_agent_id.reset(token)
 

@@ -29,7 +29,7 @@ three model routes. All routes default to high effort / high thinking.
 |---|---|---|---|---|
 | Gemini 4 Argon | `gemini` | `gemini-4-argon` | `POST /v1beta/models/gemini-4-argon:generateContent` | Gemini thinking level `high` |
 | ChatGPT 6.1 Terrea | `openai` | `gpt-6.1-terrea` | `POST /v1/responses` | `reasoning.effort=high` |
-| Claude Ops 5.5 | `anthropic` | `claude-ops-5.5` | `POST /v1/messages` | Thinking enabled with high token budget |
+| Claude Opus 5.5 | `anthropic` | `claude-opus-5-5` (`claude-ops-5.5` / `claude-opus-5.5` aliases) | `POST /v1/messages` | Thinking enabled with high token budget |
 
 The non-Gemini routes are available for vault-slot testing and future
 comparison, but they are not the default assignment for any agent.
@@ -90,7 +90,7 @@ GEMINI_MODEL=gemini-4-argon
 GEMINI_THINKING_LEVEL=high
 OPENAI_MODEL=gpt-6.1-terrea
 OPENAI_REASONING_EFFORT=high
-ANTHROPIC_MODEL=claude-ops-5.5
+ANTHROPIC_MODEL=claude-opus-5-5
 ANTHROPIC_THINKING_BUDGET_TOKENS=8192
 ```
 

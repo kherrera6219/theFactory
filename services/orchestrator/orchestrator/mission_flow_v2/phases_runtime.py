@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib
 import logging
 from typing import Any
@@ -587,6 +588,8 @@ async def _prepare_runtime_qc(
             exit_code=execution.get("exit_code"),
         )
         seen_signatures.append(initial_sig)
+        original_generated_output = copy.deepcopy(generated_output)
+        original_execution = copy.deepcopy(execution)
 
         for attempt in range(1, max_attempts + 1):
             current_code = str(generated_output.get("generated_code") or "")
@@ -672,6 +675,13 @@ async def _prepare_runtime_qc(
                 repair_stop_reason = "duplicate_error_signature"
                 break
 
+        repair_rolled_back = False
+        if execution.get("verdict") != "PASS":
+            generated_output = copy.deepcopy(original_generated_output)
+            metadata["generated_output"] = generated_output
+            execution = copy.deepcopy(original_execution)
+            repair_rolled_back = repair_attempts_run > 0
+
         metadata["runtime_qc_repair_attempts"] = repair_attempts_run
         if repair_attempts_run > 0:
             execution = {
@@ -679,6 +689,7 @@ async def _prepare_runtime_qc(
                 "repair_attempted": True,
                 "repair_attempts": repair_attempts_run,
                 "repair_succeeded": execution.get("verdict") == "PASS",
+                "repair_rolled_back": repair_rolled_back,
                 "repair_stop_reason": repair_stop_reason or "max_attempts_reached",
             }
             append_chain_event(
@@ -687,6 +698,7 @@ async def _prepare_runtime_qc(
                 agent_id=specialist_agent_id,
                 details={
                     "repair_succeeded": execution.get("verdict") == "PASS",
+                    "repair_rolled_back": repair_rolled_back,
                     "repair_attempts": repair_attempts_run,
                     "repair_stop_reason": execution.get("repair_stop_reason"),
                     "execution_verdict": execution.get("verdict"),

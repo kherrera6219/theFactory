@@ -197,7 +197,7 @@ OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "high").strip().lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-ops-5.5").strip()
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5-5").strip()
 ANTHROPIC_TIMEOUT_SECONDS = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "20"))
 ANTHROPIC_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01").strip()
 ANTHROPIC_THINKING_MODE = os.getenv("ANTHROPIC_THINKING_MODE", "enabled").strip().lower()
@@ -218,6 +218,7 @@ GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower
 ALLOWED_LLM_MODELS: dict[str, str] = {
     "gpt-6.1-terrea": "openai",
     "gpt-5.6": "openai",
+    "claude-opus-5-5": "anthropic",
     "claude-ops-5.5": "anthropic",
     "claude-opus-5.5": "anthropic",
     "claude-opus-4-8": "anthropic",
@@ -1246,6 +1247,9 @@ def _require_operator_access(
     *,
     x_api_key: str | None,
     authorization: str | None,
+    required_role: str = "read",
+    required_oidc_role: str | None = None,
+    enforce_oidc_regardless_of_operator_flag: bool = False,
 ) -> None:
     if GATEWAY_ADMIN_BYPASS:
         return
@@ -1255,31 +1259,26 @@ def _require_operator_access(
     if mode == "api_key":
         # Operator routes proxy to privileged internal orchestrator endpoints using
         # the gateway's internal key, so the gateway MUST authorize the caller here.
-        # Minimum `read` role required — never skip auth for non-health routes.
-        _require_api_key_role(x_api_key, "read")
+        _require_api_key_role(x_api_key, required_role)
         return
 
-    if not OIDC_ENFORCE_OPERATOR_ROUTES:
+    if not enforce_oidc_regardless_of_operator_flag and not OIDC_ENFORCE_OPERATOR_ROUTES:
         return
 
     bearer_token = _extract_bearer_token(authorization)
+    oidc_role = required_oidc_role or OIDC_OPERATOR_ROLE
 
     if mode == "hybrid":
         if bearer_token:
             claims = _decode_oidc_token(bearer_token)
-            if not _claim_includes_required_role(claims, OIDC_OPERATOR_ROLE):
+            if not _claim_includes_required_role(claims, oidc_role):
                 raise HTTPException(
                     status_code=403,
                     detail="insufficient oidc role for operator route",
                 )
             return
         if x_api_key:
-            # Unlike the bearer-token branch above, this used to grant
-            # operator access on ANY non-empty X-API-Key with no validation
-            # at all — inconsistent with this same function's api_key-mode
-            # branch (which correctly calls _require_api_key_role) and with
-            # _require_reader_access's own hybrid-mode X-API-Key branch.
-            _require_api_key_role(x_api_key, "read")
+            _require_api_key_role(x_api_key, required_role)
             return
         raise HTTPException(
             status_code=401,
@@ -1290,11 +1289,39 @@ def _require_operator_access(
         if not bearer_token:
             raise HTTPException(status_code=401, detail="authorization bearer token is required")
         claims = _decode_oidc_token(bearer_token)
-        if not _claim_includes_required_role(claims, OIDC_OPERATOR_ROLE):
+        if not _claim_includes_required_role(claims, oidc_role):
             raise HTTPException(status_code=403, detail="insufficient oidc role for operator route")
         return
 
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
+
+
+def _require_mutation_access(
+    *,
+    x_api_key: str | None,
+    authorization: str | None,
+) -> None:
+    _require_operator_access(
+        x_api_key=x_api_key,
+        authorization=authorization,
+        required_role="mutate",
+        required_oidc_role=OIDC_REQUIRED_ROLE,
+        enforce_oidc_regardless_of_operator_flag=True,
+    )
+
+
+def _require_admin_access(
+    *,
+    x_api_key: str | None,
+    authorization: str | None,
+) -> None:
+    _require_operator_access(
+        x_api_key=x_api_key,
+        authorization=authorization,
+        required_role="admin",
+        required_oidc_role="admin",
+        enforce_oidc_regardless_of_operator_flag=True,
+    )
 
 
 def _require_reader_access(
@@ -1805,6 +1832,11 @@ def _validate_startup_auth_config() -> None:
             LOGGER.warning("OIDC_AUDIENCE not set — JWT audience verification disabled")
         if AUTH_MODE == "oidc" and not OIDC_ISSUER_URL:
             raise RuntimeError("OIDC_ISSUER_URL required when AUTH_MODE=oidc")
+        if ENVIRONMENT == "production" and not OIDC_ENFORCE_OPERATOR_ROUTES:
+            raise RuntimeError(
+                "OIDC_ENFORCE_OPERATOR_ROUTES cannot be disabled in production "
+                "when AUTH_MODE is hybrid or oidc"
+            )
 
 
 @asynccontextmanager
@@ -2331,7 +2363,7 @@ async def create_mission(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> MissionRecord:
-    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    _require_mutation_access(x_api_key=x_api_key, authorization=authorization)
     redis_client = getattr(app.state, "redis", None)
     if redis_client is None:
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
@@ -2572,7 +2604,7 @@ async def create_builder_preview(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
-    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    _require_mutation_access(x_api_key=x_api_key, authorization=authorization)
     normalized_request = _normalize_builder_text(payload.request)
     if len(normalized_request) < 3:
         raise HTTPException(status_code=400, detail="request must be at least 3 characters")
@@ -2660,7 +2692,7 @@ async def create_gateway_diagnostics(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
-    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    _require_admin_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_post_internal("/internal/maintenance/diagnostics", params={"mission_id": mission_id})
 
 
@@ -2669,6 +2701,6 @@ async def trigger_gateway_backup(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
-    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    _require_admin_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_post_internal("/internal/maintenance/backup")
 

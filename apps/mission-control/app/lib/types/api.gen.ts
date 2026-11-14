@@ -1786,7 +1786,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    };
+                    }[];
                 };
             };
             /** @description Missing or invalid X-API-Key header. */

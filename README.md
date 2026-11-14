@@ -296,7 +296,7 @@ theFactory provides seamless provider flexibility with strict data leakage guard
 
 - **Cloud Multi-Provider (41-Agent Fleet Defaults)**:
   - **Google Gemini**: Default provider across all 41 agents (`gemini-4-argon`) with 180s deep synthesis timeout.
-  - **Anthropic Claude**: Full support for `claude-ops-5.5` (with `claude-opus-5.5` alias and legacy `claude-opus-4-8` support).
+  - **Anthropic Claude**: Full support for `claude-opus-5-5` (with `claude-ops-5.5` and `claude-opus-5.5` compatibility aliases, plus legacy `claude-opus-4-8` support).
   - **OpenAI GPT**: Support for `gpt-6.1-terrea` (and legacy `gpt-5.6`).
 - **100% Air-Gapped Local LLMs**:
   - Native **Ollama** and **vLLM** integration via `LLM_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://localhost:11434`.

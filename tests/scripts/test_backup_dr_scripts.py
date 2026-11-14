@@ -30,42 +30,49 @@ def _run_powershell(script_path: str, *args: str) -> subprocess.CompletedProcess
     return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
 
 
-def test_backup_script_dry_run_creates_sql_artifact() -> None:
-    timestamp = f"20990101_{uuid.uuid4().hex[:8]}"
-    backup_path = ROOT / "backups" / f"ulr_{timestamp}.sql"
-    if backup_path.exists():
-        backup_path.unlink()
-
-    result = _run_powershell("scripts/backup_postgres.ps1", "-DryRun", "-Timestamp", timestamp)
-
-    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert backup_path.exists()
-    content = backup_path.read_text(encoding="utf-8")
-    assert "dry-run backup artifact" in content
-    assert "INSERT INTO missions" in content
-
-    backup_path.unlink(missing_ok=True)
-    backups_dir = ROOT / "backups"
+def _cleanup_backup_artifacts(backup_path: Path, backups_dir: Path) -> None:
+    for candidate in (
+        backup_path,
+        Path(f"{backup_path}.json"),
+        Path(f"{backup_path}.sha256"),
+    ):
+        candidate.unlink(missing_ok=True)
     if backups_dir.exists() and not any(backups_dir.iterdir()):
         backups_dir.rmdir()
+
+
+def test_backup_script_dry_run_creates_sql_artifact() -> None:
+    timestamp = f"20990101_{uuid.uuid4().hex[:8]}"
+    backups_dir = ROOT / "backups"
+    backup_path = backups_dir / f"ulr_{timestamp}.sql"
+    _cleanup_backup_artifacts(backup_path, backups_dir)
+
+    try:
+        result = _run_powershell("scripts/backup_postgres.ps1", "-DryRun", "-Timestamp", timestamp)
+
+        assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert backup_path.exists()
+        content = backup_path.read_text(encoding="utf-8")
+        assert "dry-run backup artifact" in content
+        assert "INSERT INTO missions" in content
+    finally:
+        _cleanup_backup_artifacts(backup_path, backups_dir)
 
 
 def test_dr_drill_dry_run_executes_without_runtime_dependencies() -> None:
     timestamp = f"20990101_{uuid.uuid4().hex[:8]}"
-    backup_path = ROOT / "backups" / f"ulr_{timestamp}.sql"
-    if backup_path.exists():
-        backup_path.unlink()
-
-    result = _run_powershell("scripts/dr_drill.ps1", "-DryRun", "-Timestamp", timestamp)
-    combined_output = f"{result.stdout}\n{result.stderr}"
-
-    assert result.returncode == 0, combined_output
-    assert "Dry-run mode enabled. Skipping readiness HTTP checks." in combined_output
-    assert "Dry-run mode enabled. Skipping postgres mission-count query." in combined_output
-    assert "DR drill complete." in combined_output
-    assert backup_path.exists()
-
-    backup_path.unlink(missing_ok=True)
     backups_dir = ROOT / "backups"
-    if backups_dir.exists() and not any(backups_dir.iterdir()):
-        backups_dir.rmdir()
+    backup_path = backups_dir / f"ulr_{timestamp}.sql"
+    _cleanup_backup_artifacts(backup_path, backups_dir)
+
+    try:
+        result = _run_powershell("scripts/dr_drill.ps1", "-DryRun", "-Timestamp", timestamp)
+        combined_output = f"{result.stdout}\n{result.stderr}"
+
+        assert result.returncode == 0, combined_output
+        assert "Dry-run mode enabled. Skipping readiness HTTP checks." in combined_output
+        assert "Dry-run mode enabled. Skipping postgres mission-count query." in combined_output
+        assert "DR drill complete." in combined_output
+        assert backup_path.exists()
+    finally:
+        _cleanup_backup_artifacts(backup_path, backups_dir)

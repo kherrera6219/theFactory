@@ -99,21 +99,29 @@ def test_all_41_agents_live_health_probes_and_telemetry() -> None:
 
     from orchestrator.main import _build_operations_agents_snapshot
 
-    # 1. Verify individual live probe for every single agent in AGENT_REGISTRY
+    # 1. Verify probe behavior matches runtime_class for every agent in AGENT_REGISTRY
     latencies = []
+    synthesized_probes = 0
     for defn in AGENT_REGISTRY:
         probe = probe_agent_health(defn)
-        assert probe["live_health_probe"] is True
         assert probe["is_healthy"] is True
-        assert isinstance(probe["latency_ms"], float)
-        assert probe["latency_ms"] > 0.0
-        assert isinstance(probe["rss_bytes"], int)
-        assert probe["rss_bytes"] >= 0
-        latencies.append(probe["latency_ms"])
+        if defn.runtime_class == "synthesized_heartbeat":
+            assert probe["live_health_probe"] is False
+            assert probe["latency_ms"] is None
+            assert probe["rss_bytes"] is None
+            synthesized_probes += 1
+        else:
+            assert probe["live_health_probe"] is True
+            assert isinstance(probe["latency_ms"], float)
+            assert probe["latency_ms"] > 0.0
+            assert isinstance(probe["rss_bytes"], int)
+            assert probe["rss_bytes"] >= 0
+            latencies.append(probe["latency_ms"])
 
-    assert len(latencies) == 41
+    assert len(latencies) + synthesized_probes == 41
+    assert len(latencies) > 0 and synthesized_probes > 0
 
-    # 2. Verify operations snapshot delivers live_health_probe and real metrics for all 41 agents
+    # 2. Verify operations snapshot distinguishes live probes from synthesized heartbeats
     runtime = {
         "redis_ready": True,
         "db_ready": True,
@@ -137,7 +145,12 @@ def test_all_41_agents_live_health_probes_and_telemetry() -> None:
     assert len(agents) == 41
 
     for agent_record in agents:
-        assert agent_record["live_health_probe"] is True
-        assert isinstance(agent_record["latency_ms"], (int, float))
-        assert agent_record["latency_ms"] > 0.0
-        assert isinstance(agent_record["rss_bytes"], int)
+        if agent_record["runtime_class"] == "synthesized_heartbeat":
+            assert agent_record["live_health_probe"] is False
+            assert agent_record["latency_ms"] is None
+            assert agent_record["rss_bytes"] is None
+        else:
+            assert agent_record["live_health_probe"] is True
+            assert isinstance(agent_record["latency_ms"], (int, float))
+            assert agent_record["latency_ms"] > 0.0
+            assert isinstance(agent_record["rss_bytes"], int)

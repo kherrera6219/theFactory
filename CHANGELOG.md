@@ -6,10 +6,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Engineering & Security Review Remediation (`F1`–`F11`, 2026-11-13)
+
+#### Fixed
+- **Orchestrator Export Authentication & SBOM Signing (`services/orchestrator/orchestrator/routes/missions.py`, `deploy_exporter.py`, `requirements.txt`)**: Protected `/missions/{mission_id}/export/patch` and `/missions/{mission_id}/export/sbom` with `INTERNAL_AUTH_DEP` and handled Pydantic `MissionRecord` access (`F1`). Replaced the hardcoded HMAC secret fallback in `generate_cyclonedx_sbom` with ECDSA P-256 keystore signing (`crypto_signing.sign_payload` / `ECDSA-P256-SHA256`) backed by `cryptography==48.0.0`, failing closed when unavailable (`F2`).
+- **Sandbox Timeout Cleanup & Image-Tag Cache Wording (`sandbox_exec.py`, `sandbox_runner.py`)**: Named spawned containers `--name=sbx-<id>` and executed `docker kill` + `rm -f` on timeout (`F3`). Documented `/internal/sandbox/warm-pool` and `warm_pool_hit` accurately as an in-process local image-tag cache (`mode="image_tag_cache"`) rather than persistent warm containers (`F7`).
+- **Anthropic Codegen Budget & Gateway RBAC Hardening (`providers.py`, `generators.py`, `api_gateway/main.py`, `api_gateway/routers/missions.py`)**: Promoted `ANTHROPIC_MODEL` default to `claude-opus-5-5` (preserving `claude-ops-5.5` and `claude-opus.5.5` compatibility aliases) and passed `max_tokens=16384` for `generate_code_from_contract` (`F4`). Enforced `mutate` role on `POST /v1/missions` and `POST /v1/builder/preview`, `admin` role on `POST /v1/maintenance/diagnostics` and `/v1/maintenance/backup`, and rejected `OIDC_ENFORCE_OPERATOR_ROUTES=false` in production `hybrid`/`oidc` modes (`F5`). Fixed `/v1/missions/{id}/knowledge-graph` list response typing and decoupled extended data-plane integration assertions (`F11`).
+- **Heartbeat Honesty, Self-Repair Guard & Workspace Hygiene (`heartbeat_service.py`, `routes/operations.py`, `agents/page.tsx`, `rqca_repair.py`, `phases_runtime.py`, `sow_store.py`, `phases_build.py`)**: Marked `synthesized_heartbeat` agents with `live_health_probe=False`, `latency_ms=None`, `rss_bytes=None`, and UI label `"Synthesized"` (`F6`). Prevented `merge_repaired_files` from overwriting existing test files and rolled back `generated_output`/`execution` when self-repair ends non-`PASS` (`F8`). Fixed UTF-8 mojibake and subjective self-scores in active documentation (`F9`), moved `test-keys/keys.txt` to `%APPDATA%`, cleaned backup test sidecars, and guarded `_sow_root` / `_write_artifact_to_disk` against mock settings (`F10`).
+
 ### Next-Generation Model Fleet Upgrade, Desktop App Auto-Refresh & OpenTelemetry Security Hardening (2026-11-13)
 
 #### Changed
-- **Default 41-Agent Model Fleet Upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-ops-5.5`)**: Promoted **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Ops 5.5** (`claude-ops-5.5`, with backward-compatible alias `claude-opus-5.5`) across all 41 agents, `services/orchestrator`, `services/api-gateway` allowlists, `llm_cost_ledger.py` pricing, `.env`/`.env.example`, `deploy/docker-compose.yaml`, `docs/evidence/agent_model_inventory_latest.json`, and Mission Control Vault & Settings UI (`vault.ts`, `settings/page.tsx`, `vault.preflight.test.ts`).
+- **Default 41-Agent Model Fleet Upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`)**: Promoted **Gemini 4 Argon** (`gemini-4-argon`), **ChatGPT 6.1 Terrea** (`gpt-6.1-terrea`), and **Claude Opus 5.5** (`claude-opus-5-5`, with backward-compatible aliases `claude-ops-5.5` and `claude-opus.5.5`) across all 41 agents, `services/orchestrator`, `services/api-gateway` allowlists, `llm_cost_ledger.py` pricing, `.env`/`.env.example`, `deploy/docker-compose.yaml`, `docs/evidence/agent_model_inventory_latest.json`, and Mission Control Vault & Settings UI (`vault.ts`, `settings/page.tsx`, `vault.preflight.test.ts`).
 - **Desktop Installer & Automatic `backend.env` Model Refresh (`apps/mission-control/electron/`)**: Added `releaseModelDefaults(templatePath)` in `env-generator.ts` wired into `ensureBackendConfigured()` in `main.ts` so upgrades refresh `GEMINI_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GEMINI_TIMEOUT_SECONDS` (`180`) from the bundled `.env.example` without overwriting existing operator secrets or API keys; rebuilt and validated `theFactory-MissionControl-Setup-0.1.0.exe`.
 
 #### Fixed
@@ -41,21 +49,21 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - **GitHub README Expansion**: Restored detailed architectural documentation, removed subjective internal scores, and added 14 annotated interface screenshots illustrating the end-to-end user workflow.
 - **Desktop Application Packaging**: Built and signed `theFactory-MissionControl-Setup-0.1.0.exe` and reinstalled into `%LOCALAPPDATA%\Programs\theFactory Mission Control`.
 
-### 10/10 Enterprise Roadmap Phase 7: Sandbox Build Optimization & Warm-Pool Execution (2026-10-29)
+### Enterprise Roadmap Phase 7: Sandbox Build Optimization & Image-Tag Cache (2026-10-29)
 
 #### Added
-- **Warm-Pool Execution & Latency Optimization**: Added pre-warmed container tracking, `duration_ms` profiling, and `warm_pool_hit` flags to `SandboxResult` and payload in `services/orchestrator/orchestrator/sandbox_exec.py` and `services/orchestrator/orchestrator/sandbox_runner.py`.
-- **Sandbox Runner Warm-Pool Inspection**: Implemented `get_warm_pool_status()` and HTTP endpoint `GET /internal/sandbox/warm-pool` in `sandbox_runner.py` for monitoring pre-warmed image pools and runner readiness.
-- **Sub-200ms Test Execution Latency**: Validated remote execution latency < 200ms when utilizing pre-warmed sandbox runners in `tests/services/test_sandbox_remote_unit.py` (15 tests passing in 0.33s, 100% module coverage on `sandbox_runner.py`).
+- **Image-Tag Cache & Latency Telemetry**: Added locally verified image-tag cache tracking (`_PRESENT_IMAGES`), `duration_ms` profiling, and `warm_pool_hit` flags to `SandboxResult` and payload in `services/orchestrator/orchestrator/sandbox_exec.py` and `services/orchestrator/orchestrator/sandbox_runner.py`.
+- **Sandbox Runner Cache Inspection**: Implemented `get_warm_pool_status()` (`mode="image_tag_cache"`) and HTTP endpoint `GET /internal/sandbox/warm-pool` in `sandbox_runner.py` for monitoring cached local image tags and runner readiness.
+- **Runner Unit Verification**: Added runner unit coverage for cache status and payload forwarding in `tests/services/test_sandbox_remote_unit.py`.
 
-### 10/10 Enterprise Roadmap Phase 6: Dynamic Deployment Topology Orchestrator (2026-10-29)
+### Enterprise Roadmap Phase 6: Dynamic Deployment Topology Orchestrator (2026-10-29)
 
 #### Added
 - **Dynamic Topology Orchestration CLI**: Created `scripts/manage_topology.py` enabling one-command switching between `condensed` (shared pod workers, lightweight) and `dedicated` (41 isolated containers) topologies (`--mode [condensed|dedicated]`, `--status`, `--dry-run`), synchronizing `.env` (`AGENT_AUTOFILL_NON_POD_HEARTBEATS`) and preventing desynchronization incidents without touching persistent data volumes.
 - **Mission Control Topology Configuration UX**: Added an Agent Deployment Topology Mode selector to Section 1 ("Runtime Preferences") in `apps/mission-control/app/(shell)/settings/page.tsx`, allowing operators to configure condensed or dedicated runtime topology directly from the UI.
 - **Topology Orchestration Test Suite**: Added `tests/scripts/test_manage_topology.py` (6 passed in 0.12s) testing topology status queries, dry-run mutations, and environment variable synchronizations.
 
-### 10/10 Enterprise Roadmap Phase 5: Zero-Trust Multi-Tenant OIDC & Gateway Hardening (2026-10-29)
+### Enterprise Roadmap Phase 5: Zero-Trust Multi-Tenant OIDC & Gateway Hardening (2026-10-29)
 
 #### Added
 - **Strict OIDC Claim Enforcement**: Added `services/api-gateway/api_gateway/middleware.py` with `validate_strict_oidc_claims()` strictly validating standard RFC 7519 / NIST SP 800-218 claims (`sub`, `iss`, `aud`, multi-tenant `tenant_id`/`tid`, and roles across Keycloak `realm_access`, Azure AD `groups`, and OAuth `scope`).
@@ -63,25 +71,25 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - **Enterprise Configuration Template**: Added `.env.enterprise.example` documenting hardened production configurations for Keycloak, Okta, and Azure AD alongside internal mTLS cert paths.
 - **Dedicated Auth Modes Verification Suite**: Created `tests/services/test_auth_modes.py` (8 tests passing in 0.83s) validating token rejections for missing subjects, issuer/audience mismatches, cross-tenant isolation, and certificate errors.
 
-### 10/10 Enterprise Roadmap Phase 4: Desktop Pre-Warmed Image Layering & Real-Time Throughput UX (2026-10-29)
+### Enterprise Roadmap Phase 4: Desktop Local Image Cache & Real-Time Throughput UX (2026-10-29)
 
 #### Added
-- **Local Pre-Cached Container Image Detection**: Added `localImageCandidates()` to `apps/mission-control/electron/factory-stack.ts` and integrated into `ensureImages()` in `main.ts`, automatically detecting locally built or pre-warmed images in Docker Desktop and skipping redundant multi-gigabyte downloads.
+- **Local Pre-Cached Container Image Detection**: Added `localImageCandidates()` to `apps/mission-control/electron/factory-stack.ts` and integrated into `ensureImages()` in `main.ts`, automatically detecting locally built or tagged images in Docker Desktop and skipping redundant multi-gigabyte downloads.
 - **Real-Time Throughput & Byte Progress UX**: Added `parsePullProgress()`, `formatBytes()`, and `formatThroughput()` to calculate and stream instantaneous MB/s download speed and byte progress to `starting.html` and `starting-preload.ts`.
-- **Standalone Image Pre-Warming CLI Tool**: Created `scripts/preload_desktop_images.py` with `--check`, `--dry-run`, `--registry`, and `--tag` support, scanning local Docker cache, reporting cached vs missing images, and downloading/retagging them ahead of time.
+- **Standalone Image Preload CLI Tool**: Created `scripts/preload_desktop_images.py` with `--check`, `--dry-run`, `--registry`, and `--tag` support, scanning local Docker cache, reporting cached vs missing images, and downloading/retagging them ahead of time.
 - **Comprehensive Unit Tests**: Added 5 new tests in `apps/mission-control/electron/factory-stack.test.ts` (23 passed) and 8 tests in `tests/scripts/test_preload_desktop_images.py` (8 passed in 0.12s).
 
-### 10/10 Enterprise Roadmap Phase 3: Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (2026-10-29)
+### Enterprise Roadmap Phase 3: Dynamic Live Health Probes & Resource Telemetry for All 41 Agents (2026-10-29)
 
 #### Added
 - **Dynamic Live Health Probes & RSS Measurement**: Implemented `probe_agent_health(agent)` and cross-platform native `get_process_rss_bytes()` (Windows via `ctypes.windll.psapi` / Linux & macOS via `resource`) in `services/orchestrator/orchestrator/heartbeat_service.py`, verifying contract integrity and measuring process memory and round-trip probe latency.
-- **Agent Telemetry Stream Propagation**: Emitted `live_health_probe=True`, `latency_ms`, and `rss_bytes` across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads`.
+- **Agent Telemetry Stream Propagation**: Emitted telemetry fields across Redis streams via `_emit_agent_telemetry_event` and `_build_non_pod_heartbeat_payloads` (real `shared_worker` probes report `live_health_probe=True`, while `synthesized_heartbeat` agents report `live_health_probe=False` with `None` metrics).
 - **Unified Operations Endpoint**: Updated `_build_operations_agents_snapshot` in `services/orchestrator/orchestrator/routes/operations.py` to annotate all 41 agents with live health status, latency, and RSS memory usage; deduplicated orchestrator routes to reference the single canonical implementation.
 - **Shared Runtime Path Registration**: Registered `shared_runtime` in root `conftest.py` so that all microservices and tests cleanly resolve `thefactory_common` without path collisions.
 - **Comprehensive Agent Telemetry & Heartbeat Test Suites**: Added `test_all_41_agents_live_health_probes_and_telemetry` to `tests/services/test_all_41_agents_functional.py` and 5 unit tests to `tests/services/test_orchestrator_main_helpers_unit.py` (67 passed in 5.88s), pushing heartbeat service module coverage to 86.8%.
 
 
-### 10/10 Enterprise Roadmap Phase 2: W3C Distributed Tracing across Redis Protocol Envelopes (2026-10-29)
+### Enterprise Roadmap Phase 2: W3C Distributed Tracing across Redis Protocol Envelopes (2026-10-29)
 
 #### Added
 - **W3C Distributed Tracing in Protocol Envelopes**: Extended `schemas/event.envelope.schema.json` with W3C `traceparent` and `tracestate` properties, enabling end-to-end trace propagation across asynchronous Redis stream events.
@@ -90,7 +98,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - **Orchestrator Remote Span Continuation**: Enhanced `services/orchestrator/orchestrator/tracing.py` with `trace_from_carrier()` context manager to start child spans linked directly to remote upstream parents extracted from Redis messages.
 - **Comprehensive Tracing Test Suite**: Created `tests/services/test_distributed_tracing.py` (12 tests passing in 1.04s, 83.9% line coverage) validating traceparent injection, remote parent span linking, and envelope contract synchronization.
 
-### 10/10 Enterprise Roadmap Phase 1: Reciprocal Rank Fusion Hybrid Search (2026-10-29)
+### Enterprise Roadmap Phase 1: Reciprocal Rank Fusion Hybrid Search (2026-10-29)
 
 #### Added
 - **Reciprocal Rank Fusion (RRF) Hybrid Search**: Implemented `reciprocal_rank_fusion` and `search_hybrid` in `services/orchestrator/orchestrator/knowledge_lake.py`, combining dense vector embeddings (Qdrant) and sparse token overlap (PostgreSQL) using $RRF(d) = \sum \frac{1}{k + r_i(d)}$ to boost documents retrieved across both modalities.
@@ -129,7 +137,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Fixed `run_demo_mission.py` to poll server-assigned `mission_id` rather than client provisional ID.
 
 
-### 10/10 Enterprise Hardening and Architecture Modernization (2026-10-27)
+### Enterprise Hardening and Architecture Modernization (2026-10-27)
 
 #### Security & Sandbox Isolation
 - Hardened `services/orchestrator/orchestrator/sandbox_exec.py` with non-root UID enforcement (`--user=65534:65534`), process limit (`--pids-limit=256`), and strict file/process ulimits (`--ulimit nofile=1024:2048`, `--ulimit nproc=512:512`).

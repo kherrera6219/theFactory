@@ -37,6 +37,7 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
         "text-embedding-3-small": (0.00002, 0.0),
     },
     "anthropic": {
+        "claude-opus-5-5": (0.015, 0.075),
         "claude-ops-5.5": (0.015, 0.075),
         "claude-opus-5.5": (0.015, 0.075),
         "claude-opus-4-8": (0.015, 0.075),

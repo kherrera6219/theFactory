@@ -106,16 +106,27 @@ def get_process_rss_bytes() -> int:
 
 
 def probe_agent_health(agent: Any) -> dict[str, Any]:
-    """Execute a real, dynamic lightweight health probe on an agent.
+    """Execute a lightweight health probe on worker agents or report synthesized status.
 
     Verifies contract integrity, measures process RSS memory, and records
-    round-trip execution latency in milliseconds.
+    round-trip execution latency in milliseconds for real worker agents.
+    Agents with ``runtime_class == "synthesized_heartbeat"`` have no live
+    process to probe and explicitly report ``live_health_probe=False``.
     """
     t0 = time.perf_counter()
     agent_id = str(getattr(agent, "agent_id", "") or "")
     name = str(getattr(agent, "name", "") or "")
     tier = str(getattr(agent, "tier", "") or "")
     is_healthy = bool(agent_id and name and tier)
+    if getattr(agent, "runtime_class", None) == "synthesized_heartbeat":
+        return {
+            "live_health_probe": False,
+            "is_healthy": is_healthy,
+            "latency_ms": None,
+            "rss_bytes": None,
+            "probed_at": datetime.now(UTC).isoformat(),
+        }
+
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 3)
     if elapsed_ms <= 0.0:
         elapsed_ms = 0.012
@@ -170,6 +181,9 @@ async def _emit_agent_telemetry_event(
         LOGGER.warning("failed to validate agent telemetry envelope for %s: %s", agent_id, exc)
         return
 
+    meta = metadata if isinstance(metadata, dict) else {}
+    raw_latency = meta.get("latency_ms")
+    raw_rss = meta.get("rss_bytes")
     payload = {
         "agent_id": agent_id,
         "event_type": event_type,
@@ -178,10 +192,10 @@ async def _emit_agent_telemetry_event(
         "workload_pct": int(record.get("workload_pct", 0)),
         "active_mission_ids": record.get("active_mission_ids", []),
         "last_heartbeat": record.get("last_heartbeat", event_ts),
-        "live_health_probe": True,
-        "latency_ms": float(metadata.get("latency_ms", 0.012)) if isinstance(metadata, dict) else 0.012,
-        "rss_bytes": int(metadata.get("rss_bytes", 0)) if isinstance(metadata, dict) else 0,
-        "metadata": metadata if isinstance(metadata, dict) else {},
+        "live_health_probe": bool(meta.get("live_health_probe", False)),
+        "latency_ms": float(raw_latency) if raw_latency is not None else None,
+        "rss_bytes": int(raw_rss) if raw_rss is not None else None,
+        "metadata": meta,
     }
     await redis_client.xadd(
         app.state.settings.state_stream,
@@ -281,6 +295,9 @@ def _build_non_pod_heartbeat_payloads(
             state=state,
             queue_depth=queue_depth,
         )
+        is_synthesized = (
+            getattr(agent, "runtime_class", "synthesized_heartbeat") == "synthesized_heartbeat"
+        )
         probe = probe_agent_health(agent)
         payloads.append(
             AgentHeartbeatUpsert(
@@ -296,9 +313,9 @@ def _build_non_pod_heartbeat_payloads(
                     "pod": agent.pod,
                     "category": agent.category,
                     "role": agent.role,
-                    "live_health_probe": True,
-                    "latency_ms": probe["latency_ms"],
-                    "rss_bytes": probe["rss_bytes"],
+                    "live_health_probe": False if is_synthesized else bool(probe["live_health_probe"]),
+                    "latency_ms": None if is_synthesized else probe["latency_ms"],
+                    "rss_bytes": None if is_synthesized else probe["rss_bytes"],
                 },
             )
         )

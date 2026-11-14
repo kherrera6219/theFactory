@@ -57,6 +57,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -179,6 +180,9 @@ class SandboxResult:
     #: as "not verified", never as a defect in the artifact.
     infrastructure_error: str | None = None
     duration_ms: float = 0.0
+    #: True when *base_image* was already verified in the local image-tag
+    #: cache (``_PRESENT_IMAGES``); every call still spawns an ephemeral
+    #: ``docker run --rm`` container.
     warm_pool_hit: bool = False
 
     @property
@@ -212,6 +216,7 @@ def build_sandbox_args(
     command: str,
     timeout_seconds: int,
     memory_mb: int,
+    container_name: str | None = None,
 ) -> list[str]:
     """Return the full ``docker run`` argv for a hardened sandbox execution.
 
@@ -220,27 +225,34 @@ def build_sandbox_args(
     that silently dropped ``--network=none`` would otherwise only be caught by
     someone reading the diff.
     """
-    return [
+    args = [
         str(docker_bin),
         "run",
         "--rm",
         *SANDBOX_SECURITY_FLAGS,
-        f"--memory={clamp_memory_mb(memory_mb)}m",
-        "--workdir=/workspace",
-        # Translated, not raw: the daemon resolves this on the host. See
-        # daemon_workspace_path.
-        f"--volume={daemon_workspace_path(workspace_dir)}:/workspace:ro",
-        # Run the command under a plain shell regardless of what the image
-        # declares. Without this, an image with its own ENTRYPOINT wraps our
-        # command in it: ocaml/opam prefixes `opam exec --`, which tries to
-        # write a log into a read-only home and dies before our command runs,
-        # and sbtscala launches sbt. Normalising here means one language config
-        # cannot behave differently from another because of an image's default.
-        "--entrypoint=sh",
-        str(base_image),
-        "-c",
-        command,
     ]
+    if container_name:
+        args.append(f"--name={container_name}")
+    args.extend(
+        [
+            f"--memory={clamp_memory_mb(memory_mb)}m",
+            "--workdir=/workspace",
+            # Translated, not raw: the daemon resolves this on the host. See
+            # daemon_workspace_path.
+            f"--volume={daemon_workspace_path(workspace_dir)}:/workspace:ro",
+            # Run the command under a plain shell regardless of what the image
+            # declares. Without this, an image with its own ENTRYPOINT wraps our
+            # command in it: ocaml/opam prefixes `opam exec --`, which tries to
+            # write a log into a read-only home and dies before our command runs,
+            # and sbtscala launches sbt. Normalising here means one language config
+            # cannot behave differently from another because of an image's default.
+            "--entrypoint=sh",
+            str(base_image),
+            "-c",
+            command,
+        ]
+    )
+    return args
 
 
 def _make_workspace_readable(workspace_dir: str | Path) -> None:
@@ -477,6 +489,7 @@ async def run_in_sandbox_local(
             warm_pool_hit=False,
         )
     _make_workspace_readable(workspace_dir)
+    container_name = f"sbx-{uuid.uuid4().hex[:12]}"
     args = build_sandbox_args(
         docker_bin=docker_bin,
         workspace_dir=workspace_dir,
@@ -484,6 +497,7 @@ async def run_in_sandbox_local(
         command=command,
         timeout_seconds=timeout,
         memory_mb=memory,
+        container_name=container_name,
     )
 
     proc = await asyncio.create_subprocess_exec(
@@ -502,7 +516,17 @@ async def run_in_sandbox_local(
             await asyncio.wait_for(proc.communicate(), timeout=5.0)
         except Exception:  # noqa: BLE001 - best effort cleanup only
             pass
-        LOGGER.warning("sandbox execution timed out after %ss", timeout)
+        # Killing the local docker CLI client leaves the detached sibling container
+        # running in Docker Desktop / daemon until killed explicitly by name.
+        try:
+            await _docker_quiet(docker_bin, "kill", container_name, timeout=5.0)
+        except Exception:  # noqa: BLE001 - container may already have exited
+            pass
+        try:
+            await _docker_quiet(docker_bin, "rm", "-f", container_name, timeout=5.0)
+        except Exception:  # noqa: BLE001 - best effort cleanup only
+            pass
+        LOGGER.warning("sandbox execution timed out after %ss (container=%s)", timeout, container_name)
         return SandboxResult(
             exit_code=-1,
             stdout="",

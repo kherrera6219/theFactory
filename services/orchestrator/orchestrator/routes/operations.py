@@ -327,9 +327,9 @@ def _build_operations_agents_snapshot(
             queue_depth = len(related_missions)
 
         probe = probe_agent_health(agent)
-        live_health_probe = True
-        latency_ms = probe["latency_ms"]
-        rss_bytes = probe["rss_bytes"]
+        live_health_probe = bool(probe.get("live_health_probe", False))
+        latency_ms = probe.get("latency_ms")
+        rss_bytes = probe.get("rss_bytes")
 
         if live_record is not None:
             heartbeat_source = "live"
@@ -345,11 +345,19 @@ def _build_operations_agents_snapshot(
                 ][:25]
             metadata = live_record.get("metadata", {})
             if isinstance(metadata, dict):
-                live_health_probe = bool(metadata.get("live_health_probe", True))
-                if "latency_ms" in metadata:
-                    latency_ms = float(metadata["latency_ms"])
-                if "rss_bytes" in metadata:
-                    rss_bytes = int(metadata["rss_bytes"])
+                if metadata.get("source") == "orchestrator-autofill":
+                    live_health_probe = False
+                    latency_ms = None
+                    rss_bytes = None
+                else:
+                    if "live_health_probe" in metadata:
+                        live_health_probe = bool(metadata["live_health_probe"])
+                    if "latency_ms" in metadata:
+                        raw_latency = metadata["latency_ms"]
+                        latency_ms = float(raw_latency) if raw_latency is not None else None
+                    if "rss_bytes" in metadata:
+                        raw_rss = metadata["rss_bytes"]
+                        rss_bytes = int(raw_rss) if raw_rss is not None else None
             heartbeat_iso = str(live_record.get("last_heartbeat", generated_at.isoformat()))
             heartbeat_dt = _parse_iso_datetime(heartbeat_iso)
             if heartbeat_dt is not None:

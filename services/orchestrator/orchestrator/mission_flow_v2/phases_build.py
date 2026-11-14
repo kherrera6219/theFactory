@@ -1031,7 +1031,10 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
         import os
         from pathlib import Path
 
-        delivery_dir = Path(settings.delivery_dir)
+        raw_dir = getattr(settings, "delivery_dir", None)
+        if not isinstance(raw_dir, (str, Path)) or not str(raw_dir).strip():
+            return
+        delivery_dir = Path(raw_dir)
         mission_dir = delivery_dir / mission_id
         
         # Ensure mission directory exists

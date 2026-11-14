@@ -347,8 +347,6 @@ class TestInfrastructureErrors:
 
 
 def test_sandbox_runner_warm_pool_and_latency(monkeypatch) -> None:
-    import time
-
     from fastapi.testclient import TestClient
     from orchestrator.sandbox_runner import app, get_warm_pool_status
 
@@ -370,13 +368,14 @@ def test_sandbox_runner_warm_pool_and_latency(monkeypatch) -> None:
     monkeypatch.setattr("orchestrator.sandbox_runner.run_in_sandbox_local", _fast_local)
     client = TestClient(app)
 
-    # 1. Warm-pool query endpoint
+    # 1. Image-tag cache ("warm-pool") query endpoint
     wp_resp = client.get("/internal/sandbox/warm-pool", headers={"Authorization": "Bearer runner-key"})
     assert wp_resp.status_code == 200
-    assert "pool_size" in wp_resp.json()
+    wp_body = wp_resp.json()
+    assert "pool_size" in wp_body
+    assert wp_body["mode"] == "image_tag_cache"
 
-    # 2. Pre-warmed execution latency assertion (<200ms)
-    t0 = time.perf_counter()
+    # 2. Image-tag cache hit & mocked runner telemetry forwarding check
     exec_resp = client.post(
         "/internal/sandbox/execute",
         headers={"Authorization": "Bearer runner-key"},
@@ -387,8 +386,6 @@ def test_sandbox_runner_warm_pool_and_latency(monkeypatch) -> None:
             "docker_bin": "/invalid/path/bin",  # tests binary sanitization
         },
     )
-    latency_seconds = time.perf_counter() - t0
-    assert latency_seconds < 0.200, f"Execution latency {latency_seconds*1000:.1f}ms exceeded 200ms gate"
     assert exec_resp.status_code == 200
     payload = exec_resp.json()
     assert payload["warm_pool_hit"] is True
@@ -421,3 +418,77 @@ def test_sandbox_result_from_payload_warm_pool_fields() -> None:
     )
     assert result.duration_ms == 112.5
     assert result.warm_pool_hit is True
+
+
+def test_build_sandbox_args_includes_container_name() -> None:
+    args = sandbox_exec.build_sandbox_args(
+        docker_bin="docker",
+        workspace_dir="/workspace/job-1",
+        base_image="python:3.12-slim",
+        command="pytest -q",
+        timeout_seconds=10,
+        memory_mb=256,
+        container_name="sbx-test12345678",
+    )
+    assert "--name=sbx-test12345678" in args
+    for flag in sandbox_exec.SANDBOX_SECURITY_FLAGS:
+        assert flag in args
+
+
+def test_run_in_sandbox_local_timeout_kills_and_removes_named_container(
+    monkeypatch, tmp_path
+) -> None:
+    workspace = tmp_path / "ws-timeout"
+    workspace.mkdir()
+    (workspace / "main.py").write_text("import time; time.sleep(60)\n", encoding="utf-8")
+
+    async def _image_ok(_docker_bin: str, _image: str) -> None:
+        return None
+
+    monkeypatch.setattr(sandbox_exec, "ensure_sandbox_image", _image_ok)
+
+    captured_exec_args: list[tuple[str, ...]] = []
+    docker_quiet_calls: list[tuple[str, tuple[str, ...], float]] = []
+
+    class _HangingProc:
+        def __init__(self) -> None:
+            self.returncode = None
+            self.killed = False
+            self.waits = 0
+
+        async def communicate(self):
+            self.waits += 1
+            if self.waits == 1:
+                raise TimeoutError()
+            return b"", b""
+
+        def kill(self) -> None:
+            self.killed = True
+
+    async def _fake_exec(*args, **_kwargs):
+        captured_exec_args.append(tuple(str(a) for a in args))
+        return _HangingProc()
+
+    async def _fake_docker_quiet(docker_bin: str, *args: str, timeout: float = 5.0):
+        docker_quiet_calls.append((docker_bin, tuple(args), timeout))
+        return 0, ""
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr(sandbox_exec, "_docker_quiet", _fake_docker_quiet)
+
+    result = asyncio.run(
+        sandbox_exec.run_in_sandbox_local(
+            docker_bin="docker",
+            workspace_dir=workspace,
+            base_image="python:3.12-slim",
+            command="python main.py",
+            timeout_seconds=1,
+        )
+    )
+    assert result.timed_out is True
+    assert len(captured_exec_args) == 1
+    name_flags = [arg for arg in captured_exec_args[0] if arg.startswith("--name=sbx-")]
+    assert len(name_flags) == 1
+    container_name = name_flags[0].split("=", 1)[1]
+    assert ("docker", ("kill", container_name), 5.0) in docker_quiet_calls
+    assert ("docker", ("rm", "-f", container_name), 5.0) in docker_quiet_calls

@@ -323,7 +323,7 @@ def test_llm_recommendation_vault_override_takes_priority_over_env(monkeypatch) 
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
 
     token = cfg.current_vault_secrets.set(
-        {"llm_provider": "anthropic", "llm_model": "claude-ops-5.5"}
+        {"llm_provider": "anthropic", "llm_model": "claude-opus-5-5"}
     )
     try:
         rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
@@ -331,7 +331,7 @@ def test_llm_recommendation_vault_override_takes_priority_over_env(monkeypatch) 
         cfg.current_vault_secrets.reset(token)
 
     assert rec["provider"] == "anthropic"
-    assert rec["model"] == "claude-ops-5.5"
+    assert rec["model"] == "claude-opus-5-5"
     assert rec["profile"] == "vault_override"
     assert "fallback_provider" not in rec
 

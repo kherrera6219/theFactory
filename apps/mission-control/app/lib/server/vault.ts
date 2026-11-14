@@ -9,6 +9,7 @@ type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
 type VaultModel =
   | "gpt-6.1-terrea"
   | "gpt-5.6"
+  | "claude-opus-5-5"
   | "claude-ops-5.5"
   | "claude-opus-5.5"
   | "claude-opus-4-8"
@@ -32,8 +33,12 @@ const SUPERSEDED_GEMINI_MODELS = new Set([
 const CURRENT_GEMINI_MODEL: VaultModel = "gemini-4-argon";
 const SUPERSEDED_OPENAI_MODELS = new Set(["gpt-5.5", "gpt-5.6"]);
 const CURRENT_OPENAI_MODEL: VaultModel = "gpt-6.1-terrea";
-const SUPERSEDED_ANTHROPIC_MODELS = new Set(["claude-opus-4-8"]);
-const CURRENT_ANTHROPIC_MODEL: VaultModel = "claude-ops-5.5";
+const SUPERSEDED_ANTHROPIC_MODELS = new Set([
+  "claude-opus-4-8",
+  "claude-ops-5.5",
+  "claude-opus-5.5",
+]);
+const CURRENT_ANTHROPIC_MODEL: VaultModel = "claude-opus-5-5";
 
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
@@ -134,8 +139,7 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "gpt-6.1-terrea") return "gpt-6.1-terrea";
   if (SUPERSEDED_OPENAI_MODELS.has(candidate)) return CURRENT_OPENAI_MODEL;
   if (candidate === "gpt-5.6") return "gpt-5.6";
-  if (candidate === "claude-ops-5.5") return "claude-ops-5.5";
-  if (candidate === "claude-opus-5.5") return "claude-ops-5.5";
+  if (candidate === "claude-opus-5-5") return "claude-opus-5-5";
   if (SUPERSEDED_ANTHROPIC_MODELS.has(candidate)) return CURRENT_ANTHROPIC_MODEL;
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
   if (candidate === "gemini-4-argon") return "gemini-4-argon";

@@ -14,7 +14,12 @@ from .sow_estimator import estimate_change_order, estimate_mission_cost
 
 
 def _sow_root(settings: Any) -> Path:
-    root = Path(getattr(settings, "delivery_dir", None) or "output") / ".sow"
+    raw_dir = getattr(settings, "delivery_dir", None)
+    if isinstance(raw_dir, (str, Path)) and str(raw_dir).strip():
+        base_dir = Path(raw_dir)
+    else:
+        base_dir = Path("output")
+    root = base_dir / ".sow"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

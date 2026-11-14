@@ -541,7 +541,7 @@ async def download_mission_artifact(
     return MissionBuildArtifactRecord(**record)
 
 
-@router.get("/missions/{mission_id}/export/patch")
+@router.get("/missions/{mission_id}/export/patch", dependencies=[INTERNAL_AUTH_DEP])
 async def export_mission_patch(
     mission_id: str,
     request: Request,
@@ -556,7 +556,7 @@ async def export_mission_patch(
     await _main._ensure_db_ready(app)
     mission = await _main._fetch_existing_mission(app, mission_id)
 
-    raw_meta = mission.get("metadata")
+    raw_meta = mission.get("metadata") if isinstance(mission, dict) else getattr(mission, "metadata", None)
     metadata = raw_meta if isinstance(raw_meta, dict) else {}
     source_code = metadata.get("source_code") if isinstance(metadata.get("source_code"), str) else None
     gen_raw = metadata.get("generated_output")
@@ -602,7 +602,7 @@ async def export_mission_patch(
     )
 
 
-@router.get("/missions/{mission_id}/export/sbom")
+@router.get("/missions/{mission_id}/export/sbom", dependencies=[INTERNAL_AUTH_DEP])
 async def export_mission_sbom(
     mission_id: str,
     request: Request,
@@ -616,7 +616,7 @@ async def export_mission_sbom(
     await _main._ensure_db_ready(app)
     mission = await _main._fetch_existing_mission(app, mission_id)
 
-    raw_meta = mission.get("metadata")
+    raw_meta = mission.get("metadata") if isinstance(mission, dict) else getattr(mission, "metadata", None)
     metadata = raw_meta if isinstance(raw_meta, dict) else {}
     gen_raw = metadata.get("generated_output")
     generated_output = dict(gen_raw) if isinstance(gen_raw, dict) else {}
@@ -637,12 +637,17 @@ async def export_mission_sbom(
             records[0] if records else None,
         )
         if code_record:
+            target_lang = (
+                mission.get("requested_target_language")
+                if isinstance(mission, dict)
+                else getattr(mission, "requested_target_language", None)
+            )
             generated_output = {
                 **generated_output,
                 "code": str(code_record.get("artifact_text") or ""),
                 "language": str(
                     code_record.get("language")
-                    or mission.get("requested_target_language")
+                    or target_lang
                     or "python"
                 ),
                 "filename": str(code_record.get("file_path") or "main.py"),

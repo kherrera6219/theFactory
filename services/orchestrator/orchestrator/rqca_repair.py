@@ -103,6 +103,23 @@ def build_surgical_repair_context(
     }
 
 
+def _is_test_file_path(rel_path: str) -> bool:
+    """Return True when a relative file path points to a test module."""
+    normalized = rel_path.replace("\\", "/").strip("/")
+    if not normalized:
+        return False
+    parts = [part.lower() for part in normalized.split("/") if part]
+    if any(part in {"tests", "test", "__tests__"} for part in parts[:-1]):
+        return True
+    name = parts[-1]
+    return (
+        name.startswith("test_")
+        or "_test." in name
+        or ".test." in name
+        or ".spec." in name
+    )
+
+
 def merge_repaired_files(original_code: str, repaired_code: str) -> str:
     """Merge a partial or full multi-file repair bundle back into the original file tree."""
     orig_files = parse_file_tree(original_code)
@@ -117,7 +134,7 @@ def merge_repaired_files(original_code: str, repaired_code: str) -> str:
     for item in orig_files:
         norm_path = sanitize_rel_path(item["path"])
         seen.add(norm_path)
-        if norm_path in rep_by_path:
+        if norm_path in rep_by_path and not _is_test_file_path(norm_path):
             merged.append({"path": norm_path, "content": rep_by_path[norm_path]})
         else:
             merged.append({"path": norm_path, "content": item["content"]})

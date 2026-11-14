@@ -2195,9 +2195,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
                   "title": "Response Get Mission Knowledge Graph V1 Missions  Mission Id  Knowledge Graph Get",
-                  "type": "object"
+                  "type": "array"
                 }
               }
             },

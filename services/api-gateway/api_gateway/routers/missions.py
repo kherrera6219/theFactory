@@ -128,7 +128,7 @@ def build_missions_router() -> APIRouter:
         limit: int = Query(default=200, ge=1, le=1000),
         x_api_key: str | None = Header(default=None),
         authorization: str | None = Header(default=None, alias="Authorization"),
-    ) -> dict[str, Any]:
+    ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
         return await gateway_main._proxy_get_internal(
             f"/internal/missions/{mission_id}/knowledge-graph", params={"limit": limit}
