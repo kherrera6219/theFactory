@@ -460,6 +460,47 @@ async def _prepare_equivalence_report(
                     "reason": behavioural.get("reason"),
                 }
             behavioural = contract_report
+    # PORT dual-run equivalence: compare original source vs ported target outputs.
+    is_port_mission = str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+    dual_vectors = metadata.get("port_dual_vectors")
+    if (
+        is_port_mission
+        and (behavioural is None or behavioural.get("status") == "skipped")
+        and isinstance(dual_vectors, list)
+        and dual_vectors
+        and str(metadata.get("source_code") or "").strip()
+    ):
+        from ..equivalence_execution import run_port_dual_equivalence
+
+        gen_out = metadata.get("generated_output")
+        gen_dict = gen_out if isinstance(gen_out, dict) else {}
+        src_lang = str(
+            metadata.get("port_source_language")
+            or (metadata.get("application_intelligence_map") or {}).get("primary_language")
+            or "python"
+        )
+        src_filename = str(metadata.get("port_source_filename") or "main.py")
+        tgt_lang = str(
+            metadata.get("port_target_language")
+            or gen_dict.get("language")
+            or mission.requested_target_language
+            or "go"
+        )
+        tgt_filename = str(gen_dict.get("filename") or "main.go")
+        dual_report = await run_port_dual_equivalence(
+            mission_id=mission.mission_id,
+            source_language=src_lang,
+            source_filename=src_filename,
+            source_code=str(metadata.get("source_code") or ""),
+            target_language=tgt_lang,
+            target_filename=tgt_filename,
+            target_code=str(gen_dict.get("generated_code") or ""),
+            vectors=dual_vectors,
+            docker_bin=str(getattr(settings, "docker_bin", "docker") or "docker"),
+        )
+        if dual_report:
+            behavioural = dual_report
+
     if behavioural:
         report = attach_behavioural_report(
             report,

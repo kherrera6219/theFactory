@@ -1,0 +1,38 @@
+{
+  "phase": "phase6_baseline_equivalence",
+  "date": "2026-11-13",
+  "plan": "GEMINI_NEXT_PHASE_PLAN_2026-11-13.md",
+  "status": "complete",
+  "deliverables": {
+    "baseline_verification": "services/orchestrator/orchestrator/baseline_verification.py",
+    "port_dual_run": "services/orchestrator/orchestrator/equivalence_execution.py",
+    "runtime_preservation_hook": "services/orchestrator/orchestrator/mission_flow_v2/phases_runtime.py",
+    "delivery_port_dual_hook": "services/orchestrator/orchestrator/mission_flow_v2/phases_delivery.py"
+  },
+  "verifications": {
+    "backend_pytest_suites": [
+      "tests/services/test_baseline_equivalence_phase6.py",
+      "tests/services/test_equivalence_execution_unit.py",
+      "tests/services/test_contract_oracle_unit.py",
+      "tests/services/test_runtime_qc_unit.py",
+      "tests/services/test_mission_flow_v2.py"
+    ],
+    "phase6_branch_line_coverage_pct": 88.12,
+    "module_coverage_pct": {
+      "baseline_verification.py": 87,
+      "equivalence_execution.py": 89
+    },
+    "ruff_check": "passed",
+    "validate_documentation": "passed",
+    "validate_schemas": "passed",
+    "export_openapi_check": "passed",
+    "production_review_audit": "23/23 passed",
+    "offline_brownfield_benchmark": "7/7 corpus_valid"
+  },
+  "exit_criteria_met": [
+    "Baseline capture records passed, failed, skipped, and pre_existing_failures in metadata.baseline",
+    "Characterisation tests run against baseline and commit only baseline-passing tests to thefactory/baseline-tests",
+    "Preservation gate distinguishes PRESERVED, REGRESSED (blocking COMPLETE and routing to surgical repair), behaviour_change_allowed exceptions, and UNVERIFIABLE",
+    "PORT dual-run executes CLI and direct-call vectors across source and target sandbox runtimes and reports failing side-by-side outputs"
+  ]
+}

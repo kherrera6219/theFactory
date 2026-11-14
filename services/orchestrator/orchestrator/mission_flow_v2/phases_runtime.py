@@ -374,6 +374,82 @@ def _requalify_runtime_qc(metadata: dict[str, Any], stale: dict[str, Any]) -> No
         metadata.pop("integration_tests", None)
 
 
+async def _evaluate_workspace_preservation(
+    *,
+    metadata: dict[str, Any],
+    settings: Any,
+    enforcement_enabled: bool,
+) -> dict[str, Any] | None:
+    """Capture baseline if needed and evaluate the Phase 6 preservation gate for brownfield workspaces."""
+    from ..baseline_verification import (
+        capture_workspace_baseline,
+        evaluate_preservation_gate,
+        generate_characterisation_tests,
+        load_workspace_baseline,
+    )
+    from ..workspace import workspace_from_mission_metadata
+
+    ws = await asyncio.to_thread(workspace_from_mission_metadata, metadata, settings=settings)
+    if ws is None:
+        return None
+
+    feature = metadata.get("feature_contract") if isinstance(metadata.get("feature_contract"), dict) else {}
+    charter = metadata.get("mission_charter") if isinstance(metadata.get("mission_charter"), dict) else {}
+    baseline_policy = str(
+        feature.get("baseline_policy")
+        or charter.get("baseline_policy")
+        or metadata.get("baseline_policy")
+        or ""
+    ).strip()
+    allowed_list = feature.get("behaviour_change_allowed") or metadata.get("behaviour_change_allowed")
+    deps_info = metadata.get("dependency_provisioning")
+    deps_dir = deps_info.get("dep_cache_dir") if isinstance(deps_info, dict) else None
+    docker_bin = str(getattr(settings, "docker_bin", "docker") or "docker")
+
+    baseline = metadata.get("baseline")
+    if not isinstance(baseline, dict):
+        baseline = await asyncio.to_thread(load_workspace_baseline, ws)
+
+    explicitly_requested = bool(baseline_policy) or bool(metadata.get("baseline_verification_required"))
+    if baseline is None:
+        if not explicitly_requested:
+            return None
+        baseline = await capture_workspace_baseline(
+            ws,
+            aim=metadata.get("application_intelligence_map")
+            if isinstance(metadata.get("application_intelligence_map"), dict)
+            else None,
+            deps_dir=deps_dir,
+            docker_bin=docker_bin,
+        )
+        metadata["baseline"] = baseline
+
+    if (
+        baseline_policy == "characterise_then_preserve"
+        and str(baseline.get("characterisation_status") or "") != "committed"
+    ):
+        baseline = await generate_characterisation_tests(
+            ws,
+            baseline=baseline,
+            language=str(baseline.get("language") or "python"),
+            deps_dir=deps_dir,
+            docker_bin=docker_bin,
+        )
+        metadata["baseline"] = baseline
+
+    report = await evaluate_preservation_gate(
+        ws,
+        baseline=baseline,
+        baseline_policy=baseline_policy or "must_pass_existing_tests",
+        behaviour_change_allowed=allowed_list if isinstance(allowed_list, list) else None,
+        deps_dir=deps_dir,
+        docker_bin=docker_bin,
+        enforcement_enabled=enforcement_enabled,
+    )
+    metadata["preservation_report"] = report
+    return report
+
+
 async def _prepare_runtime_qc(
     *,
     app: Any,
@@ -567,6 +643,26 @@ async def _prepare_runtime_qc(
         language=target_language,
         settings=settings,
     )
+    enforcement_enabled = _setting_bool(settings, "rqca_enforcement_enabled", False)
+    preservation_report = await _evaluate_workspace_preservation(
+        metadata=metadata,
+        settings=settings,
+        enforcement_enabled=enforcement_enabled,
+    )
+    if (
+        isinstance(preservation_report, dict)
+        and preservation_report.get("verdict") == "REGRESSED"
+        and execution.get("verdict") != "FAIL"
+    ):
+        execution = {
+            **execution,
+            "verdict": "FAIL",
+            "exit_code": preservation_report.get("exit_code") or 1,
+            "stderr_preview": (
+                f"Baseline regression in: {', '.join(preservation_report.get('regressed_tests') or [])}\n"
+                + str(preservation_report.get("stderr_preview") or preservation_report.get("stdout_preview") or "")
+            )[:4000],
+        }
     if (
         execution.get("verdict") == "FAIL"
         and not metadata.get("runtime_qc_repair_attempted")
@@ -702,6 +798,11 @@ async def _prepare_runtime_qc(
                 commit_message=f"mission {mission.mission_id}: rqca surgical repair",
                 settings=settings,
             )
+            preservation_report = await _evaluate_workspace_preservation(
+                metadata=metadata,
+                settings=settings,
+                enforcement_enabled=enforcement_enabled,
+            )
 
         metadata["runtime_qc_repair_attempts"] = repair_attempts_run
         if repair_attempts_run > 0:
@@ -749,8 +850,34 @@ async def _prepare_runtime_qc(
         **execution,
         "qc_assessment": qc_assessment,
         "harness_version": RQCA_HARNESS_VERSION,
+        **(
+            {"preservation_report": preservation_report}
+            if isinstance(preservation_report, dict)
+            else {}
+        ),
     }
     metadata["runtime_qc_report"] = runtime_qc_report
+    if isinstance(preservation_report, dict):
+        pres_verdict = str(preservation_report.get("verdict") or "UNVERIFIABLE").upper()
+        pres_event = (
+            "MISSION_PRESERVATION_VERIFIED"
+            if pres_verdict == "PRESERVED"
+            else (
+                "MISSION_PRESERVATION_REGRESSED"
+                if pres_verdict == "REGRESSED"
+                else "MISSION_PRESERVATION_UNVERIFIABLE"
+            )
+        )
+        append_chain_event(
+            metadata,
+            event_type=pres_event,
+            agent_id="AGENT-10-TESTER",
+            details={
+                "verdict": pres_verdict,
+                "regressed_tests": preservation_report.get("regressed_tests") or [],
+                "reason": preservation_report.get("reason") or "",
+            },
+        )
     append_chain_event(
         metadata,
         event_type="MISSION_RUNTIME_QC_COMPLETE",
@@ -795,10 +922,15 @@ async def _prepare_runtime_qc(
         mission.mission_id,
         metadata,
     )
-    blocked = (
-        _setting_bool(settings, "rqca_enforcement_enabled", False)
-        and qc_assessment.get("qc_verdict") == "FAIL"
+    preservation_blocked = bool(
+        enforcement_enabled
+        and isinstance(preservation_report, dict)
+        and str(preservation_report.get("verdict") or "").upper() in {"REGRESSED", "UNVERIFIABLE"}
     )
+    blocked = (
+        enforcement_enabled
+        and qc_assessment.get("qc_verdict") == "FAIL"
+    ) or preservation_blocked
     feature = metadata.get("feature_contract") if isinstance(metadata.get("feature_contract"), dict) else {}
     estimate = feature.get("cost_estimate") if isinstance(feature.get("cost_estimate"), dict) else {}
     cap_usd = estimate.get("cap_usd")

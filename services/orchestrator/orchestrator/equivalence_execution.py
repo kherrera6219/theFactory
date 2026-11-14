@@ -699,3 +699,302 @@ async def run_contract_equivalence(
     if status == "skipped":
         report["reason"] = "every vector was skipped (timeouts or unsupported kinds)"
     return report
+
+
+async def _execute_vector_against_artifact(
+    *,
+    mission_id: str,
+    side: str,
+    language: str,
+    filename: str,
+    primary_code: str,
+    siblings: dict[str, str],
+    vector: dict[str, Any],
+    runtime: dict[str, Any],
+    docker_bin: str,
+    runner: Any,
+) -> Any:
+    """Execute one CLI or call vector against a single source/target artifact inside the sandbox."""
+    from .contract_oracle import cli_command
+
+    kind = str(vector.get("kind") or "cli").strip().lower()
+    driver_filename, driver_image, driver_command = _driver_spec_for_language(language)
+    base_cmd = str(runtime["run_command"]).format(filename=filename, stem=Path(filename).stem)
+    if language == "zig":
+        base_cmd = f"{base_cmd} --"
+
+    with tempfile.TemporaryDirectory(
+        prefix=f"hgr-dual-{side}-{mission_id[:6]}-", dir=workspace_root()
+    ) as tmpdir:
+        ws_dir = Path(tmpdir)
+        target_path = ws_dir / filename
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(primary_code, encoding="utf-8")
+        for s_name, s_body in siblings.items():
+            safe_rel = Path(s_name).as_posix().lstrip("/")
+            if safe_rel and not safe_rel.startswith("..") and safe_rel != filename:
+                s_dest = ws_dir / safe_rel
+                s_dest.parent.mkdir(parents=True, exist_ok=True)
+                s_dest.write_text(s_body, encoding="utf-8")
+
+        if kind == "call":
+            (ws_dir / driver_filename).write_text(
+                _build_driver(
+                    artifact_filename=filename,
+                    fn_name=str(vector.get("fn_name") or vector.get("function") or ""),
+                    args=vector.get("args") or [],
+                    language=language,
+                ),
+                encoding="utf-8",
+            )
+            command, image, timeout, memory = (
+                driver_command,
+                driver_image,
+                _PER_VECTOR_TIMEOUT_SECONDS,
+                _PER_VECTOR_MEMORY_MB,
+            )
+        else:
+            stdin_path = None
+            if vector.get("stdin"):
+                (ws_dir / _STDIN_FILENAME).write_text(str(vector["stdin"]), encoding="utf-8")
+                stdin_path = f"/workspace/{_STDIN_FILENAME}"
+            argv = [str(a) for a in (vector.get("argv") or [])]
+            command = cli_command(base_cmd, argv, stdin_file=stdin_path)
+            image = str(runtime["base_image"])
+            timeout, memory = _CLI_TIMEOUT_SECONDS, _CLI_MEMORY_MB
+
+        return await runner(
+            docker_bin=docker_bin,
+            workspace_dir=tmpdir,
+            base_image=image,
+            command=command,
+            timeout_seconds=timeout,
+            memory_mb=memory,
+        )
+
+
+async def run_port_dual_equivalence(
+    *,
+    mission_id: str,
+    source_language: str,
+    source_filename: str,
+    source_code: str,
+    target_language: str,
+    target_filename: str,
+    target_code: str,
+    vectors: list[dict[str, Any]],
+    docker_bin: str = "docker",
+    source_siblings: dict[str, str] | None = None,
+    target_siblings: dict[str, str] | None = None,
+    sandbox_runner: Any = None,
+) -> dict[str, Any]:
+    """Compare source and ported artifacts side-by-side in the sandbox across I/O vectors."""
+    from .contract_oracle import CALL_LANGUAGES
+    from .rqca_agent import _LANGUAGE_RUNTIMES, _unbundle_source
+
+    src_lang = _normalise_language(source_language)
+    tgt_lang = _normalise_language(target_language)
+    limited = [v for v in vectors if isinstance(v, dict)][:_MAX_VECTORS]
+    base: dict[str, Any] = {
+        "schema_version": BEHAVIOURAL_SCHEMA_VERSION,
+        "verification_scope": "behavioural",
+        "verification_basis": "port_dual_run",
+        "mission_id": mission_id,
+        "source_language": src_lang,
+        "target_language": tgt_lang,
+        "language": tgt_lang,
+        "equivalence_vectors_total": len(limited),
+        "equivalence_vectors_passed": 0,
+        "equivalence_vectors_failed": 0,
+        "equivalence_vectors_skipped": 0,
+        "pass_ratio": 0.0,
+        "findings": [],
+        "vector_results": [],
+    }
+
+    if not limited:
+        return {**base, "status": "skipped", "reason": "no I/O vectors provided for PORT dual-run"}
+    src_runtime = _LANGUAGE_RUNTIMES.get(src_lang)
+    tgt_runtime = _LANGUAGE_RUNTIMES.get(tgt_lang)
+    if src_runtime is None or tgt_runtime is None:
+        return {
+            **base,
+            "status": "skipped",
+            "reason": f"sandbox runtime missing for {src_lang or '?'} or {tgt_lang or '?'}",
+        }
+    if sandbox_runner is None and not await check_docker_available(docker_bin):
+        return {**base, "status": "skipped", "reason": "sandbox unavailable"}
+
+    runner = sandbox_runner or run_in_sandbox
+    src_primary, src_sibs = _unbundle_source(source_code, source_filename)
+    tgt_primary, tgt_sibs = _unbundle_source(target_code, target_filename)
+    if source_siblings:
+        src_sibs = {**src_sibs, **source_siblings}
+    if target_siblings:
+        tgt_sibs = {**tgt_sibs, **target_siblings}
+
+    passed = 0
+    failed = 0
+    skipped = 0
+    findings: list[str] = []
+    results: list[dict[str, Any]] = []
+
+    for idx, vec in enumerate(limited):
+        vec_id = str(vec.get("vector_id") or vec.get("id") or f"dual-{idx + 1}")
+        kind = str(vec.get("kind") or "cli").strip().lower()
+        vec_input = {
+            "kind": kind,
+            "argv": vec.get("argv") or [],
+            "stdin": vec.get("stdin") or "",
+            "fn_name": vec.get("fn_name") or vec.get("function") or "",
+            "args": vec.get("args") or [],
+        }
+
+        if kind == "call" and (src_lang not in CALL_LANGUAGES or tgt_lang not in CALL_LANGUAGES):
+            skipped += 1
+            reason = f"{vec_id}: call vectors require CALL_LANGUAGES on both sides"
+            findings.append(reason)
+            results.append(
+                {
+                    "vector_id": vec_id,
+                    "kind": kind,
+                    "input": vec_input,
+                    "outcome": "skipped",
+                    "mismatch_reason": reason,
+                }
+            )
+            continue
+
+        try:
+            src_res = await _execute_vector_against_artifact(
+                mission_id=mission_id,
+                side="src",
+                language=src_lang,
+                filename=source_filename,
+                primary_code=src_primary,
+                siblings=src_sibs,
+                vector=vec,
+                runtime=src_runtime,
+                docker_bin=docker_bin,
+                runner=runner,
+            )
+            tgt_res = await _execute_vector_against_artifact(
+                mission_id=mission_id,
+                side="tgt",
+                language=tgt_lang,
+                filename=target_filename,
+                primary_code=tgt_primary,
+                siblings=tgt_sibs,
+                vector=vec,
+                runtime=tgt_runtime,
+                docker_bin=docker_bin,
+                runner=runner,
+            )
+        except Exception as exc:  # noqa: BLE001 - verification never crashes a mission
+            skipped += 1
+            reason = f"{vec_id}: harness error ({type(exc).__name__})"
+            findings.append(reason)
+            results.append(
+                {
+                    "vector_id": vec_id,
+                    "kind": kind,
+                    "input": vec_input,
+                    "outcome": "skipped",
+                    "mismatch_reason": reason,
+                }
+            )
+            continue
+
+        if (
+            src_res.infrastructure_error
+            or tgt_res.infrastructure_error
+            or src_res.timed_out
+            or tgt_res.timed_out
+        ):
+            skipped += 1
+            reason = (
+                src_res.infrastructure_error
+                or tgt_res.infrastructure_error
+                or f"{vec_id}: timed out in sandbox"
+            )
+            findings.append(f"{vec_id}: {reason}")
+            results.append(
+                {
+                    "vector_id": vec_id,
+                    "kind": kind,
+                    "input": vec_input,
+                    "outcome": "skipped",
+                    "mismatch_reason": str(reason),
+                }
+            )
+            continue
+
+        if kind == "call":
+            src_verdict = _parse_driver_output(src_res.stdout)
+            tgt_verdict = _parse_driver_output(tgt_res.stdout)
+            src_val = src_verdict.get("result")
+            tgt_val = tgt_verdict.get("result")
+            matched = (
+                src_verdict.get("status") == "ok"
+                and tgt_verdict.get("status") == "ok"
+                and src_val == tgt_val
+            )
+            src_out_str = json.dumps(src_verdict)
+            tgt_out_str = json.dumps(tgt_verdict)
+            mismatch = (
+                ""
+                if matched
+                else f"source={src_out_str[:160]} target={tgt_out_str[:160]}"
+            )
+        else:
+            src_out_str = str(src_res.stdout or "")
+            tgt_out_str = str(tgt_res.stdout or "")
+            matched = (
+                int(src_res.exit_code) == int(tgt_res.exit_code)
+                and src_out_str.rstrip() == tgt_out_str.rstrip()
+            )
+            reasons: list[str] = []
+            if int(src_res.exit_code) != int(tgt_res.exit_code):
+                reasons.append(f"exit_code {src_res.exit_code} != {tgt_res.exit_code}")
+            if src_out_str.rstrip() != tgt_out_str.rstrip():
+                reasons.append(
+                    f"stdout source={src_out_str[:120]!r} != target={tgt_out_str[:120]!r}"
+                )
+            mismatch = "; ".join(reasons)
+
+        if matched:
+            passed += 1
+            outcome = "passed"
+        else:
+            failed += 1
+            outcome = "failed"
+            findings.append(f"{vec_id}: {mismatch}")
+
+        results.append(
+            {
+                "vector_id": vec_id,
+                "kind": kind,
+                "input": vec_input,
+                "outcome": outcome,
+                "source_exit_code": int(src_res.exit_code),
+                "target_exit_code": int(tgt_res.exit_code),
+                "source_output": src_out_str[:400],
+                "target_output": tgt_out_str[:400],
+                "mismatch_reason": mismatch,
+            }
+        )
+
+    executed = passed + failed
+    pass_ratio = round(passed / executed, 4) if executed > 0 else 0.0
+    status = "failed" if failed else ("passed" if passed else "skipped")
+    return {
+        **base,
+        "status": status,
+        "equivalence_vectors_passed": passed,
+        "equivalence_vectors_failed": failed,
+        "equivalence_vectors_skipped": skipped,
+        "pass_ratio": pass_ratio,
+        "findings": findings,
+        "vector_results": results,
+        "reason": "" if status != "skipped" else "all PORT dual-run vectors were skipped",
+    }
