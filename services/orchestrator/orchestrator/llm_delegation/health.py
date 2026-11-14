@@ -272,6 +272,13 @@ async def run_provider_preflight(
 
     configured_count = sum(1 for item in providers.values() if item["configured"])
     ready_count = sum(1 for item in providers.values() if item["ready"])
+    from .capabilities import confirm_capabilities_from_preflight  # noqa: PLC0415
+
+    confirmed_caps = confirm_capabilities_from_preflight({"providers": providers})
+    for prov_name, prov_entry in providers.items():
+        if prov_name in confirmed_caps:
+            prov_entry["capabilities"] = confirmed_caps[prov_name].to_dict()
+
     _PROVIDER_PREFLIGHT_STATE.update(
         {
             "schema_version": "provider_preflight.v1",

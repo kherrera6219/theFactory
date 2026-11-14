@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/missions/{mission_id}/activations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mission Activations */
+        get: operations["get_mission_activations_v1_missions__mission_id__activations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/missions/{mission_id}/artifact": {
         parameters: {
             query?: never;
@@ -1199,6 +1216,56 @@ export interface operations {
         };
     };
     get_mission_v1_missions__mission_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Missing or invalid X-API-Key header. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API key lacks the required role for this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mission_activations_v1_missions__mission_id__activations_get: {
         parameters: {
             query?: never;
             header?: {

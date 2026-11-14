@@ -1,0 +1,63 @@
+{
+  "schema_version": "phase3_agent_harness_verification.v1",
+  "generated_at": "2026-11-13T22:10:00Z",
+  "phase": "Phase 3 — Agent harness: let every role use its full capabilities",
+  "plan_reference": "GEMINI_NEXT_PHASE_PLAN_2026-11-13.md",
+  "deliverables": {
+    "model_capability_registry": "services/orchestrator/orchestrator/llm_delegation/capabilities.py",
+    "provider_adapters": "services/orchestrator/orchestrator/llm_delegation/adapters.py",
+    "factory_tool_registry": "services/orchestrator/orchestrator/agent_tools.py",
+    "agent_harness_loop": "services/orchestrator/orchestrator/agent_harness.py",
+    "migration_flag_setting": "AGENT_HARNESS_ENABLED_ROLES",
+    "activations_endpoints": [
+      "/internal/missions/{mission_id}/activations",
+      "/v1/missions/{mission_id}/activations"
+    ]
+  },
+  "adapters_verified": [
+    {
+      "provider": "gemini",
+      "model": "gemini-4-argon",
+      "tool_roundtrip": "functionDeclarations -> functionCall -> functionResponse -> text",
+      "native_tools_tested": ["google_search"],
+      "grounding_citations_recorded": true
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-5-5",
+      "tool_roundtrip": "tools(input_schema) -> tool_use -> tool_result -> end_turn",
+      "thinking_signature_preserved": true,
+      "prompt_caching_headers": true
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6.1-terrea",
+      "tool_roundtrip": "tools(function) -> function_call -> function_call_output -> message",
+      "chat_completions_compat": true
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5-coder:7b",
+      "tool_roundtrip": "tools(function) -> message.tool_calls -> role=tool -> stop"
+    }
+  ],
+  "security_controls_verified": {
+    "role_permission_separation": "pod_auditor rejected on workspace.propose_change with PERMISSION_DENIED audit entry",
+    "decision_d1_single_specialist": "delegate rejects spawning additional specialist agents",
+    "slice_file_scoping": "workspace.propose_change rejects paths outside slice_files",
+    "sandbox_execution_single_path": "sandbox.run_tests and sandbox.run call orchestrator.sandbox_exec.run_in_sandbox only",
+    "data_classification_native_gate": "resolve_allowed_native_tools disables hosted code_execution for TIER_2_CONFIDENTIAL and disables all hosted external tools for RESTRICTED",
+    "untrusted_content_delimiters": "workspace.read(README*), research.fetch, and MCP outputs wrapped in <untrusted_external_content> delimiters",
+    "transcript_scrubbing": "redact_pii + sanitize_outbound_prompt applied before persisting or serving agent_activations"
+  },
+  "resilience_controls_verified": {
+    "budget_exhaustion": "max_tool_calls returns status=budget_exhausted cleanly",
+    "compaction": "older turns compacted when approaching model context_window",
+    "restart_recovery": "run_activation resumes from persisted resume_state without re-executing completed tool_call_ids"
+  },
+  "test_suites_passed": {
+    "test_agent_harness_phase3.py": "6 passed (with unit mocks and FastAPI TestClient)",
+    "test_mission_flow_v2_and_workspace_and_phase1_and_phase3": "145 passed",
+    "test_llm_delegation_unit_and_safety_and_retry_and_cost": "137 passed"
+  }
+}

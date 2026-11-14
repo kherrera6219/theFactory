@@ -609,7 +609,7 @@ async def _prepare_specialist_plan(
             target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
-        from ..workspace import sync_generated_output_to_workspace
+        from ..workspace import sync_generated_output_to_workspace, workspace_from_mission_metadata
 
         await asyncio.to_thread(
             sync_generated_output_to_workspace,
@@ -619,6 +619,46 @@ async def _prepare_specialist_plan(
             commit_message=f"mission {mission_id}: specialist codegen",
             settings=settings,
         )
+        from ..agent_harness import is_role_harness_enabled, run_activation
+
+        if is_role_harness_enabled(settings, "specialist", specialist_agent_id, metadata):
+            ws = await asyncio.to_thread(
+                workspace_from_mission_metadata,
+                metadata,
+                settings=settings,
+            )
+            harness_result = await run_activation(
+                role="specialist",
+                agent_id=specialist_agent_id,
+                stage="specialist_harness",
+                goal=(
+                    f"Inspect, verify, and refine generated deliverables for mission {mission_id} "
+                    f"against the SOW and existing repository."
+                ),
+                context_pack={
+                    "mission_contract": mission_contract,
+                    "specialist_plan": normalized,
+                },
+                workspace=ws,
+                settings=settings,
+                mission_id=mission_id,
+                mission_metadata=metadata,
+                data_classification=str(
+                    getattr(mission.data_classification, "value", mission.data_classification)
+                    or "TIER_1_INTERNAL"
+                ),
+                target_language=_target_lang,
+            )
+            if ws is not None and harness_result.modified_files:
+                updated_bundle = await asyncio.to_thread(ws.build_source_bundle_excerpt)
+                if updated_bundle:
+                    generated_output = {
+                        **generated_output,
+                        "code": updated_bundle,
+                        "code_length_chars": len(updated_bundle),
+                        "harness_status": harness_result.status,
+                    }
+                    metadata["generated_output"] = generated_output
         gen_source = str(generated_output.get("source") or "").strip().lower()
         if gen_source == "fallback":
             from ..settings import resolve_mission_fallback_policy

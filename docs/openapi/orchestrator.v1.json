@@ -1588,6 +1588,64 @@
         "summary": "Create Diagnostics"
       }
     },
+    "/internal/missions/{mission_id}/activations": {
+      "get": {
+        "description": "Return scrubbed AgentHarness activation transcripts and tool timelines for a mission.",
+        "operationId": "get_mission_activations_internal_missions__mission_id__activations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Activations Internal Missions  Mission Id  Activations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mission Activations"
+      }
+    },
     "/internal/missions/{mission_id}/audit-artifacts": {
       "get": {
         "operationId": "get_audit_artifacts_internal_missions__mission_id__audit_artifacts_get",

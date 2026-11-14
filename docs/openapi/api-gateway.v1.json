@@ -1028,6 +1028,93 @@
         ]
       }
     },
+    "/v1/missions/{mission_id}/activations": {
+      "get": {
+        "operationId": "get_mission_activations_v1_missions__mission_id__activations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Activations V1 Missions  Mission Id  Activations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Activations",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
     "/v1/missions/{mission_id}/artifact": {
       "get": {
         "operationId": "download_mission_artifact_v1_missions__mission_id__artifact_get",

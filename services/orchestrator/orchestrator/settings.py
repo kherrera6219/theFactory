@@ -152,6 +152,7 @@ class Settings:
     agent_service_key_mode: str = "shared"
     provider_preflight_required: bool = False
     mission_fallback_policy: str = "auto"
+    agent_harness_enabled_roles: str = ""
 
     @property
     def migration_postgres_url(self) -> str:
@@ -485,6 +486,7 @@ def load_settings() -> Settings:
             os.getenv("MISSION_FALLBACK_POLICY"),
             environment=environment,
         ),
+        agent_harness_enabled_roles=os.getenv("AGENT_HARNESS_ENABLED_ROLES", "").strip(),
     )
 
 

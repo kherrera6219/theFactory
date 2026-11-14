@@ -820,3 +820,26 @@ async def get_mission_workspace_diff(
     }
 
 
+@router.get("/internal/missions/{mission_id}/activations")
+@router.get("/missions/{mission_id}/activations", include_in_schema=False)
+async def get_mission_activations(
+    mission_id: str,
+    request: Request,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Return scrubbed AgentHarness activation transcripts and tool timelines for a mission."""
+    import orchestrator.main as _main
+
+    from ..agent_harness import extract_mission_activations
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    activations = extract_mission_activations(mission)
+    return {
+        "mission_id": mission_id,
+        "count": len(activations),
+        "activations": activations,
+    }
+
+

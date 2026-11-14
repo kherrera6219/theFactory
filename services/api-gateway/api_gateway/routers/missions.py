@@ -288,4 +288,13 @@ def build_missions_router() -> APIRouter:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
         return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/workspace/diff")
 
+    @router.get("/v1/missions/{mission_id}/activations")
+    async def get_mission_activations(
+        mission_id: str,
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, Any]:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/activations")
+
     return router
