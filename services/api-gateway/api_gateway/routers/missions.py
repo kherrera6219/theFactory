@@ -7,6 +7,22 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 
 
+def _validate_workspace_file_path(raw_path: str) -> str:
+    candidate = raw_path.strip()
+    if (
+        not candidate
+        or candidate.startswith("/")
+        or "\\" in candidate
+        or ":" in candidate
+        or "\x00" in candidate
+    ):
+        raise HTTPException(status_code=400, detail="Invalid workspace file path")
+    parts = [part for part in candidate.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        raise HTTPException(status_code=400, detail="Invalid workspace file path")
+    return "/".join(parts)
+
+
 def build_missions_router() -> APIRouter:
     import sys
 
@@ -240,5 +256,36 @@ def build_missions_router() -> APIRouter:
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
         return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/export/sbom")
+
+    @router.get("/v1/missions/{mission_id}/workspace/tree")
+    async def get_mission_workspace_tree(
+        mission_id: str,
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, Any]:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/workspace/tree")
+
+    @router.get("/v1/missions/{mission_id}/workspace/file")
+    async def get_mission_workspace_file(
+        mission_id: str,
+        path: str = Query(..., min_length=1),
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, Any]:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_path = _validate_workspace_file_path(path)
+        return await gateway_main._proxy_get_internal(
+            f"/missions/{mission_id}/workspace/file", params={"path": safe_path}
+        )
+
+    @router.get("/v1/missions/{mission_id}/workspace/diff")
+    async def get_mission_workspace_diff(
+        mission_id: str,
+        x_api_key: str | None = Header(default=None),
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, Any]:
+        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/workspace/diff")
 
     return router

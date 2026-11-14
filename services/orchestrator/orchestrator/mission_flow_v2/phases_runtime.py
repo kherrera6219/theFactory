@@ -238,6 +238,16 @@ async def _prepare_depabs_execution(
             "source": "depabs_execution",
             "code_length_chars": len(str(execution.get("modified_source") or "")),
         }
+        from ..workspace import sync_generated_output_to_workspace
+
+        await asyncio.to_thread(
+            sync_generated_output_to_workspace,
+            mission.mission_id,
+            metadata,
+            metadata["generated_output"],
+            commit_message=f"mission {mission.mission_id}: depabs absorption",
+            settings=settings,
+        )
     append_chain_event(
         metadata,
         event_type="MISSION_DEPABS_EXECUTED",
@@ -681,6 +691,17 @@ async def _prepare_runtime_qc(
             metadata["generated_output"] = generated_output
             execution = copy.deepcopy(original_execution)
             repair_rolled_back = repair_attempts_run > 0
+        elif repair_attempts_run > 0:
+            from ..workspace import sync_generated_output_to_workspace
+
+            await asyncio.to_thread(
+                sync_generated_output_to_workspace,
+                mission.mission_id,
+                metadata,
+                generated_output,
+                commit_message=f"mission {mission.mission_id}: rqca surgical repair",
+                settings=settings,
+            )
 
         metadata["runtime_qc_repair_attempts"] = repair_attempts_run
         if repair_attempts_run > 0:
@@ -989,6 +1010,16 @@ async def _prepare_fusion(
                 target_language=mission.requested_target_language or "python",
             )
             metadata["generated_output"] = generated_output
+            from ..workspace import sync_generated_output_to_workspace
+
+            await asyncio.to_thread(
+                sync_generated_output_to_workspace,
+                mission.mission_id,
+                metadata,
+                generated_output,
+                commit_message=f"mission {mission.mission_id}: fusion codegen",
+                settings=settings,
+            )
             # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
             # Only runs on a successful codegen (inside the try, after the output is
             # stored). logicnode_id is synthesized. confidence_score is 0.0

@@ -12,6 +12,7 @@ interface CodeViewerPaneProps {
   loading: boolean;
   activeFile?: VirtualFileEntry | null;
   originalFileContent?: string | null;
+  workspaceDiffText?: string | null;
 }
 
 function countLines(text: string): number {
@@ -28,8 +29,9 @@ export function CodeViewerPane({
   loading,
   activeFile = null,
   originalFileContent = null,
+  workspaceDiffText = null,
 }: CodeViewerPaneProps) {
-  const [viewMode, setViewMode] = useState<'code' | 'diff'>('code');
+  const [viewMode, setViewMode] = useState<'code' | 'diff' | 'patch'>('code');
 
   const filename = String(
     activeFile?.path ??
@@ -51,10 +53,11 @@ export function CodeViewerPane({
 
   const lineCount = codeText ? countLines(codeText.trimEnd()) : null;
   const hasDiff = Boolean(
-    originalFileContent &&
+    originalFileContent !== null &&
       codeText &&
       originalFileContent.trim() !== codeText.trim(),
   );
+  const hasWorkspaceDiff = Boolean(workspaceDiffText && workspaceDiffText.trim());
 
   const diffLines = useMemo(() => {
     if (!hasDiff || viewMode !== 'diff' || !originalFileContent) return [];
@@ -91,7 +94,7 @@ export function CodeViewerPane({
     );
   }
 
-  if (!artifact) {
+  if (!artifact && !activeFile) {
     return (
       <div
         style={{
@@ -153,7 +156,7 @@ export function CodeViewerPane({
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {hasDiff && (
+          {(hasDiff || hasWorkspaceDiff) && (
             <div className="inline-actions" role="group" aria-label="View mode toggle">
               <button
                 type="button"
@@ -163,14 +166,26 @@ export function CodeViewerPane({
               >
                 Code
               </button>
-              <button
-                type="button"
-                className={viewMode === 'diff' ? 'primary-button' : 'secondary-button'}
-                style={{ padding: '2px 8px', fontSize: '0.72rem', minHeight: '24px' }}
-                onClick={() => setViewMode('diff')}
-              >
-                Diff vs Source
-              </button>
+              {hasDiff && (
+                <button
+                  type="button"
+                  className={viewMode === 'diff' ? 'primary-button' : 'secondary-button'}
+                  style={{ padding: '2px 8px', fontSize: '0.72rem', minHeight: '24px' }}
+                  onClick={() => setViewMode('diff')}
+                >
+                  Diff vs Source
+                </button>
+              )}
+              {hasWorkspaceDiff && (
+                <button
+                  type="button"
+                  className={viewMode === 'patch' ? 'primary-button' : 'secondary-button'}
+                  style={{ padding: '2px 8px', fontSize: '0.72rem', minHeight: '24px' }}
+                  onClick={() => setViewMode('patch')}
+                >
+                  Git Patch
+                </button>
+              )}
             </div>
           )}
           <span
@@ -186,8 +201,25 @@ export function CodeViewerPane({
         </div>
       </div>
 
-      {/* Code or Diff */}
-      {codeText ? (
+      {/* Code, Diff, or Git Patch */}
+      {viewMode === 'patch' && hasWorkspaceDiff ? (
+        <SyntaxHighlighter
+          language="diff"
+          style={vscDarkPlus}
+          showLineNumbers
+          wrapLongLines={false}
+          customStyle={{
+            margin: 0,
+            borderRadius: 0,
+            fontSize: '0.82em',
+            maxHeight: 'calc(100vh - 14rem)',
+            overflowY: 'auto',
+            background: '#1e1e1e',
+          }}
+        >
+          {workspaceDiffText ?? ''}
+        </SyntaxHighlighter>
+      ) : codeText ? (
         viewMode === 'diff' && hasDiff ? (
           <pre
             style={{

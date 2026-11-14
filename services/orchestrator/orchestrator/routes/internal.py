@@ -1571,3 +1571,37 @@ async def trigger_backup(
     if path.startswith("ERROR"):
         raise HTTPException(status_code=500, detail=path)
     return {"ok": True, "backup_path": path}
+
+
+@router.post("/internal/workspaces")
+async def create_workspace(
+    request: Request,
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Create a Git-backed baseline workspace from ZIP base64, local path, or Git URL."""
+    from ..workspace_api import import_workspace_from_payload
+
+    return await asyncio.to_thread(
+        import_workspace_from_payload,
+        payload,
+        settings=request.app.state.settings,
+    )
+
+
+@router.post("/internal/workspaces/{workspace_id}/review")
+async def review_workspace(
+    request: Request,
+    workspace_id: str,
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Build a scoped repository review artifact directly from a Git workspace."""
+    from ..workspace_api import review_workspace_from_payload
+
+    return await asyncio.to_thread(
+        review_workspace_from_payload,
+        workspace_id,
+        payload,
+        settings=request.app.state.settings,
+    )

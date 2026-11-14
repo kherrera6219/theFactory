@@ -18,16 +18,21 @@ type FormDataPart = {
 const ORIGINAL_BYPASS = process.env.MISSION_CONTROL_BYPASS_AUTH;
 const ORIGINAL_SESSION_SECRET = process.env.MISSION_CONTROL_SESSION_SECRET;
 const ORIGINAL_ADMIN_KEY = process.env.MISSION_CONTROL_ADMIN_KEY;
+const ORIGINAL_INTERNAL_KEY = process.env.INTERNAL_SERVICE_API_KEY;
+const ORIGINAL_ORCH_URL = process.env.ORCHESTRATOR_INTERNAL_BASE_URL;
 
 describe("repo ZIP import route", () => {
   beforeEach(() => {
     process.env.MISSION_CONTROL_BYPASS_AUTH = "true";
+    delete process.env.INTERNAL_SERVICE_API_KEY;
   });
 
   afterEach(() => {
     restoreEnv("MISSION_CONTROL_BYPASS_AUTH", ORIGINAL_BYPASS);
     restoreEnv("MISSION_CONTROL_SESSION_SECRET", ORIGINAL_SESSION_SECRET);
     restoreEnv("MISSION_CONTROL_ADMIN_KEY", ORIGINAL_ADMIN_KEY);
+    restoreEnv("INTERNAL_SERVICE_API_KEY", ORIGINAL_INTERNAL_KEY);
+    restoreEnv("ORCHESTRATOR_INTERNAL_BASE_URL", ORIGINAL_ORCH_URL);
     vi.restoreAllMocks();
   });
 
@@ -128,6 +133,83 @@ describe("repo ZIP import route", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       detail: expect.stringContaining("operator session"),
+    });
+  });
+
+  it("forwards JSON local_path workspace imports to orchestrator /internal/workspaces", async () => {
+    process.env.INTERNAL_SERVICE_API_KEY = "unit-internal-key";
+    process.env.ORCHESTRATOR_INTERNAL_BASE_URL = "http://orchestrator.test:8101";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          repository: {
+            source: "local",
+            owner: "local",
+            repo: "ten-file-app",
+            branch: "baseline",
+            default_branch: "baseline",
+            private: true,
+            html_url: null,
+            display_name: "ten-file-app",
+            archive_id: "ws-123",
+            archive_sha256: "a".repeat(64),
+            source_ref: "main",
+            root_prefix: "",
+            workspace_id: "ws-123",
+            base_commit: "b".repeat(40),
+          },
+          files: [{ path: "app.py", language: "Python", bytes: 42, estimated_lines: 2 }],
+          stats: {
+            total_files: 1,
+            estimated_total_lines: 2,
+            selected_subdirectory: "/",
+            truncated: false,
+            skipped_large_files: 0,
+            skipped_unsafe_entries: 0,
+            skipped_directory_entries: 0,
+            skipped_unreadable_entries: 0,
+            entry_limit_reached: false,
+            byte_limit_reached: false,
+            total_entries: 1,
+            total_uncompressed_bytes: 42,
+          },
+          logs: ["Initialized git workspace ws-123."],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_path: "C:/projects/ten-file-app", display_name: "ten-file-app" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe("http://orchestrator.test:8101/internal/workspaces");
+    const body = await response.json();
+    expect(body.repository).toMatchObject({
+      source: "local",
+      workspace_id: "ws-123",
+    });
+  });
+
+  it("returns 503 for local_path workspace import when INTERNAL_SERVICE_API_KEY is unset", async () => {
+    delete process.env.INTERNAL_SERVICE_API_KEY;
+    const response = await POST(
+      new Request("http://localhost/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_path: "C:/projects/ten-file-app" }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: expect.stringContaining("INTERNAL_SERVICE_API_KEY"),
     });
   });
 });

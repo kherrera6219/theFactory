@@ -24,6 +24,14 @@ import {
 
 export const runtime = "nodejs";
 
+function orchestratorInternalBaseUrl(): string {
+  return process.env.ORCHESTRATOR_INTERNAL_BASE_URL?.trim() || "http://localhost:8101";
+}
+
+function internalServiceApiKey(): string {
+  return process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
+}
+
 type RepoFileOverlayAction = "include" | "reference" | "exclude";
 type MissionType = "analyze" | "update" | "add_feature" | "refactor" | "port";
 
@@ -65,7 +73,7 @@ type ReviewResponse = {
   source: "repo-review";
   generated_at: string;
   repository: {
-    source: "zip";
+    source: "zip" | "local" | "git";
     owner: string;
     repo: string;
     branch: string;
@@ -76,6 +84,8 @@ type ReviewResponse = {
     display_name: string;
     source_ref: string;
     root_prefix: string;
+    workspace_id?: string | null;
+    base_commit?: string | null;
   };
   mission_type: MissionType;
   requested_target_language: string | null;
@@ -575,10 +585,95 @@ function buildTestPlan(params: {
   return testPlan;
 }
 
+async function reviewBackendWorkspace(
+  workspaceId: string,
+  payload: Record<string, unknown>,
+): Promise<NextResponse> {
+  const apiKey = internalServiceApiKey();
+  if (!apiKey) {
+    return NextResponse.json(
+      {
+        detail:
+          "INTERNAL_SERVICE_API_KEY is not configured; cannot review backend workspace.",
+      },
+      { status: 503 },
+    );
+  }
+  try {
+    const upstream = await fetch(
+      `${orchestratorInternalBaseUrl()}/internal/workspaces/${encodeURIComponent(workspaceId)}/review`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      },
+    );
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = (await upstream.json()) as Record<string, unknown>;
+    } catch {
+      parsed = { detail: `Orchestrator returned HTTP ${upstream.status}` };
+    }
+    return NextResponse.json(parsed, { status: upstream.status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to reach orchestrator";
+    return NextResponse.json({ detail: message }, { status: 502 });
+  }
+}
+
 export async function POST(request: Request) {
   const unauthorized = requireOperatorRequestSession(request);
   if (unauthorized) {
     return unauthorized;
+  }
+
+  const contentType = request.headers.get("content-type")?.toLowerCase() || "";
+  if (contentType.includes("application/json")) {
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return badRequest("Invalid JSON payload for workspace review.");
+    }
+    const workspaceId =
+      typeof body.workspace_id === "string" ? body.workspace_id.trim() : "";
+    if (!workspaceId) {
+      return badRequest("workspace_id is required for JSON workspace review.");
+    }
+    const normalizedSubdirectory = normalizeSubdirectory(
+      typeof body.subdirectory === "string" ? body.subdirectory : "/",
+    );
+    const rawSelected =
+      typeof body.selected_files === "string"
+        ? parseSelectedFilesField(body.selected_files)
+        : Array.isArray(body.selected_files)
+          ? body.selected_files
+          : undefined;
+    let selectedFiles: Array<{ path: string; overlay_action: "include" | "reference" }> | undefined;
+    if (rawSelected !== undefined) {
+      const validated = sanitizeSelectedFiles(rawSelected, normalizedSubdirectory);
+      if (!validated) {
+        return badRequest("selected_files must include 1-120 valid include/reference file records.");
+      }
+      selectedFiles = validated;
+    }
+    return reviewBackendWorkspace(workspaceId, {
+      subdirectory: normalizedSubdirectory,
+      mission_type: body.mission_type || "analyze",
+      description: body.description || "",
+      ...(selectedFiles ? { selected_files: selectedFiles } : {}),
+      source_ref:
+        typeof body.source_ref === "string"
+          ? body.source_ref
+          : typeof body.branch === "string"
+            ? body.branch
+            : undefined,
+      display_name: typeof body.display_name === "string" ? body.display_name : undefined,
+    });
   }
 
   let formData: FormData;
@@ -589,7 +684,34 @@ export async function POST(request: Request) {
   }
 
   const archive = formData.get("archive");
+  const workspaceIdField = formString(formData, "workspace_id");
+  const baseCommitField = formString(formData, "base_commit");
   if (!isUploadedArchive(archive)) {
+    if (workspaceIdField) {
+      const normalizedSubdirectory = normalizeSubdirectory(
+        formString(formData, "subdirectory") || "/",
+      );
+      const rawSelectedField = formData.get("selected_files");
+      let selectedFiles: Array<{ path: string; overlay_action: "include" | "reference" }> | undefined;
+      if (rawSelectedField !== null && String(rawSelectedField).trim()) {
+        const validated = sanitizeSelectedFiles(
+          parseSelectedFilesField(rawSelectedField),
+          normalizedSubdirectory,
+        );
+        if (!validated) {
+          return badRequest("selected_files must include 1-120 valid include/reference file records.");
+        }
+        selectedFiles = validated;
+      }
+      return reviewBackendWorkspace(workspaceIdField, {
+        subdirectory: normalizedSubdirectory,
+        mission_type: formString(formData, "mission_type") || "analyze",
+        description: formString(formData, "description"),
+        ...(selectedFiles ? { selected_files: selectedFiles } : {}),
+        source_ref: formString(formData, "source_ref") || formString(formData, "branch") || undefined,
+        display_name: formString(formData, "display_name") || undefined,
+      });
+    }
     return badRequest("archive must be a repository .zip file upload.");
   }
 
@@ -788,6 +910,8 @@ export async function POST(request: Request) {
         display_name: displayName,
         source_ref: sourceRef,
         root_prefix: indexed.stats.root_prefix,
+        ...(workspaceIdField ? { workspace_id: workspaceIdField } : {}),
+        ...(baseCommitField ? { base_commit: baseCommitField } : {}),
       },
       mission_type: missionType,
       requested_target_language: requestedTargetLanguage,

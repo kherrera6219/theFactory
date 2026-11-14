@@ -10,15 +10,18 @@ import {
   createMission,
   createPmFeatureContract,
   createRepoZipReview,
+  createWorkspaceReview,
   getMission,
   getMissionChainTrace,
   getMissionOutputFolderStatus,
+  importRepoSource,
   importRepoZip,
   indexRepoImport,
   listMissionBuildArtifacts,
 } from "../../lib/api-client";
 import {
   REPO_HANDOFF_STORAGE_KEY,
+  buildRepoImportLaunchMetadata,
   isProjectZipFile,
   officialMissionTypeFromIntent,
   officialMissionTypeFromRepoChoice,
@@ -417,6 +420,12 @@ export default function ChatPage() {
       reviewData.set("mission_type", "update");
       reviewData.set("description", "Imported through PM chat");
       reviewData.set("selected_files", JSON.stringify(selected));
+      if (imported.repository.workspace_id) {
+        reviewData.set("workspace_id", imported.repository.workspace_id);
+      }
+      if (imported.repository.base_commit) {
+        reviewData.set("base_commit", imported.repository.base_commit);
+      }
       const review = await createRepoZipReview(reviewData);
       repoImportRef.current = review;
       setRepoImport(review);
@@ -434,6 +443,59 @@ export default function ChatPage() {
       ]);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Unable to import project ZIP.");
+      repoImportRef.current = null;
+      setRepoImport(null);
+    } finally {
+      setRepoImporting(false);
+    }
+  }
+
+  async function importAttachedSource(params: { localPath?: string; gitUrl?: string }) {
+    setRepoImporting(true);
+    setError(null);
+    zipArchiveRef.current = null;
+    try {
+      const imported = await importRepoSource({
+        localPath: params.localPath,
+        gitUrl: params.gitUrl,
+        subdirectory: "/",
+      });
+      const workspaceId = imported.repository.workspace_id;
+      if (!workspaceId) {
+        throw new Error("Orchestrator did not return a Git workspace identifier.");
+      }
+      const selected = imported.files.slice(0, 120).map((file) => ({
+        path: file.path,
+        overlay_action: "include" as const,
+      }));
+      const review = await createWorkspaceReview({
+        workspaceId,
+        subdirectory: imported.stats.selected_subdirectory || "/",
+        missionType: "update",
+        description: "Imported through PM chat workspace",
+        selectedFiles: selected.length > 0 ? selected : undefined,
+        sourceRef: imported.repository.source_ref,
+        displayName: imported.repository.display_name,
+      });
+      repoImportRef.current = review;
+      setRepoImport(review);
+      setPreferredOfficialType((current) => current ?? "IMPORT_MODERNIZE");
+      setMessages((current) => [
+        ...current,
+        {
+          id: makeId("pm-ws"),
+          role: "pm",
+          text:
+            `Imported ${review.repository.display_name} into workspace ${workspaceId}: ` +
+            `${review.source_stats.bundled_files} files ready for the SOW. ` +
+            "Tell me whether this is a rework, port, update, or analysis.",
+          ts: new Date().toISOString(),
+        },
+      ]);
+    } catch (importError) {
+      setError(
+        importError instanceof Error ? importError.message : "Unable to import repository source.",
+      );
       repoImportRef.current = null;
       setRepoImport(null);
     } finally {
@@ -755,13 +817,13 @@ export default function ChatPage() {
                 prior_cap_usd: continuationContext?.priorCost?.cap_usd,
               }
             : undefined,
-          repo_import: imported
+          repo_import: imported ? (buildRepoImportLaunchMetadata(imported) ?? undefined) : undefined,
+          workspace: imported?.repository.workspace_id
             ? {
-                source: "repo_zip_import",
-                import_id: imported.repository.archive_id,
-                archive_sha256: imported.repository.archive_sha256,
-                index_required: true,
-                index_status: "pending",
+                workspace_id: imported.repository.workspace_id,
+                ...(imported.repository.base_commit
+                  ? { base_commit: imported.repository.base_commit }
+                  : {}),
               }
             : undefined,
           continued_from: continuationContext
@@ -789,7 +851,7 @@ export default function ChatPage() {
         source_code: sourceCode || undefined,
         metadata: launchMetadata,
       });
-      if (imported) {
+      if (imported && imported.repository.archive_id && imported.repository.archive_sha256) {
         try {
           await indexRepoImport({
             mission_id: mission.mission_id,
@@ -870,6 +932,7 @@ export default function ChatPage() {
               repoImport={repoImport}
               preferredOfficialType={preferredOfficialType}
               importAttachedZip={importAttachedZip}
+              importRepoSourceLocation={importAttachedSource}
               sendMessage={sendMessage}
               thinking={thinking}
               launching={launching}

@@ -45,6 +45,7 @@ COPY services/pod-worker/pod_worker /app/pod_worker
 # automatically; do not vendor a second docker binary.
 COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates liblzma5 \
     && apt-get upgrade -y --no-install-recommends ca-certificates liblzma5 \
     && python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
     && rm -rf /var/lib/apt/lists/* \

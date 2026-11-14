@@ -609,6 +609,16 @@ async def _prepare_specialist_plan(
             target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
+        from ..workspace import sync_generated_output_to_workspace
+
+        await asyncio.to_thread(
+            sync_generated_output_to_workspace,
+            mission_id,
+            metadata,
+            generated_output,
+            commit_message=f"mission {mission_id}: specialist codegen",
+            settings=settings,
+        )
         gen_source = str(generated_output.get("source") or "").strip().lower()
         if gen_source == "fallback":
             from ..settings import resolve_mission_fallback_policy
@@ -1084,7 +1094,13 @@ async def _produce_pod_group_standard(
     return persisted_mission
 
 
-def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dict[str, Any]) -> None:
+def _write_artifact_to_disk(
+    settings: Any,
+    mission_id: str,
+    artifact_record: dict[str, Any],
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> None:
     try:
         import os
         from pathlib import Path
@@ -1094,10 +1110,35 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
             return
         delivery_dir = Path(raw_dir)
         mission_dir = delivery_dir / mission_id
-        
+
         # Ensure mission directory exists
         mission_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        from ..workspace import _ensure_contained_path, workspace_from_mission_metadata
+
+        ws = workspace_from_mission_metadata(metadata, settings=settings)
+        if ws is not None:
+            resolved_mission_dir = mission_dir.resolve()
+            for entry in ws.list_files():
+                rel_path = entry["path"]
+                src_file = _ensure_contained_path(ws.workspace_dir, rel_path)
+                dst_file = (mission_dir / rel_path).resolve()
+                if (
+                    dst_file != resolved_mission_dir
+                    and resolved_mission_dir not in dst_file.parents
+                ):
+                    continue
+                dst_file.parent.mkdir(parents=True, exist_ok=True)
+                dst_file.write_bytes(src_file.read_bytes())
+            patch_text = ws.diff("baseline")
+            (mission_dir / f"{mission_id}.patch").write_bytes(patch_text.encode("utf-8"))
+            LOGGER.info(
+                "Exported full workspace tree and patch to %s (workspace=%s)",
+                mission_dir,
+                ws.workspace_id,
+            )
+            return
+
         artifact_type = artifact_record.get("artifact_type")
         artifact_text = artifact_record.get("artifact_text")
         if not artifact_text:
@@ -1108,7 +1149,7 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
         if artifact_type == "generated_code":
             from ..file_tree import parse_file_tree
 
-            tree_files = parse_file_tree(str(artifact_text))
+            tree_files = parse_file_tree(str(artifact_text), max_files=10_000)
             # Any parsed bundle — including a single-file one — must be split so
             # the "## FILE <path>" envelope stays out of the delivered file. A
             # ``> 1`` guard here wrote the raw bundle verbatim for single-file
@@ -1202,7 +1243,18 @@ async def _ensure_verified_build_artifact(
     if not build_artifact_support.mission_requires_build_artifact(mission.metadata):
         return mission
 
-    artifact_metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    artifact_metadata = dict(mission.metadata) if isinstance(mission.metadata, dict) else {}
+    if isinstance(artifact_metadata.get("generated_output"), dict):
+        from ..workspace import sync_generated_output_to_workspace
+
+        await asyncio.to_thread(
+            sync_generated_output_to_workspace,
+            mission.mission_id,
+            artifact_metadata,
+            artifact_metadata.get("generated_output"),
+            commit_message=f"mission {mission.mission_id}: verified delivery artifact",
+            settings=settings,
+        )
     source_code = str(artifact_metadata.get("source_code") or "").strip()
     if build_artifact_support.mission_has_generated_output(artifact_metadata):
         artifact_record = build_artifact_support.build_generated_output_artifact(
@@ -1251,6 +1303,7 @@ async def _ensure_verified_build_artifact(
         settings,
         mission.mission_id,
         artifact_record,
+        metadata=artifact_metadata,
     )
     await _pkg().record_audit_event(
         app,
@@ -1279,6 +1332,8 @@ async def _ensure_verified_build_artifact(
     )
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if isinstance(artifact_metadata.get("workspace"), dict):
+        metadata["workspace"] = artifact_metadata["workspace"]
     selected_agent_id = _validate_agent_id(
         metadata.get("selected_agent_id"),
         fallback=metadata.get("assigned_specialist_agent_id") or CEO_AGENT_ID,

@@ -398,6 +398,7 @@ services:
       SANDBOX_RUNNER_MODE: "true"
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
+      WORKSPACE_ROOT: ${WORKSPACE_ROOT:-/sandbox-workspace/workspaces}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       DOCKER_HOST: tcp://docker-proxy:2375
       INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
@@ -503,6 +504,7 @@ services:
       # compiled-language run fails with "no such file".
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR:-..}/.sandbox-workspace}
+      WORKSPACE_ROOT: ${WORKSPACE_ROOT:-/sandbox-workspace/workspaces}
       # Privilege boundary: docker.sock lives on sandbox-runner, not here.
       SANDBOX_EXECUTOR_URL: ${SANDBOX_EXECUTOR_URL:-http://sandbox-runner:8020}
       # Equivalence verification. Correctness (contract-conformance) checks always

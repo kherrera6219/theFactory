@@ -31,6 +31,10 @@ export type RepoImportLaunchMetadata = {
   source_ref?: string;
   index_required: true;
   index_status: "pending";
+  workspace?: {
+    workspace_id: string;
+    base_commit?: string;
+  };
 };
 
 const OFFICIAL: ReadonlySet<string> = new Set([
@@ -127,6 +131,8 @@ export function buildRepoImportLaunchMetadata(
   if (!importId || !archiveSha256) {
     return null;
   }
+  const workspaceId = String(review.repository.workspace_id ?? "").trim();
+  const baseCommit = String(review.repository.base_commit ?? "").trim();
   return {
     source: "repo_zip_import",
     import_id: importId,
@@ -135,6 +141,14 @@ export function buildRepoImportLaunchMetadata(
     source_ref: String(review.repository.source_ref ?? "").trim() || undefined,
     index_required: true,
     index_status: "pending",
+    ...(workspaceId
+      ? {
+          workspace: {
+            workspace_id: workspaceId,
+            ...(baseCommit ? { base_commit: baseCommit } : {}),
+          },
+        }
+      : {}),
   };
 }
 

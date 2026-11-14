@@ -9,6 +9,8 @@ import { EmptyState, SystemMessage } from "../../components/status";
 import {
   approveReviewArtifact,
   createRepoZipReview,
+  createWorkspaceReview,
+  importRepoSource,
   importRepoZip,
   verifyReviewApproval,
 } from "../../lib/api-client";
@@ -57,7 +59,10 @@ function overlayLabel(action: RepoFileOverlayAction): string {
 export default function RepoImportPage() {
   const router = useRouter();
 
+  const [sourceMode, setSourceMode] = useState<"zip" | "local" | "git">("zip");
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
+  const [localPath, setLocalPath] = useState("");
+  const [gitUrl, setGitUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [sourceRef, setSourceRef] = useState("main");
   const [subdirectory, setSubdirectory] = useState("/");
@@ -133,19 +138,36 @@ export default function RepoImportPage() {
   }
 
   async function importRepository() {
-    if (!archiveFile) {
-      setError("Select a repository .zip archive before import.");
-      return;
-    }
-    if (!archiveFile.name.toLowerCase().endsWith(".zip")) {
-      setError("Repository archive must be a .zip file.");
+    if (sourceMode === "zip") {
+      if (!archiveFile) {
+        setError("Select a repository .zip archive before import.");
+        return;
+      }
+      if (!archiveFile.name.toLowerCase().endsWith(".zip")) {
+        setError("Repository archive must be a .zip file.");
+        return;
+      }
+    } else if (sourceMode === "local") {
+      if (!localPath.trim()) {
+        setError("Enter a local folder path before import.");
+        return;
+      }
+    } else if (!gitUrl.trim()) {
+      setError("Enter a Git repository URL before import.");
       return;
     }
 
     setError(null);
     setImporting(true);
     setImportComplete(false);
-    setImportLogs(["Validating repository ZIP upload...", "Indexing archive entries..."]);
+    setImportLogs([
+      sourceMode === "zip"
+        ? "Validating repository ZIP upload..."
+        : sourceMode === "local"
+          ? "Validating local directory path..."
+          : "Cloning Git repository into baseline workspace...",
+      "Indexing repository entries...",
+    ]);
     setImportSnapshot(null);
     setFiles([]);
     setMissionType(null);
@@ -153,13 +175,26 @@ export default function RepoImportPage() {
     resetReviewGate();
 
     try {
-      const formData = new FormData();
-      formData.set("archive", archiveFile);
-      formData.set("display_name", sanitizeUserText(displayName));
-      formData.set("source_ref", sanitizeUserText(sourceRef));
-      formData.set("subdirectory", sanitizeUserText(subdirectory) || "/");
-      formData.set("max_files", String(maxFiles));
-      const payload = await importRepoZip(formData);
+      let payload: RepoImportResponse;
+      if (sourceMode === "zip" && archiveFile) {
+        const formData = new FormData();
+        formData.set("archive", archiveFile);
+        formData.set("display_name", sanitizeUserText(displayName));
+        formData.set("source_ref", sanitizeUserText(sourceRef));
+        formData.set("subdirectory", sanitizeUserText(subdirectory) || "/");
+        formData.set("max_files", String(maxFiles));
+        payload = await importRepoZip(formData);
+      } else {
+        payload = await importRepoSource({
+          ...(sourceMode === "local"
+            ? { localPath: sanitizeUserText(localPath) }
+            : { gitUrl: sanitizeUserText(gitUrl) }),
+          displayName: sanitizeUserText(displayName) || undefined,
+          ref: sanitizeUserText(sourceRef) || undefined,
+          subdirectory: sanitizeUserText(subdirectory) || "/",
+          maxFiles,
+        });
+      }
       setImportSnapshot(payload);
       setImportLogs(payload.logs);
       setFiles(
@@ -239,8 +274,8 @@ export default function RepoImportPage() {
   }
 
   async function generateReview() {
-    if (!archiveFile || !importSnapshot) {
-      setError("Import a repository ZIP before generating repository review.");
+    if (!importSnapshot || (!archiveFile && !importSnapshot.repository.workspace_id)) {
+      setError("Import a repository before generating repository review.");
       return;
     }
     if (selectedFiles.length === 0) {
@@ -264,29 +299,52 @@ export default function RepoImportPage() {
     setApprovalReceipt(null);
 
     try {
-      const formData = new FormData();
-      formData.set("archive", archiveFile);
-      formData.set("display_name", importSnapshot.repository.display_name || sanitizeUserText(displayName));
-      formData.set("source_ref", importSnapshot.repository.source_ref || sanitizeUserText(sourceRef));
-      formData.set("subdirectory", importSnapshot.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/");
-      formData.set("archive_sha256", importSnapshot.repository.archive_sha256);
-      formData.set("mission_type", missionType);
-      formData.set("description", sanitizeUserText(description));
-      formData.set(
-        "selected_files",
-        JSON.stringify(
-          selectedFiles
-          .filter((file) => file.overlayAction !== "exclude")
-          .map((file) => ({
+      const reviewSelection = selectedFiles
+        .filter((file) => file.overlayAction !== "exclude")
+        .map((file) => ({
+          path: file.path,
+          overlay_action: (file.overlayAction === "reference" ? "reference" : "include") as
+            | "include"
+            | "reference",
+          language: file.language,
+          bytes: file.bytes,
+          estimated_lines: file.estimatedLines,
+        }));
+      let preview: RepoReviewResponse;
+      if (archiveFile && sourceMode === "zip") {
+        const formData = new FormData();
+        formData.set("archive", archiveFile);
+        formData.set("display_name", importSnapshot.repository.display_name || sanitizeUserText(displayName));
+        formData.set("source_ref", importSnapshot.repository.source_ref || sanitizeUserText(sourceRef));
+        formData.set("subdirectory", importSnapshot.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/");
+        formData.set("archive_sha256", importSnapshot.repository.archive_sha256);
+        formData.set("mission_type", missionType);
+        formData.set("description", sanitizeUserText(description));
+        formData.set("selected_files", JSON.stringify(reviewSelection));
+        if (importSnapshot.repository.workspace_id) {
+          formData.set("workspace_id", importSnapshot.repository.workspace_id);
+        }
+        if (importSnapshot.repository.base_commit) {
+          formData.set("base_commit", importSnapshot.repository.base_commit);
+        }
+        preview = await createRepoZipReview(formData);
+      } else if (importSnapshot.repository.workspace_id) {
+        preview = await createWorkspaceReview({
+          workspaceId: importSnapshot.repository.workspace_id,
+          subdirectory:
+            importSnapshot.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
+          missionType,
+          description: sanitizeUserText(description),
+          selectedFiles: reviewSelection.map((file) => ({
             path: file.path,
-            overlay_action: file.overlayAction === "reference" ? "reference" : "include",
-            language: file.language,
-            bytes: file.bytes,
-            estimated_lines: file.estimatedLines,
+            overlay_action: file.overlay_action,
           })),
-        ),
-      );
-      const preview = await createRepoZipReview(formData);
+          sourceRef: importSnapshot.repository.source_ref || sanitizeUserText(sourceRef),
+          displayName: importSnapshot.repository.display_name || sanitizeUserText(displayName),
+        });
+      } else {
+        throw new Error("Missing workspace_id or archive for review.");
+      }
       setReviewPreview(preview);
     } catch (reviewError) {
       setError(
@@ -403,31 +461,107 @@ export default function RepoImportPage() {
     <div className="page shell-page">
       <PageHeader
         compact
-        eyebrow="Repository ZIP Import"
+        eyebrow="Repository Import & Workspace"
         title="Repository Intake and Mission Configuration"
-        description="Import a repository ZIP snapshot, review approved source scope, then continue with the PM Agent to accept a Statement of Work."
+        description="Import a repository ZIP archive, local directory, or Git URL into a Git-backed baseline workspace, review scope, then launch with the PM Agent."
       />
 
-      <Panel title="Step 1: Import Repository ZIP" className="step-panel">
-        <label htmlFor="repo-archive">Repository ZIP archive</label>
-        <div className="repo-url-row">
-          <input
-            id="repo-archive"
-            type="file"
-            accept=".zip,application/zip"
-            onChange={(event) => {
-              setArchiveFile(event.target.files?.[0] ?? null);
+      <Panel title="Step 1: Import Repository Source" className="step-panel">
+        <div className="inline-actions" style={{ marginBottom: "12px" }} role="tablist" aria-label="Repository source mode">
+          <button
+            type="button"
+            className={sourceMode === "zip" ? "active" : "secondary"}
+            onClick={() => {
+              setSourceMode("zip");
               resetImportResults();
               setError(null);
             }}
-            style={{ flex: 1 }}
-          />
-          {archiveFile && (
-            <span className="repo-local-hint muted">
-              {archiveFile.name} - {formatBytes(archiveFile.size)}
-            </span>
-          )}
+          >
+            ZIP Archive
+          </button>
+          <button
+            type="button"
+            className={sourceMode === "local" ? "active" : "secondary"}
+            onClick={() => {
+              setSourceMode("local");
+              resetImportResults();
+              setError(null);
+            }}
+          >
+            Local Folder
+          </button>
+          <button
+            type="button"
+            className={sourceMode === "git" ? "active" : "secondary"}
+            onClick={() => {
+              setSourceMode("git");
+              resetImportResults();
+              setError(null);
+            }}
+          >
+            Git URL
+          </button>
         </div>
+
+        {sourceMode === "zip" && (
+          <>
+            <label htmlFor="repo-archive">Repository ZIP archive</label>
+            <div className="repo-url-row">
+              <input
+                id="repo-archive"
+                type="file"
+                accept=".zip,application/zip"
+                onChange={(event) => {
+                  setArchiveFile(event.target.files?.[0] ?? null);
+                  resetImportResults();
+                  setError(null);
+                }}
+                style={{ flex: 1 }}
+              />
+              {archiveFile && (
+                <span className="repo-local-hint muted">
+                  {archiveFile.name} - {formatBytes(archiveFile.size)}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {sourceMode === "local" && (
+          <div style={{ marginBottom: "12px" }}>
+            <label htmlFor="repo-local-path">Local repository directory path</label>
+            <input
+              id="repo-local-path"
+              type="text"
+              value={localPath}
+              onChange={(event) => {
+                setLocalPath(event.target.value);
+                resetImportResults();
+                setError(null);
+              }}
+              placeholder="C:/projects/my-app or /workspace/my-app"
+              style={{ width: "100%" }}
+            />
+          </div>
+        )}
+
+        {sourceMode === "git" && (
+          <div style={{ marginBottom: "12px" }}>
+            <label htmlFor="repo-git-url">Git repository URL</label>
+            <input
+              id="repo-git-url"
+              type="text"
+              value={gitUrl}
+              onChange={(event) => {
+                setGitUrl(event.target.value);
+                resetImportResults();
+                setError(null);
+              }}
+              placeholder="https://github.com/org/repo.git"
+              style={{ width: "100%" }}
+            />
+          </div>
+        )}
         <div className="filters-grid">
           <label>
             Display name
@@ -470,16 +604,45 @@ export default function RepoImportPage() {
           </label>
         </div>
         <div className="inline-actions">
-          <button type="button" onClick={() => void importRepository()} disabled={importing || !archiveFile}>
-            {importing ? "Importing..." : "Import ZIP"}
+          <button
+            type="button"
+            onClick={() => void importRepository()}
+            disabled={
+              importing ||
+              (sourceMode === "zip"
+                ? !archiveFile
+                : sourceMode === "local"
+                  ? !localPath.trim()
+                  : !gitUrl.trim())
+            }
+          >
+            {importing
+              ? "Importing..."
+              : sourceMode === "zip"
+                ? "Import ZIP"
+                : sourceMode === "local"
+                  ? "Import Local Workspace"
+                  : "Clone Git Workspace"}
           </button>
         </div>
         {importSnapshot && (
           <ul className="summary-list">
             <li>
-              <strong>Archive</strong>
-              <span>{importSnapshot.repository.display_name}</span>
+              <strong>Source</strong>
+              <span>{importSnapshot.repository.display_name} ({importSnapshot.repository.source})</span>
             </li>
+            {importSnapshot.repository.workspace_id && (
+              <li>
+                <strong>Workspace ID</strong>
+                <span>{importSnapshot.repository.workspace_id}</span>
+              </li>
+            )}
+            {importSnapshot.repository.base_commit && (
+              <li>
+                <strong>Base commit</strong>
+                <span>{importSnapshot.repository.base_commit.slice(0, 12)}</span>
+              </li>
+            )}
             <li>
               <strong>Source ref</strong>
               <span>{importSnapshot.repository.source_ref || "zip-upload"}</span>

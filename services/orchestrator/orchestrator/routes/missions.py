@@ -27,6 +27,7 @@ from ..models import (
     MissionStateUpdate,
 )
 from ..project_identity import resolve_project_id, with_project_identity
+from ..workspace import bind_mission_workspace, workspace_from_mission_metadata
 from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP, READ_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,12 @@ async def create_mission(
         await store_vault(redis_client, payload.mission_id, vault_secrets)
     metadata = with_project_identity(clean_metadata, mission_id=payload.mission_id)
     metadata["lifecycle_engine"] = get_lifecycle_engine_name(app.state.settings)
+    await asyncio.to_thread(
+        bind_mission_workspace,
+        payload.mission_id,
+        metadata,
+        settings=app.state.settings,
+    )
     project_id = payload.project_id or resolve_project_id(metadata, mission_id=payload.mission_id)
 
     record = MissionRecord(
@@ -430,7 +437,26 @@ async def download_mission_artifact(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    await _main._fetch_existing_mission(app, mission_id)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    mission_meta = getattr(mission, "metadata", None)
+    normalized_format = str(format or "json").strip().lower()
+    sanitized_id = "".join(c for c in mission_id if c.isalnum() or c in {"-", "_"}) or "mission"
+
+    if normalized_format == "zip":
+        ws = await asyncio.to_thread(
+            workspace_from_mission_metadata,
+            mission_meta if isinstance(mission_meta, dict) else None,
+            settings=app.state.settings,
+        )
+        if ws is not None:
+            zip_bytes = await asyncio.to_thread(ws.export_zip_bytes)
+            return Response(
+                content=zip_bytes,
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{sanitized_id}-bundle.zip"'
+                },
+            )
 
     record: dict[str, Any] | None = None
     if artifact_id:
@@ -558,6 +584,30 @@ async def export_mission_patch(
 
     raw_meta = mission.get("metadata") if isinstance(mission, dict) else getattr(mission, "metadata", None)
     metadata = raw_meta if isinstance(raw_meta, dict) else {}
+    ws = await asyncio.to_thread(
+        workspace_from_mission_metadata,
+        metadata,
+        settings=app.state.settings,
+    )
+    if ws is not None:
+        patch_text = await asyncio.to_thread(ws.diff, "baseline")
+        if str(format or "raw").strip().lower() == "json":
+            return {
+                "mission_id": mission_id,
+                "workspace_id": ws.workspace_id,
+                "base_commit": ws.base_commit,
+                "head_commit": ws.current_head(),
+                "branch": ws.branch_name,
+                "patch": patch_text,
+            }
+        sanitized_id = "".join(c for c in mission_id if c.isalnum() or c in {"-", "_"}) or "mission"
+        return Response(
+            content=patch_text,
+            media_type="text/x-diff; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{sanitized_id}.patch"',
+            },
+        )
     source_code = metadata.get("source_code") if isinstance(metadata.get("source_code"), str) else None
     gen_raw = metadata.get("generated_output")
     generated_output = dict(gen_raw) if isinstance(gen_raw, dict) else {}
@@ -661,5 +711,112 @@ async def export_mission_sbom(
         dependency_inventory=dep_inv if isinstance(dep_inv, dict) else None,
         sbom_delta=sbom_delta if isinstance(sbom_delta, dict) else None,
     )
+
+
+@router.get("/internal/missions/{mission_id}/workspace/tree")
+@router.get("/missions/{mission_id}/workspace/tree", include_in_schema=False)
+async def get_mission_workspace_tree(
+    mission_id: str,
+    request: Request,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Return full file tree and branch state for a mission workspace."""
+    import orchestrator.main as _main
+
+    from ..workspace_api import build_mission_workspace_tree
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    records = await asyncio.to_thread(storage.list_build_artifacts, app.state.settings, mission_id, 25)
+    return await asyncio.to_thread(
+        build_mission_workspace_tree,
+        mission,
+        settings=app.state.settings,
+        artifact_records=records,
+    )
+
+
+@router.get("/internal/missions/{mission_id}/workspace/file")
+@router.get("/missions/{mission_id}/workspace/file", include_in_schema=False)
+async def get_mission_workspace_file(
+    mission_id: str,
+    request: Request,
+    path: str = Query(min_length=1),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Read a file (and baseline revision) from a mission workspace."""
+    import orchestrator.main as _main
+
+    from ..workspace_api import read_mission_workspace_file
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    records = await asyncio.to_thread(storage.list_build_artifacts, app.state.settings, mission_id, 25)
+    return await asyncio.to_thread(
+        read_mission_workspace_file,
+        mission,
+        path,
+        settings=app.state.settings,
+        artifact_records=records,
+    )
+
+
+@router.get("/internal/missions/{mission_id}/workspace/diff")
+@router.get("/missions/{mission_id}/workspace/diff", include_in_schema=False)
+async def get_mission_workspace_diff(
+    mission_id: str,
+    request: Request,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Return real git diff and modified file list for a mission workspace."""
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    metadata = getattr(mission, "metadata", None)
+    if not isinstance(metadata, dict):
+        metadata = {}
+    ws = await asyncio.to_thread(
+        workspace_from_mission_metadata,
+        metadata,
+        settings=app.state.settings,
+    )
+    if ws is not None:
+        return {
+            "mission_id": mission_id,
+            "workspace_id": ws.workspace_id,
+            "base_commit": ws.base_commit,
+            "head_commit": ws.current_head(),
+            "branch": ws.branch_name,
+            "modified_files": ws.modified_files("baseline"),
+            "diff": ws.diff("baseline"),
+        }
+
+    from ..deploy_exporter import generate_unified_patch_bundle
+
+    source_code = metadata.get("source_code") if isinstance(metadata.get("source_code"), str) else None
+    gen_raw = metadata.get("generated_output")
+    generated_output = dict(gen_raw) if isinstance(gen_raw, dict) else {}
+    patch_text = (
+        generate_unified_patch_bundle(
+            mission_id=mission_id,
+            source_code=source_code,
+            generated_output=generated_output,
+        )
+        if generated_output
+        else ""
+    )
+    return {
+        "mission_id": mission_id,
+        "workspace_id": None,
+        "base_commit": None,
+        "head_commit": None,
+        "branch": None,
+        "modified_files": [],
+        "diff": patch_text,
+    }
 
 

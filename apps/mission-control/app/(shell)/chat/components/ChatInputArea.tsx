@@ -68,6 +68,7 @@ export interface ChatInputAreaProps {
   repoImport: RepoReviewResponse | null;
   preferredOfficialType: OfficialFactoryMissionType | null;
   importAttachedZip: (zip: File) => Promise<void>;
+  importRepoSourceLocation?: (params: { localPath?: string; gitUrl?: string }) => Promise<void>;
   sendMessage: () => Promise<void>;
   thinking: boolean;
   launching: boolean;
@@ -83,11 +84,25 @@ export function ChatInputArea({
   repoImport,
   preferredOfficialType,
   importAttachedZip,
+  importRepoSourceLocation,
   sendMessage,
   thinking,
   launching,
   error,
 }: ChatInputAreaProps) {
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceValue, setSourceValue] = useState("");
+
+  async function submitWorkspaceLocation() {
+    if (!importRepoSourceLocation) return;
+    const trimmed = sourceValue.trim();
+    if (!trimmed) return;
+    const isGitUrl = /^(https?:\/\/|ssh:\/\/|git@|file:\/\/)/i.test(trimmed);
+    await importRepoSourceLocation(isGitUrl ? { gitUrl: trimmed } : { localPath: trimmed });
+    setSourceValue("");
+    setSourceOpen(false);
+  }
+
   return (
     <Panel title="Message & Files">
       <div
@@ -132,9 +147,41 @@ export function ChatInputArea({
           }}
         />
       </label>
+      {importRepoSourceLocation && (
+        <button
+          type="button"
+          className="secondary"
+          style={{ marginLeft: "8px" }}
+          disabled={repoImporting || launching}
+          onClick={() => setSourceOpen((open) => !open)}
+        >
+          {sourceOpen ? "Cancel folder/Git" : "Attach folder or Git URL"}
+        </button>
+      )}
+      {sourceOpen && importRepoSourceLocation && (
+        <div className="repo-url-row" style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
+          <input
+            type="text"
+            value={sourceValue}
+            onChange={(event) => setSourceValue(event.target.value)}
+            placeholder="Local folder path (C:/repo) or Git URL (https://github.com/org/repo.git)"
+            aria-label="Local repository path or Git URL"
+            style={{ flex: 1 }}
+            disabled={repoImporting || launching}
+          />
+          <button
+            type="button"
+            disabled={repoImporting || launching || !sourceValue.trim()}
+            onClick={() => void submitWorkspaceLocation()}
+          >
+            {repoImporting ? "Importing..." : "Attach Workspace"}
+          </button>
+        </div>
+      )}
       {repoImport && (
         <p className="muted" style={{ marginTop: "8px" }}>
           Imported project: {repoImport.repository.display_name} · {repoImport.source_stats.bundled_files} files
+          {repoImport.repository.workspace_id ? ` · workspace ${repoImport.repository.workspace_id}` : ""}
           {preferredOfficialType ? ` · ${preferredOfficialType}` : ""}
         </p>
       )}

@@ -11,6 +11,7 @@ interface FileTreePaneProps {
   virtualFiles?: VirtualFileEntry[];
   selectedFilePath?: string | null;
   onSelectFile?: (path: string) => void;
+  modifiedPaths?: string[];
 }
 
 function formatBytes(bytes: number): string {
@@ -31,7 +32,9 @@ export function FileTreePane({
   virtualFiles = [],
   selectedFilePath,
   onSelectFile,
+  modifiedPaths = [],
 }: FileTreePaneProps) {
+  const modifiedSet = new Set(modifiedPaths);
   const useVirtualTree = virtualFiles.length > 1 && Boolean(onSelectFile);
 
   if (!useVirtualTree && artifacts.length === 0) return null;
@@ -64,6 +67,7 @@ export function FileTreePane({
         {useVirtualTree
           ? virtualFiles.map((file) => {
               const isSelected = file.path === selectedFilePath;
+              const isModified = modifiedSet.has(file.path);
               return (
                 <li key={file.path}>
                   <button
@@ -100,6 +104,7 @@ export function FileTreePane({
                     </span>
                     <span style={{ fontSize: '0.75em', color: 'var(--color-text-muted)' }}>
                       {file.lineCount} lines · {formatBytes(file.sizeBytes)}
+                      {isModified ? ' · modified' : ''}
                     </span>
                   </button>
                 </li>

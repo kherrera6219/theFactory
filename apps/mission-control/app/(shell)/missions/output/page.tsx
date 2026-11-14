@@ -27,6 +27,10 @@ function OutputPageContent() {
     allArtifacts,
     virtualFiles,
     sourceFilesByPath,
+    workspaceTree,
+    workspaceDiff,
+    modifiedPaths,
+    loadWorkspaceFile,
     loading,
     error,
   } = useArtifactData(missionId);
@@ -79,8 +83,21 @@ function OutputPageContent() {
 
   const activeVirtualFile =
     virtualFiles.find((f) => f.path === selectedFilePath) ??
+    (modifiedPaths.length > 0
+      ? virtualFiles.find((f) => f.path === modifiedPaths[0])
+      : undefined) ??
     virtualFiles[0] ??
     null;
+
+  const handleSelectVirtualFile = useCallback(
+    (filePath: string) => {
+      setSelectedFilePath(filePath);
+      if (workspaceTree?.workspace_id) {
+        void loadWorkspaceFile(filePath);
+      }
+    },
+    [workspaceTree?.workspace_id, loadWorkspaceFile],
+  );
 
   const originalFileContent = activeVirtualFile
     ? sourceFilesByPath[activeVirtualFile.path] ?? sourceFilesByPath[activeVirtualFile.name] ?? null
@@ -194,7 +211,8 @@ function OutputPageContent() {
             onSelect={setSelectedArtifactId}
             virtualFiles={virtualFiles}
             selectedFilePath={activeVirtualFile?.path ?? null}
-            onSelectFile={setSelectedFilePath}
+            onSelectFile={handleSelectVirtualFile}
+            modifiedPaths={modifiedPaths}
           />
         )}
 
@@ -203,6 +221,7 @@ function OutputPageContent() {
           loading={loading}
           activeFile={activeVirtualFile}
           originalFileContent={originalFileContent}
+          workspaceDiffText={workspaceDiff?.diff ?? null}
         />
 
         <ArtifactMetaPane artifact={activeArtifact} chainTrace={chainTrace} />

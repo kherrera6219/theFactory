@@ -1024,7 +1024,7 @@ export type RepoReviewFileRecord = {
 
 export type RepoImportResponse = {
   repository: {
-    source: "zip";
+    source: "zip" | "local" | "git";
     owner: string;
     repo: string;
     branch: string;
@@ -1036,6 +1036,8 @@ export type RepoImportResponse = {
     archive_sha256: string;
     source_ref: string;
     root_prefix: string;
+    workspace_id?: string | null;
+    base_commit?: string | null;
   };
   files: Array<{
     path: string;
@@ -1066,7 +1068,7 @@ export type RepoReviewResponse = {
   source: "repo-review";
   generated_at: string;
   repository: {
-    source: "zip";
+    source: "zip" | "local" | "git";
     owner: string;
     repo: string;
     branch: string;
@@ -1077,6 +1079,8 @@ export type RepoReviewResponse = {
     display_name: string;
     source_ref: string;
     root_prefix: string;
+    workspace_id?: string | null;
+    base_commit?: string | null;
   };
   mission_type: "analyze" | "update" | "add_feature" | "refactor" | "port";
   requested_target_language: string | null;
@@ -1166,4 +1170,43 @@ export type PodAuditVerdict = {
   verdict: "APPROVED" | "REJECTED" | "WARNING" | string;
   rationale: string;
   audited_at: string;
+};
+
+export type WorkspaceTreeEntry = {
+  path: string;
+  language: string;
+  size_bytes?: number;
+  bytes?: number;
+  estimated_lines: number;
+  modified?: boolean;
+};
+
+export type WorkspaceTreeResponse = {
+  mission_id: string;
+  workspace_id: string | null;
+  base_commit: string | null;
+  head_commit: string | null;
+  branch: string | null;
+  modified_files: string[];
+  files: WorkspaceTreeEntry[];
+};
+
+export type WorkspaceFileResponse = {
+  mission_id: string;
+  workspace_id: string | null;
+  path: string;
+  content: string;
+  baseline_content: string | null;
+  size_bytes: number;
+  modified: boolean;
+};
+
+export type WorkspaceDiffResponse = {
+  mission_id: string;
+  workspace_id: string | null;
+  base_commit: string | null;
+  head_commit: string | null;
+  branch: string | null;
+  modified_files: string[];
+  diff: string;
 };

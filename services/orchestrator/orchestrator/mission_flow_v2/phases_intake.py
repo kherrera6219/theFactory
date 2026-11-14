@@ -361,6 +361,10 @@ async def _prepare_pm_intake(
     metadata["selected_agent_id"] = PM_AGENT_ID
     metadata["agent_id"] = PM_AGENT_ID
 
+    from ..workspace import bind_mission_workspace
+
+    ws = await asyncio.to_thread(bind_mission_workspace, mission_id, metadata, settings=settings)
+
     # Repo ZIP Import Phase 5 guard: a repo-sourced mission must wait for
     # Phase 6 indexing (POST /internal/missions/{mission_id}/repo-import-index)
     # to finish before PM contract generation runs, otherwise the PM Agent
@@ -405,6 +409,11 @@ async def _prepare_pm_intake(
         settings=settings,
     )
     source_code = metadata.get("source_code")
+    if (not isinstance(source_code, str) or not source_code.strip()) and ws is not None:
+        excerpt = await asyncio.to_thread(ws.build_source_bundle_excerpt, max_chars=80_000)
+        if excerpt.strip():
+            metadata["source_code"] = excerpt
+            source_code = excerpt
     if not isinstance(source_code, str) or not source_code.strip():
         source_code = None
     approved_sow = None

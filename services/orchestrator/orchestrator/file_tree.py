@@ -27,14 +27,15 @@ def sanitize_rel_path(path: Any) -> str:
     return cleaned or "generated.txt"
 
 
-def parse_file_tree(text: str) -> list[dict[str, str]]:
+def parse_file_tree(text: str, *, max_files: int = _MAX_FILES) -> list[dict[str, str]]:
     """Parse a ``## FILE path`` bundle into ``[{path, content}, ...]``."""
     source = str(text or "")
     matches = list(FILE_MARKER.finditer(source))
     if not matches:
         return []
     files: list[dict[str, str]] = []
-    for index, match in enumerate(matches[:_MAX_FILES]):
+    limit = _MAX_FILES if max_files is None else max(1, int(max_files))
+    for index, match in enumerate(matches[:limit]):
         path = sanitize_rel_path(match.group(1))
         start = match.end()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
@@ -43,10 +44,15 @@ def parse_file_tree(text: str) -> list[dict[str, str]]:
     return files
 
 
-def serialize_file_tree(files: list[dict[str, str]]) -> str:
+def serialize_file_tree(
+    files: list[dict[str, str]],
+    *,
+    max_files: int = _MAX_FILES,
+) -> str:
     """Render files as a ``## FILE`` bundle for storage and disk splitting."""
     chunks: list[str] = []
-    for item in files[:_MAX_FILES]:
+    limit = _MAX_FILES if max_files is None else max(1, int(max_files))
+    for item in files[:limit]:
         path = sanitize_rel_path(item.get("path"))
         content = str(item.get("content") or "")[:_MAX_CONTENT_CHARS]
         chunks.append(f"## FILE {path}\n{content.rstrip()}\n")

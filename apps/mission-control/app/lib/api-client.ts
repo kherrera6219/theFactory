@@ -24,6 +24,9 @@ import type {
   RepoReviewResponse,
   ReviewApprovalReceipt,
   ReviewApprovalVerificationResult,
+  WorkspaceDiffResponse,
+  WorkspaceFileResponse,
+  WorkspaceTreeResponse,
 } from "./types";
 import type { LlmUsageSummary } from "./types";
 import type {
@@ -694,9 +697,55 @@ export async function importRepoZip(formData: FormData): Promise<RepoImportRespo
   });
 }
 
+export async function importRepoSource(payload: {
+  localPath?: string;
+  gitUrl?: string;
+  ref?: string;
+  displayName?: string;
+  subdirectory?: string;
+  maxFiles?: number;
+}): Promise<RepoImportResponse> {
+  return fetchJson<RepoImportResponse>("/api/repo/import", {
+    method: "POST",
+    timeoutMs: 30_000,
+    body: JSON.stringify({
+      ...(payload.localPath ? { local_path: payload.localPath } : {}),
+      ...(payload.gitUrl ? { git_url: payload.gitUrl } : {}),
+      ...(payload.ref ? { ref: payload.ref, source_ref: payload.ref } : {}),
+      ...(payload.displayName ? { display_name: payload.displayName } : {}),
+      ...(payload.subdirectory ? { subdirectory: payload.subdirectory } : {}),
+      ...(payload.maxFiles !== undefined ? { max_files: payload.maxFiles } : {}),
+    }),
+  });
+}
+
 export async function createRepoZipReview(formData: FormData): Promise<RepoReviewResponse> {
   return fetchFormData<RepoReviewResponse>("/api/repo/review", formData, {
     timeoutMs: 30_000,
+  });
+}
+
+export async function createWorkspaceReview(payload: {
+  workspaceId: string;
+  subdirectory?: string;
+  missionType?: "analyze" | "update" | "add_feature" | "refactor" | "port";
+  description?: string;
+  selectedFiles?: Array<{ path: string; overlay_action: "include" | "reference" }>;
+  sourceRef?: string;
+  displayName?: string;
+}): Promise<RepoReviewResponse> {
+  return fetchJson<RepoReviewResponse>("/api/repo/review", {
+    method: "POST",
+    timeoutMs: 30_000,
+    body: JSON.stringify({
+      workspace_id: payload.workspaceId,
+      subdirectory: payload.subdirectory ?? "/",
+      mission_type: payload.missionType ?? "analyze",
+      description: payload.description ?? "",
+      ...(payload.selectedFiles ? { selected_files: payload.selectedFiles } : {}),
+      ...(payload.sourceRef ? { source_ref: payload.sourceRef } : {}),
+      ...(payload.displayName ? { display_name: payload.displayName } : {}),
+    }),
   });
 }
 
@@ -737,6 +786,41 @@ export async function verifyReviewApproval(payload: {
 export async function getMissionTokenUsage(missionId: string): Promise<LlmUsageSummary | null> {
   try {
     return await fetchJson<LlmUsageSummary>(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`));
+  } catch {
+    return null;
+  }
+}
+
+export async function getMissionWorkspaceTree(missionId: string): Promise<WorkspaceTreeResponse | null> {
+  try {
+    return await fetchJson<WorkspaceTreeResponse>(
+      missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/workspace/tree`),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function getMissionWorkspaceFile(
+  missionId: string,
+  filePath: string,
+): Promise<WorkspaceFileResponse | null> {
+  try {
+    return await fetchJson<WorkspaceFileResponse>(
+      missionApiUrl(
+        `/v1/missions/${encodeURIComponent(missionId)}/workspace/file?path=${encodeURIComponent(filePath)}`,
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function getMissionWorkspaceDiff(missionId: string): Promise<WorkspaceDiffResponse | null> {
+  try {
+    return await fetchJson<WorkspaceDiffResponse>(
+      missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/workspace/diff`),
+    );
   } catch {
     return null;
   }
