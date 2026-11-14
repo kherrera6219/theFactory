@@ -146,16 +146,39 @@ def _fallback_pm_feature_contract(
     mission_type: str,
     requested_target_language: str | None,
     recommendation: dict[str, Any],
+    workspace_aim: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from .normalizers import (
+        _normalize_baseline_policy,
+        _normalize_recommended_target_language,
+        _normalize_slices,
+    )
+
     LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-01-PM", reason="offline").inc()
     language = _clean_text(requested_target_language or "", max_length=32).lower()
+    deliverables = [{"name": "Requested artifact", "artifact_hint": ""}]
+    acceptance_criteria = ["Mission completes without error."]
+    baseline_policy = _normalize_baseline_policy(None, mission_type=mission_type)
+    slices = _normalize_slices(
+        None,
+        mission_type=mission_type,
+        workspace_aim=workspace_aim,
+        deliverables=deliverables,
+        acceptance_criteria=acceptance_criteria,
+    )
+    recommended_target = _normalize_recommended_target_language(
+        None,
+        mission_type=mission_type,
+        requested_target_language=requested_target_language,
+        workspace_aim=workspace_aim,
+    )
     contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(prompt, max_length=120) or "Mission",
         "summary": _clean_text(prompt, max_length=4000, preserve_newlines=True),
         "functional_requirements": [_clean_text(prompt, max_length=1000, preserve_newlines=True) or "Complete mission"],
         "non_functional_requirements": [],
-        "acceptance_criteria": ["Mission completes without error."],
+        "acceptance_criteria": acceptance_criteria,
         "target_languages": [language] if language else [],
         "estimated_complexity": "medium",
         "human_approval_required": str(mission_type).strip().upper()
@@ -165,7 +188,12 @@ def _fallback_pm_feature_contract(
         # ambiguity-pause (intake_status stays "ready" so mission-flow behavior is
         # unchanged; surfacing is the UI's job via the `degraded` flag).
         "out_of_scope": ["Anything not stated in the operator request."],
-        "deliverables": [{"name": "Requested artifact", "artifact_hint": ""}],
+        "deliverables": deliverables,
+        "engagement_type": str(mission_type or "BUILD_NEW").strip().upper(),
+        "baseline_policy": baseline_policy,
+        "slices": slices,
+        "target_versions": {},
+        **({"recommended_target_language": recommended_target} if recommended_target else {}),
         "risk_notes": [
             "Planning model (LLM) was unavailable — this is a deterministic fallback "
             "draft, not a scoped contract. Verify provider config (provider, model, "

@@ -179,6 +179,16 @@ def import_workspace_from_payload(payload: dict[str, Any], *, settings: Any) -> 
     effective_display = str(ws.metadata.get("display_name") or ws.workspace_id)
     effective_ref = str(ws.metadata.get("source_ref") or source_ref or "baseline")
 
+    from .aim_generator import generate_workspace_aim
+    from .workspace_indexer import index_workspace
+
+    index_data = index_workspace(ws, settings=settings)
+    workspace_aim = generate_workspace_aim(
+        ws,
+        index_data=index_data,
+        settings=settings,
+    )
+
     return {
         "repository": {
             "source": source_kind,
@@ -219,9 +229,15 @@ def import_workspace_from_payload(payload: dict[str, Any], *, settings: Any) -> 
             "total_entries": len(all_entries),
             "total_uncompressed_bytes": total_bytes,
         },
+        "index_stats": index_data.get("index_stats") or {},
+        "aim": workspace_aim,
         "logs": [
             f"Initialized git workspace {ws.workspace_id} at baseline {ws.base_commit[:12]}.",
             f"Indexed {len(entries)} files from {subdirectory}.",
+            (
+                f"Built workspace index ({(index_data.get('index_stats') or {}).get('total_chunks', 0)} "
+                f"chunks, primary={workspace_aim.get('primary_language', 'unknown')}) and AIM at baseline."
+            ),
         ],
     }
 

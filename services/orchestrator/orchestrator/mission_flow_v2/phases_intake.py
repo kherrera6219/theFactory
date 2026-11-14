@@ -650,16 +650,29 @@ async def _prepare_pm_intake(
         },
         content_hash_source=feature_contract,
     )
-    if mission_requires_aim(mission_type) and isinstance(metadata.get("source_code"), str):
-        aim = await _pkg().generate_aim(
-            mission_id=mission_id,
-            source_code=str(metadata["source_code"]),
-            prompt=str(mission.prompt or ""),
-            mission_type=mission_type,
-            requested_target_language=mission.requested_target_language,
-            feature_contract=feature_contract,
-            settings=settings,
-        )
+    ws_ref = metadata.get("workspace") if isinstance(metadata.get("workspace"), dict) else {}
+    workspace_id = str(metadata.get("workspace_id") or ws_ref.get("workspace_id") or "").strip() or None
+    if mission_requires_aim(mission_type) and (
+        isinstance(metadata.get("source_code"), str) or workspace_id is not None
+    ):
+        aim_kwargs: dict[str, Any] = {
+            "mission_id": mission_id,
+            "source_code": str(metadata.get("source_code") or ""),
+            "prompt": str(mission.prompt or ""),
+            "mission_type": mission_type,
+            "requested_target_language": mission.requested_target_language,
+            "feature_contract": feature_contract,
+            "settings": settings,
+        }
+        if workspace_id is not None:
+            aim_kwargs["workspace_id"] = workspace_id
+        try:
+            aim = await _pkg().generate_aim(**aim_kwargs)
+        except TypeError as exc:
+            if "workspace_id" not in str(exc):
+                raise
+            aim_kwargs.pop("workspace_id", None)
+            aim = await _pkg().generate_aim(**aim_kwargs)
         metadata["application_intelligence_map"] = aim
         if not _chain_event_exists(metadata, "MISSION_AIM_GENERATED"):
             append_chain_event(

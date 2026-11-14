@@ -310,6 +310,9 @@ def _build_pm_feature_contract_prompt(
     source_code: str | None = None,
     conversation_context: dict[str, Any] | None = None,
     user_intent: str | None = None,
+    workspace_aim: dict[str, Any] | None = None,
+    workspace_chunks: list[dict[str, Any]] | None = None,
+    language_maturity_summary: str | None = None,
 ) -> str:
     safe_prompt = _clean_text(prompt, max_length=12000, preserve_newlines=True)
     safe_user_intent = _clean_text(user_intent or "draft", max_length=32).lower()
@@ -344,6 +347,45 @@ def _build_pm_feature_contract_prompt(
     if source_code:
         source_code_context = f"\n\nAttached Workspace Files & Diagrams:\n{source_code}\n\n"
 
+    aim_context = ""
+    if isinstance(workspace_aim, dict) and workspace_aim:
+        bounded_aim = {
+            k: workspace_aim.get(k)
+            for k in (
+                "workspace_id",
+                "primary_language",
+                "detected_languages",
+                "language_versions",
+                "frameworks",
+                "entrypoints",
+                "test_discovery",
+                "hotspots",
+                "index_stats",
+                "risks",
+            )
+            if workspace_aim.get(k) is not None
+        }
+        aim_context = (
+            "\nWorkspace Application Intelligence Map (AIM):\n"
+            f"{json.dumps(bounded_aim, sort_keys=True)[:12000]}\n\n"
+        )
+
+    chunks_context = ""
+    if isinstance(workspace_chunks, list) and workspace_chunks:
+        chunk_lines = ["Relevant Workspace Code Chunks (retrieved):"]
+        for ch in workspace_chunks[:8]:
+            if isinstance(ch, dict):
+                chunk_lines.append(
+                    f"### {ch.get('path')} ({ch.get('symbol_name')}, "
+                    f"L{ch.get('start_line')}-{ch.get('end_line')})\n"
+                    f"{str(ch.get('text') or '')[:2000]}"
+                )
+        chunks_context = "\n" + "\n\n".join(chunk_lines) + "\n\n"
+
+    maturity_context = ""
+    if language_maturity_summary:
+        maturity_context = f"\n{language_maturity_summary.strip()}\n\n"
+
     conversation_context_text = ""
     if isinstance(conversation_context, dict) and conversation_context:
         conversation_context_text = (
@@ -377,6 +419,7 @@ def _build_pm_feature_contract_prompt(
         f"{docs_context}{style_context}"
         f"Operator request: {safe_prompt}\n"
         f"{conversation_context_text}"
+        f"{aim_context}{chunks_context}{maturity_context}"
         f"{source_code_context}\n"
         "Required JSON keys:\n"
         "{\n"
@@ -394,6 +437,10 @@ def _build_pm_feature_contract_prompt(
         '  "out_of_scope": ["explicitly not in this run"],\n'
         '  "deliverables": [{"name": "artifact name", "artifact_hint": "snake.py"}],\n'
         '  "engagement_type": "BUILD_NEW | PORT | IMPORT_MODERNIZE | DEBUG_REPAIR | ANALYZE_ONLY",\n'
+        '  "baseline_policy": "preserve_existing_behaviour | update_behaviour | greenfield",\n'
+        '  "target_versions": {"runtime": "e.g. python 3.12"},\n'
+        '  "slices": [{"id": "slice-1", "title": "short slice title", "description": "what changes", "files": ["path/to/file.py"], "acceptance_criteria": ["slice check"], "depends_on": []}],\n'
+        '  "recommended_target_language": {"language": "go", "rationale": "maturity rationale", "maturity_tier": "Tier 1"},\n'
         '  "risk_notes": ["material risks or constraints"],\n'
         '  "clarifying_questions": ["specific, answerable questions about missing execution detail (include Recommended default: ...)"],\n'
         '  "clarifying_questions_structured": [\n'
@@ -585,12 +632,14 @@ def _build_codegen_prompt(
             )
 
     imported_source = str(mission_context.get("imported_source_code") or "")
+    context_pack = mission_context.get("context_pack")
+    has_pack_files = isinstance(context_pack, dict) and bool(context_pack.get("target_files"))
     deliverables = (
         (mission_contract.get("deliverables") if isinstance(mission_contract, dict) else None)
         or (feature_contract.get("deliverables") if isinstance(feature_contract, dict) else None)
     )
     deliverable_count = len(deliverables) if isinstance(deliverables, list) else 0
-    wants_tree = bool(imported_source.strip()) or deliverable_count > 1
+    wants_tree = bool(imported_source.strip()) or has_pack_files or deliverable_count > 1
     imported_excerpt = ""
     repair_ctx = mission_context.get("runtime_qc_repair_context")
     repair_block = ""
@@ -623,11 +672,18 @@ def _build_codegen_prompt(
             f"- Stdout: {repair_stdout}\n"
             f"- Previous code:\n{repair_prev}\n\n"
         )
-    if imported_source.strip():
+    context_pack = mission_context.get("context_pack")
+    if isinstance(context_pack, dict) and (
+        context_pack.get("target_files") or context_pack.get("aim_excerpt")
+    ):
+        from ..context_pack import render_context_pack_for_prompt
+
+        imported_excerpt = "\n" + render_context_pack_for_prompt(context_pack)
+    elif imported_source.strip():
         imported_excerpt = (
             "\nImported project source (rewrite these files; do not replace the tree "
             "with one invented file):\n"
-            f"{imported_source[:12_000]}\n"
+            f"{imported_source}\n"
         )
     tree_instruction = (
         "If the mission imported a project or the SOW lists multiple deliverable files, "

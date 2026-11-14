@@ -328,10 +328,15 @@ async def upsert_pod_assignment(
 
 @router.post("/internal/pm/feature-contract")
 async def create_pm_feature_contract(
+    request: Request,
     payload: dict[str, Any],
     _: AuthContext = INTERNAL_AUTH_DEP,
 ) -> dict[str, Any]:
+    from ..aim_generator import generate_workspace_aim, load_workspace_aim
+    from ..language_maturity import format_language_maturity_summary
     from ..llm_delegation.config import current_vault_secrets
+    from ..workspace import MissionWorkspace, WorkspaceError
+    from ..workspace_indexer import index_workspace, load_workspace_index, search_workspace_chunks
 
     prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
     source_code = payload.get("source_code")
@@ -347,6 +352,38 @@ async def create_pm_feature_contract(
     if requested_target_language is not None:
         requested_target_language = str(requested_target_language).strip() or None
 
+    conv_ctx = payload.get("conversation_context")
+    workspace_id = str(
+        payload.get("workspace_id")
+        or (conv_ctx.get("workspace_id") if isinstance(conv_ctx, dict) else "")
+        or ""
+    ).strip()
+    workspace_aim: dict[str, Any] | None = (
+        payload.get("workspace_aim") if isinstance(payload.get("workspace_aim"), dict) else None
+    )
+    workspace_chunks: list[dict[str, Any]] | None = None
+    settings = getattr(request.app.state, "settings", None)
+    if workspace_id:
+        try:
+            ws = MissionWorkspace.open(workspace_id, settings=settings)
+            idx = load_workspace_index(ws) or index_workspace(ws, settings=settings)
+            if workspace_aim is None:
+                workspace_aim = load_workspace_aim(ws) or generate_workspace_aim(
+                    ws,
+                    index_data=idx,
+                    settings=settings,
+                    mission_type=mission_type,
+                )
+            workspace_chunks = search_workspace_chunks(ws, prompt, top_k=8, index_data=idx)
+        except WorkspaceError:
+            workspace_aim = workspace_aim or None
+
+    maturity_summary = (
+        format_language_maturity_summary()
+        if mission_type in {"PORT", "IMPORT_MODERNIZE"} or bool(workspace_aim)
+        else None
+    )
+
     vault = payload.get("vault") or {}
     token_vault = current_vault_secrets.set(vault)
     try:
@@ -357,8 +394,11 @@ async def create_pm_feature_contract(
             depth_mode=depth_mode,
             output_mode=output_mode,
             requested_target_language=requested_target_language,
-            conversation_context=payload.get("conversation_context"),
+            conversation_context=conv_ctx,
             user_intent=str(payload.get("user_intent") or "").strip() or None,
+            workspace_aim=workspace_aim,
+            workspace_chunks=workspace_chunks,
+            language_maturity_summary=maturity_summary,
         )
     finally:
         current_vault_secrets.reset(token_vault)

@@ -535,6 +535,19 @@ def build_mission_charter(
             "source": str(feature_contract.get("source") or "fallback"),
         },
     }
+    if isinstance(feature_contract.get("slices"), list):
+        charter["slices"] = list(feature_contract["slices"])
+    if isinstance(feature_contract.get("baseline_policy"), str) and feature_contract["baseline_policy"].strip():
+        charter["baseline_policy"] = str(feature_contract["baseline_policy"]).strip()
+    if isinstance(feature_contract.get("target_versions"), dict) and feature_contract["target_versions"]:
+        charter["target_versions"] = {
+            str(k): str(v) for k, v in feature_contract["target_versions"].items() if k and v is not None
+        }
+    if (
+        isinstance(feature_contract.get("recommended_target_language"), dict)
+        and feature_contract["recommended_target_language"].get("language")
+    ):
+        charter["recommended_target_language"] = dict(feature_contract["recommended_target_language"])
     return validate_mission_charter_schema(charter)
 
 

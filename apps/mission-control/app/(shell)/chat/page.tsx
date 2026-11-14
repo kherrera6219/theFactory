@@ -556,6 +556,8 @@ export default function ChatPage() {
       try {
         const pmPreview = await createPmFeatureContract({
           prompt: normalized,
+          mission_type: preferredOfficialType ?? (repoImportRef.current ? officialMissionTypeFromIntent(normalized) : undefined),
+          workspace_id: repoImportRef.current?.repository.workspace_id ?? undefined,
           conversation_context: conversationContext,
           user_intent: conversationContext.user_intent,
           source_code: sourceCode || undefined,
@@ -622,6 +624,10 @@ export default function ChatPage() {
                   ? officialMissionTypeFromIntent(normalized)
                   : "BUILD_NEW"),
             ),
+          baselinePolicy: featureContract.baseline_policy,
+          slices: Array.isArray(featureContract.slices) ? featureContract.slices : undefined,
+          targetVersions: featureContract.target_versions,
+          recommendedTargetLanguage: featureContract.recommended_target_language,
           likelyUsd: featureContract.cost_estimate?.likely_usd,
           highUsd: featureContract.cost_estimate?.high_usd,
           capUsd: featureContract.cost_estimate?.cap_usd,

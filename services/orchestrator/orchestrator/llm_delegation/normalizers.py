@@ -57,6 +57,150 @@ def _normalize_deliverables(raw: Any, fallback_requirements: list[str]) -> list[
     ]
 
 
+_BASELINE_POLICIES = frozenset(
+    {"preserve_existing_behaviour", "update_behaviour", "greenfield"}
+)
+_BROWNFIELD_MISSION_TYPES = frozenset(
+    {"IMPORT_MODERNIZE", "PORT", "DEBUG_REPAIR", "SECURITY_HARDEN", "REDUCE_DEPENDENCIES", "ANALYZE_ONLY"}
+)
+
+
+def _default_baseline_policy(mission_type: str | None) -> str:
+    norm = str(mission_type or "").strip().upper()
+    if norm in _BROWNFIELD_MISSION_TYPES:
+        return "preserve_existing_behaviour"
+    return "greenfield"
+
+
+def _normalize_baseline_policy(value: Any, *, mission_type: str | None = None) -> str:
+    candidate = _clean_text(value or "", max_length=48).lower()
+    if candidate in _BASELINE_POLICIES:
+        return candidate
+    return _default_baseline_policy(mission_type)
+
+
+def _normalize_target_versions(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, val in list(raw.items())[:12]:
+        k = _clean_text(key, max_length=64).lower()
+        v = _clean_text(val, max_length=64)
+        if k and v:
+            out[k] = v
+    return out
+
+
+def _normalize_recommended_target_language(
+    raw: Any,
+    *,
+    mission_type: str | None = None,
+    requested_target_language: str | None = None,
+    workspace_aim: dict[str, Any] | None = None,
+) -> dict[str, str] | None:
+    if isinstance(raw, dict) and raw.get("language"):
+        lang = _clean_text(raw.get("language"), max_length=32).lower()
+        if lang:
+            return {
+                "language": lang,
+                "rationale": _clean_text(raw.get("rationale") or "", max_length=400),
+                "maturity_tier": _clean_text(raw.get("maturity_tier") or "", max_length=64),
+            }
+    if str(mission_type or "").strip().upper() != "PORT":
+        return None
+    from ..language_maturity import recommend_port_target_languages
+
+    src_lang = (
+        str(workspace_aim.get("primary_language") or "").strip().lower()
+        if isinstance(workspace_aim, dict)
+        else ""
+    )
+    req_lang = _clean_text(requested_target_language or "", max_length=32).lower()
+    candidates = recommend_port_target_languages(source_language=src_lang, limit=10)
+    chosen = next((c for c in candidates if c["language"] == req_lang), None) if req_lang else None
+    if chosen is None and candidates:
+        chosen = candidates[0]
+    if chosen is None:
+        return None
+    return {
+        "language": str(chosen["language"]),
+        "rationale": (
+            f"Recommended based on Factory maturity matrix ({chosen['maturity_tier']}, "
+            f"tests={chosen['test_runner_support']}, equiv={chosen['behavioural_equivalence']})."
+        ),
+        "maturity_tier": str(chosen["maturity_tier"]),
+    }
+
+
+def _normalize_slices(
+    raw: Any,
+    *,
+    mission_type: str | None = None,
+    workspace_aim: dict[str, Any] | None = None,
+    deliverables: list[dict[str, str]] | None = None,
+    acceptance_criteria: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    slices: list[dict[str, Any]] = []
+    if isinstance(raw, list):
+        for idx, item in enumerate(raw[:20], start=1):
+            if not isinstance(item, dict):
+                continue
+            sid = _clean_text(item.get("id") or f"slice-{idx}", max_length=64) or f"slice-{idx}"
+            title = _clean_text(item.get("title") or sid, max_length=160) or sid
+            files = [
+                _clean_text(f, max_length=240)
+                for f in (item.get("files") or [])[:40]
+                if _clean_text(f, max_length=240)
+            ]
+            depends = [
+                _clean_text(d, max_length=64)
+                for d in (item.get("depends_on") or [])[:12]
+                if _clean_text(d, max_length=64)
+            ]
+            ac = [
+                _clean_text(c, max_length=400)
+                for c in (item.get("acceptance_criteria") or [])[:8]
+                if _clean_text(c, max_length=400)
+            ]
+            slices.append(
+                {
+                    "id": sid,
+                    "title": title,
+                    "description": _clean_text(item.get("description") or "", max_length=500),
+                    "files": files,
+                    "acceptance_criteria": ac,
+                    "depends_on": depends,
+                }
+            )
+    if slices:
+        return slices
+    if str(mission_type or "").strip().upper() not in _BROWNFIELD_MISSION_TYPES and not (
+        isinstance(workspace_aim, dict) and workspace_aim.get("module_map")
+    ):
+        return []
+    module_files: list[str] = []
+    if isinstance(workspace_aim, dict):
+        for mod in (workspace_aim.get("module_map") or [])[:12]:
+            if isinstance(mod, dict) and mod.get("path"):
+                module_files.append(str(mod["path"]))
+    if not module_files and deliverables:
+        module_files = [
+            str(d.get("artifact_hint") or d.get("name"))
+            for d in deliverables[:8]
+            if isinstance(d, dict) and (d.get("artifact_hint") or d.get("name"))
+        ]
+    return [
+        {
+            "id": "slice-1",
+            "title": "Core workspace modernization slice",
+            "description": "Execute baseline-verified modernization across primary module files.",
+            "files": module_files,
+            "acceptance_criteria": list((acceptance_criteria or [])[:4]),
+            "depends_on": [],
+        }
+    ]
+
+
 def _normalize_pm_feature_contract(
     raw: dict[str, Any],
     *,
@@ -67,6 +211,8 @@ def _normalize_pm_feature_contract(
     requested_target_language: str | None,
     conversation_context: dict[str, Any] | None = None,
     user_intent: str | None = None,
+    mission_type: str | None = None,
+    workspace_aim: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     intake_status = _clean_text(raw.get("intake_status", "ready"), max_length=32).lower()
     if intake_status not in {"needs_clarification", "ready"}:
@@ -115,6 +261,30 @@ def _normalize_pm_feature_contract(
     raw_conversational_reply = _clean_text(
         raw.get("conversational_reply", ""), max_length=2000, preserve_newlines=True
     )
+    resolved_engagement = (
+        _clean_text(raw.get("engagement_type", ""), max_length=32).upper()
+        or _clean_text(mission_type or "", max_length=32).upper()
+        or None
+    )
+    deliverables = _normalize_deliverables(raw.get("deliverables"), functional_requirements)
+    slices = _normalize_slices(
+        raw.get("slices"),
+        mission_type=resolved_engagement or mission_type,
+        workspace_aim=workspace_aim,
+        deliverables=deliverables,
+        acceptance_criteria=acceptance_criteria,
+    )
+    baseline_policy = _normalize_baseline_policy(
+        raw.get("baseline_policy"),
+        mission_type=resolved_engagement or mission_type,
+    )
+    target_versions = _normalize_target_versions(raw.get("target_versions"))
+    recommended_target = _normalize_recommended_target_language(
+        raw.get("recommended_target_language"),
+        mission_type=resolved_engagement or mission_type,
+        requested_target_language=requested_target_language,
+        workspace_aim=workspace_aim,
+    )
     contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(raw.get("title", "Mission"), max_length=120) or "Mission",
@@ -138,9 +308,12 @@ def _normalize_pm_feature_contract(
         ),
         "assumptions": _string_list(raw.get("assumptions"), limit=10, max_length=1000),
         "out_of_scope": _string_list(raw.get("out_of_scope"), limit=10, max_length=1000),
-        "deliverables": _normalize_deliverables(raw.get("deliverables"), functional_requirements),
-        "engagement_type": _clean_text(raw.get("engagement_type", ""), max_length=32).upper()
-        or None,
+        "deliverables": deliverables,
+        "engagement_type": resolved_engagement,
+        "baseline_policy": baseline_policy,
+        "slices": slices,
+        "target_versions": target_versions,
+        **({"recommended_target_language": recommended_target} if recommended_target else {}),
         "intake_status": intake_status,
         "source": "llm",
         "llm_route": route,
@@ -248,6 +421,19 @@ def _normalize_mission_contract(
         raw.get("deliverables") or fc.get("deliverables"),
         functional_requirements,
     )
+    slices = _normalize_slices(
+        raw.get("slices") or fc.get("slices"),
+        mission_type=mission_type,
+        deliverables=deliverables,
+        acceptance_criteria=acceptance_criteria,
+    )
+    baseline_policy = _normalize_baseline_policy(
+        raw.get("baseline_policy") or fc.get("baseline_policy"),
+        mission_type=mission_type,
+    )
+    target_versions = _normalize_target_versions(
+        raw.get("target_versions") or fc.get("target_versions")
+    )
 
     return {
         "schema_version": "mission_contract.v1",
@@ -266,6 +452,9 @@ def _normalize_mission_contract(
         "deliverables": deliverables,
         "out_of_scope": out_of_scope,
         "acceptance_criteria": acceptance_criteria,
+        "baseline_policy": baseline_policy,
+        "slices": slices,
+        "target_versions": target_versions,
         "risk_notes": _string_list(raw.get("risk_notes"), limit=8, max_length=1000),
         "source": "llm",
         "llm_route": route,

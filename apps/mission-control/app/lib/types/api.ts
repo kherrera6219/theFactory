@@ -91,6 +91,7 @@ export type BuilderPreviewRequest = {
 export type PmFeatureContractRequest = {
   prompt: string;
   mission_type?: string;
+  workspace_id?: string;
   conversation_context?: Record<string, unknown>;
   user_intent?: "clarify" | "draft" | "finalize_plan" | string;
   [key: string]: unknown;

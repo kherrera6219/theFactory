@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatFactoryCost, formatFactoryTime } from "./sow-display";
+import {
+  formatBaselinePolicy,
+  formatFactoryCost,
+  formatFactoryTime,
+  formatSlicesLines,
+  parseSlicesLines,
+} from "./sow-display";
 
 describe("SOW panel copy", () => {
   it("renders estimate range without file-count duration", () => {
@@ -32,5 +38,18 @@ describe("repo-to-chat handoff", () => {
     );
     expect(officialMissionTypeFromRepoChoice("port")).toBe("PORT");
     expect(officialMissionTypeFromIntent("port this repo to rust")).toBe("PORT");
+  });
+
+  it("formats baseline_policy and round-trips SOW execution slices", () => {
+    expect(formatBaselinePolicy("preserve_existing_behaviour")).toBe("Preserve existing behaviour");
+    const parsed = parseSlicesLines(
+      "slice-1 | Core parser | src/parser.py, test_parser.py\n" +
+        "slice-2 | API layer | src/api.py | deps: slice-1",
+    );
+    expect(parsed).toEqual([
+      { id: "slice-1", title: "Core parser", files: ["src/parser.py", "test_parser.py"] },
+      { id: "slice-2", title: "API layer", files: ["src/api.py"], depends_on: ["slice-1"] },
+    ]);
+    expect(formatSlicesLines(parsed)).toContain("slice-2 | API layer | src/api.py | deps: slice-1");
   });
 });

@@ -149,6 +149,9 @@ async def generate_pm_feature_contract(
     source_code: str | None = None,
     conversation_context: dict[str, Any] | None = None,
     user_intent: str | None = None,
+    workspace_aim: dict[str, Any] | None = None,
+    workspace_chunks: list[dict[str, Any]] | None = None,
+    language_maturity_summary: str | None = None,
 ) -> dict[str, Any]:
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
@@ -181,6 +184,7 @@ async def generate_pm_feature_contract(
             mission_type=mission_type,
             requested_target_language=requested_target_language,
             recommendation=recommendation,
+            workspace_aim=workspace_aim,
         )
         return attach_cost_estimate(
             fallback,
@@ -203,6 +207,9 @@ async def generate_pm_feature_contract(
         source_code=source_code,
         conversation_context=conversation_context,
         user_intent=user_intent,
+        workspace_aim=workspace_aim,
+        workspace_chunks=workspace_chunks,
+        language_maturity_summary=language_maturity_summary,
     )
     # The contract is where an unidentified product name becomes an
     # authoritative premise, so this is the one call that gets to look things
@@ -228,6 +235,7 @@ async def generate_pm_feature_contract(
             mission_type=mission_type,
             requested_target_language=requested_target_language,
             recommendation=recommendation,
+            workspace_aim=workspace_aim,
         )
         return attach_cost_estimate(
             fallback,
@@ -249,6 +257,8 @@ async def generate_pm_feature_contract(
         requested_target_language=requested_target_language,
         conversation_context=conversation_context,
         user_intent=user_intent,
+        mission_type=mission_type,
+        workspace_aim=workspace_aim,
     )
     _attach_grounding_provenance(normalized, parsed)
     if str(user_intent or "").strip().lower() == "finalize_plan":

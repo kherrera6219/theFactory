@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 MAX_WORKSPACE_ENTRIES = 10_000
 MAX_WORKSPACE_UNCOMPRESSED_BYTES = 250_000_000
 WORKSPACE_META_FILENAME = ".thefactory_workspace.json"
+WORKSPACE_INTERNAL_DIR = ".thefactory"
 DEFAULT_SUBDIRECTORY = "/"
 
 _SKIP_DIR_NAMES = frozenset({".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".venv", "venv"})
@@ -613,7 +614,11 @@ class MissionWorkspace:
         total_bytes = 0
         for root_str, dirs, files in os.walk(src_resolved, followlinks=False):
             dirs[:] = sorted(
-                d for d in dirs if d not in _SKIP_DIR_NAMES and not (Path(root_str) / d).is_symlink()
+                d
+                for d in dirs
+                if d not in _SKIP_DIR_NAMES
+                and d != WORKSPACE_INTERNAL_DIR
+                and not (Path(root_str) / d).is_symlink()
             )
             rel_dir = Path(root_str).relative_to(src_resolved)
             for filename in sorted(files):
@@ -660,10 +665,16 @@ class MissionWorkspace:
         exclude_path = ws_dir / ".git" / "info" / "exclude"
         exclude_path.parent.mkdir(parents=True, exist_ok=True)
         existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
-        if WORKSPACE_META_FILENAME not in existing.splitlines():
+        lines = existing.splitlines()
+        missing = [
+            entry
+            for entry in (WORKSPACE_META_FILENAME, f"{WORKSPACE_INTERNAL_DIR}/")
+            if entry not in lines
+        ]
+        if missing:
             suffix = "\n" if existing and not existing.endswith("\n") else ""
             exclude_path.write_text(
-                f"{existing}{suffix}{WORKSPACE_META_FILENAME}\n",
+                f"{existing}{suffix}" + "\n".join(missing) + "\n",
                 encoding="utf-8",
             )
 
@@ -746,7 +757,12 @@ class MissionWorkspace:
 
         records: list[dict[str, Any]] = []
         for rel_posix in sorted(set(raw_paths)):
-            if rel_posix == WORKSPACE_META_FILENAME or rel_posix.startswith(".git/"):
+            if (
+                rel_posix == WORKSPACE_META_FILENAME
+                or rel_posix.startswith(".git/")
+                or rel_posix == WORKSPACE_INTERNAL_DIR
+                or rel_posix.startswith(f"{WORKSPACE_INTERNAL_DIR}/")
+            ):
                 continue
             if sub_prefix and not (
                 rel_posix == sub_prefix or rel_posix.startswith(f"{sub_prefix}/")

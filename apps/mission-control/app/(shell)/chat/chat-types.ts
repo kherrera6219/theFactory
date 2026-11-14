@@ -9,6 +9,23 @@ export type ChatMessage = {
   ts: string;
 };
 
+export type BaselinePolicy = "preserve_existing_behaviour" | "update_behaviour" | "greenfield";
+
+export type SowSlice = {
+  id: string;
+  title: string;
+  description?: string;
+  files: string[];
+  acceptance_criteria?: string[];
+  depends_on?: string[];
+};
+
+export type RecommendedTargetLanguage = {
+  language: string;
+  rationale?: string;
+  maturity_tier?: string;
+};
+
 export type DisplayFeatureContract = {
   title: string;
   languages: string;
@@ -22,6 +39,10 @@ export type DisplayFeatureContract = {
   functionalRequirements?: string[];
   nonFunctionalRequirements?: string[];
   engagementType: string;
+  baselinePolicy?: BaselinePolicy;
+  slices?: SowSlice[];
+  targetVersions?: Record<string, string>;
+  recommendedTargetLanguage?: RecommendedTargetLanguage;
   likelyUsd?: number | null;
   highUsd?: number | null;
   capUsd?: number | null;

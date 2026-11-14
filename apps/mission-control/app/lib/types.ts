@@ -148,6 +148,21 @@ export type FeatureContract = {
   out_of_scope?: string[];
   deliverables?: Array<string | { name: string; artifact_hint?: string }>;
   engagement_type?: string;
+  baseline_policy?: "preserve_existing_behaviour" | "update_behaviour" | "greenfield";
+  slices?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    files: string[];
+    acceptance_criteria?: string[];
+    depends_on?: string[];
+  }>;
+  target_versions?: Record<string, string>;
+  recommended_target_language?: {
+    language: string;
+    rationale?: string;
+    maturity_tier?: string;
+  };
   cost_estimate?: {
     likely_usd?: number | null;
     high_usd?: number | null;

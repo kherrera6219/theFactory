@@ -117,7 +117,10 @@ test:
 		--module-threshold services/orchestrator/orchestrator/workspace.py=80 \
 		--module-threshold services/orchestrator/orchestrator/agent_harness.py=80 \
 		--module-threshold services/orchestrator/orchestrator/agent_tools.py=80 \
-		--module-threshold services/orchestrator/orchestrator/dependency_provisioner.py=80
+		--module-threshold services/orchestrator/orchestrator/dependency_provisioner.py=80 \
+		--module-threshold services/orchestrator/orchestrator/workspace_indexer.py=80 \
+		--module-threshold services/orchestrator/orchestrator/context_pack.py=80 \
+		--module-threshold services/orchestrator/orchestrator/language_maturity.py=80
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test

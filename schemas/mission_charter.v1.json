@@ -119,14 +119,28 @@
     },
     "risk_level": {
       "type": "string",
-      "enum": ["low", "medium", "high", "enterprise"],
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "enterprise"
+      ],
       "description": "Operator-assessed risk level for this mission."
     },
     "required_agents": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "Agent IDs that must be activated for this mission.",
-      "examples": [["AGENT-01-PM", "AGENT-02-CEO", "AGENT-05-SECURITY"]]
+      "examples": [
+        [
+          "AGENT-01-PM",
+          "AGENT-02-CEO",
+          "AGENT-05-SECURITY"
+        ]
+      ]
     },
     "provider_routing_policy": {
       "type": "string",
@@ -164,7 +178,10 @@
     },
     "expected_artifacts": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "Artifact types this mission is expected to produce.",
       "examples": [
         [
@@ -188,7 +205,10 @@
     },
     "success_criteria": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "Acceptance criteria that determine mission success."
     },
     "definition_of_done": {
@@ -196,17 +216,83 @@
       "description": "Execution gates and approval requirements for this mission."
     },
     "approved_at": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "format": "date-time",
       "description": "ISO 8601 timestamp when this charter was approved by an operator. Null until approved."
     },
     "approved_by": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Operator identifier who approved this charter. Null until approved."
     },
     "notes": {
       "type": "string",
       "description": "Optional operator notes captured during charter intake."
+    },
+    "slices": {
+      "type": "array",
+      "description": "Ordered vertical execution slices proposed in the SOW.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "files"
+        ]
+      }
+    },
+    "baseline_policy": {
+      "type": "string",
+      "enum": [
+        "preserve_existing_behaviour",
+        "update_behaviour",
+        "greenfield"
+      ],
+      "description": "Behaviour preservation policy for brownfield/PORT missions."
+    },
+    "target_versions": {
+      "type": "object",
+      "description": "Requested target language/runtime/framework versions."
+    },
+    "recommended_target_language": {
+      "type": "object",
+      "description": "PM target language recommendation grounded in the Factory maturity matrix."
     }
   }
 }

@@ -568,14 +568,44 @@ async def _prepare_specialist_plan(
             _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
         source_bundle = metadata.get("source_code")
         if isinstance(source_bundle, str) and source_bundle.strip():
-            _codegen_context["imported_source_code"] = source_bundle[:80_000]
+            _codegen_context["imported_source_code"] = source_bundle
         aim = metadata.get("application_intelligence_map")
         if isinstance(aim, dict) and aim:
             _codegen_context["application_intelligence_map"] = {
                 key: aim.get(key)
-                for key in ("languages", "entrypoints", "file_count", "summary")
+                for key in (
+                    "workspace_id",
+                    "languages",
+                    "detected_languages",
+                    "primary_language",
+                    "frameworks",
+                    "entrypoints",
+                    "test_discovery",
+                    "file_count",
+                    "summary",
+                    "repository_summary",
+                )
                 if key in aim
             }
+
+        from ..context_pack import build_specialist_context_pack
+        from ..workspace import workspace_from_mission_metadata
+
+        bound_ws = workspace_from_mission_metadata(metadata, settings=settings)
+        active_slice = (
+            metadata.get("active_slice")
+            if isinstance(metadata.get("active_slice"), dict)
+            else None
+        )
+        if bound_ws is not None or (isinstance(source_bundle, str) and source_bundle.strip()):
+            _codegen_context["context_pack"] = await asyncio.to_thread(
+                build_specialist_context_pack,
+                ws=bound_ws,
+                source_code=str(source_bundle or ""),
+                slice_spec=active_slice,
+                aim=aim if isinstance(aim, dict) else None,
+                query=str(getattr(mission, "prompt", "") or getattr(mission, "title", "") or ""),
+            )
 
         _target_lang = (
             str(metadata.get("port_target_language") or "").strip()

@@ -27,6 +27,7 @@ MAX_AIM_FILES = 100
 MAX_FILE_CHARS = 200_000
 MAX_SOURCE_CHARS = 2_000_000
 MAX_DETECTED_IMPORTS = 1_000
+WORKSPACE_AIM_FILENAME = "aim.json"
 
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 _LANGUAGE_BY_SUFFIX = {
@@ -98,9 +99,9 @@ async def generate_aim(
     requested_target_language: str | None,
     feature_contract: dict[str, Any],
     settings: Any,
+    workspace_id: str | None = None,
 ) -> dict[str, Any]:
     """Generate a bounded, source-safe Application Intelligence Map."""
-    del settings
     from .llm_delegation import (
         _call_with_recommendation,
         _ceo_recommendation,
@@ -109,10 +110,28 @@ async def generate_aim(
     )
 
     generated_at = datetime.now(UTC).isoformat()
-    extraction_summary = _extract_all_languages(
-        source_code=source_code,
-        primary_language=requested_target_language,
-    )
+    workspace_aim: dict[str, Any] | None = None
+    if workspace_id:
+        try:
+            from .workspace import MissionWorkspace, WorkspaceError
+
+            ws = MissionWorkspace.open(workspace_id, settings=settings)
+            workspace_aim = load_workspace_aim(ws) or generate_workspace_aim(
+                ws,
+                settings=settings,
+                mission_id=mission_id,
+                mission_type=mission_type,
+            )
+        except WorkspaceError:
+            workspace_aim = None
+
+    if isinstance(workspace_aim, dict) and isinstance(workspace_aim.get("extraction_summary"), dict):
+        extraction_summary = dict(workspace_aim["extraction_summary"])
+    else:
+        extraction_summary = _extract_all_languages(
+            source_code=source_code,
+            primary_language=requested_target_language,
+        )
     recommendation = _ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
     model = str(recommendation.get("model", "gemini-4-argon")).strip()
@@ -166,7 +185,7 @@ async def generate_aim(
             call_context="application intelligence map generation",
         )
 
-    return _normalize_aim(
+    aim = _normalize_aim(
         parsed=parsed if isinstance(parsed, dict) else None,
         mission_id=mission_id,
         mission_type=mission_type,
@@ -179,6 +198,9 @@ async def generate_aim(
         model_provider=resolved_provider,
         model=resolved_model,
     )
+    if isinstance(workspace_aim, dict):
+        aim = _merge_workspace_aim(aim, workspace_aim)
+    return aim
 
 
 def _extract_all_languages(*, source_code: str, primary_language: str | None) -> dict[str, Any]:
@@ -488,3 +510,226 @@ def _complexity(value: Any) -> str:
     if candidate in {"low", "medium", "high", "very_high"}:
         return candidate
     return "medium"
+
+
+def _workspace_aim_path(ws: Any) -> Path:
+    from .workspace import WORKSPACE_INTERNAL_DIR
+
+    return Path(ws.workspace_dir) / WORKSPACE_INTERNAL_DIR / WORKSPACE_AIM_FILENAME
+
+
+def load_workspace_aim(ws: Any) -> dict[str, Any] | None:
+    """Load persisted ``.thefactory/aim.json`` when its ``base_commit`` matches *ws*."""
+    path = _workspace_aim_path(ws)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("workspace_id") != getattr(ws, "workspace_id", None):
+        return None
+    return data
+
+
+def _build_module_map(
+    file_entries: list[dict[str, Any]],
+    symbol_graph: dict[str, Any],
+) -> list[dict[str, Any]]:
+    symbols_by_path: dict[str, list[str]] = {}
+    for sym in symbol_graph.get("symbols") or []:
+        if isinstance(sym, dict) and sym.get("path") and sym.get("name"):
+            symbols_by_path.setdefault(str(sym["path"]), []).append(str(sym["name"]))
+    importers = symbol_graph.get("importers_by_path") or {}
+    imports_by_path = symbol_graph.get("imports_by_path") or {}
+    modules: list[dict[str, Any]] = []
+    for entry in file_entries:
+        rel = str(entry.get("path") or "")
+        modules.append(
+            {
+                "path": rel,
+                "language": entry.get("language"),
+                "projection_method": entry.get("projection_method"),
+                "symbols": symbols_by_path.get(rel, [])[:25],
+                "imports": list(imports_by_path.get(rel) or []),
+                "imported_by": list(importers.get(rel) or []),
+                "size_bytes": entry.get("size_bytes", 0),
+                "estimated_lines": entry.get("estimated_lines", 0),
+            }
+        )
+    return modules
+
+
+def generate_workspace_aim(
+    ws: Any,
+    *,
+    index_data: dict[str, Any] | None = None,
+    settings: Any = None,
+    mission_id: str | None = None,
+    mission_type: str = "ANALYZE_ONLY",
+) -> dict[str, Any]:
+    """Generate and persist a deterministic full-repo AIM keyed by ``workspace_id`` at import time."""
+    from .workspace import WORKSPACE_INTERNAL_DIR
+    from .workspace_indexer import index_workspace, load_workspace_index
+
+    idx = (
+        index_data
+        if isinstance(index_data, dict)
+        else (load_workspace_index(ws) or index_workspace(ws, settings=settings))
+    )
+    files = list(idx.get("files") or [])
+    symbol_graph = idx.get("symbol_graph") if isinstance(idx.get("symbol_graph"), dict) else {}
+    test_discovery = (
+        idx.get("test_discovery") if isinstance(idx.get("test_discovery"), dict) else {}
+    )
+    deps_inventory = list(idx.get("dependency_inventory") or [])
+    detected_languages = list(test_discovery.get("detected_languages") or [])
+    if not detected_languages:
+        detected_languages = sorted(
+            {
+                str(f.get("language"))
+                for f in files
+                if f.get("language") in _SUPPORTED_EXTRACTOR_LANGUAGES
+            }
+        )
+    primary_language = str(
+        test_discovery.get("primary_language")
+        or (detected_languages[0] if detected_languages else "unknown")
+    )
+    total_lines = sum(int(f.get("estimated_lines") or 0) for f in files)
+    symbols = list(symbol_graph.get("symbols") or [])
+    total_functions = sum(1 for s in symbols if isinstance(s, dict) and s.get("kind") in {"function", "method"})
+    total_classes = sum(1 for s in symbols if isinstance(s, dict) and s.get("kind") == "class")
+    flagged_deps = [d for d in deps_inventory if isinstance(d, dict) and d.get("risk_flags")]
+
+    risks = [
+        f"Dependency {d['name']} ({d.get('version', 'latest')}) flagged: {', '.join(d['risk_flags'])}"
+        for d in flagged_deps[:8]
+    ]
+    if not test_discovery.get("has_tests"):
+        risks.append("No executable test suite detected in imported workspace.")
+    for warn in idx.get("manifest_warnings") or []:
+        risks.append(str(warn))
+
+    complexity = "low"
+    if len(files) >= 30 or total_lines >= 4000:
+        complexity = "very_high"
+    elif len(files) >= 12 or total_lines >= 1200:
+        complexity = "high"
+    elif len(files) >= 4 or total_lines >= 300:
+        complexity = "medium"
+
+    extraction_summary = {
+        "schema_version": "aim_extraction.v1",
+        "files_seen": len(files),
+        "files_analyzed": len(files),
+        "truncated": False,
+        "detected_languages": detected_languages,
+        "primary_language": primary_language,
+        "total_functions": total_functions,
+        "total_classes": total_classes,
+        "total_concepts": len(symbols),
+        "domain_counts": {},
+        "detected_imports": [
+            str(d.get("name"))
+            for d in deps_inventory
+            if isinstance(d, dict) and d.get("name")
+        ][:MAX_DETECTED_IMPORTS],
+        "projection_methods": symbol_graph.get("projection_methods") or {},
+    }
+
+    frameworks = list(test_discovery.get("frameworks") or [])
+    aim_payload: dict[str, Any] = {
+        "schema_version": "aim.v1",
+        "aim_id": f"aim-ws-{ws.workspace_id}",
+        "mission_id": mission_id or f"workspace-{ws.workspace_id}",
+        "workspace_id": ws.workspace_id,
+        "base_commit": ws.base_commit,
+        "mission_type": str(mission_type or "ANALYZE_ONLY").strip().upper(),
+        "generated_at": datetime.now(UTC).isoformat(),
+        "source": "workspace_index",
+        "llm_route": "deterministic_workspace_index",
+        "model_provider": None,
+        "model": None,
+        "repository_summary": (
+            f"Workspace {ws.workspace_id} indexed {len(files)} file(s) ({total_lines} lines) "
+            f"in {', '.join(detected_languages) or primary_language}"
+            + (f" ({', '.join(frameworks)})" if frameworks else "")
+            + "."
+        ),
+        "detected_languages": detected_languages,
+        "primary_language": primary_language,
+        "language_versions": dict(test_discovery.get("language_versions") or {}),
+        "frameworks": frameworks,
+        "source_framework": test_discovery.get("source_framework"),
+        "entrypoints": list(test_discovery.get("entrypoints") or []),
+        "module_map": _build_module_map(files, symbol_graph),
+        "dependency_inventory": deps_inventory,
+        "detected_dependencies": [
+            str(d.get("name")) for d in deps_inventory if isinstance(d, dict) and d.get("name")
+        ][:50],
+        "test_discovery": test_discovery,
+        "test_coverage_present": bool(test_discovery.get("has_tests")),
+        "hotspots": list(symbol_graph.get("hotspots") or []),
+        "symbol_graph_summary": {
+            "total_symbols": len(symbols),
+            "total_import_edges": len(symbol_graph.get("import_edges") or []),
+            "total_call_edges": len(symbol_graph.get("call_edges") or []),
+            "projection_methods": symbol_graph.get("projection_methods") or {},
+        },
+        "index_stats": idx.get("index_stats") or {},
+        "total_functions": total_functions,
+        "total_classes": total_classes,
+        "total_concepts": len(symbols),
+        "domain_distribution": {},
+        "complexity_assessment": complexity,
+        "key_patterns": frameworks[:8],
+        "risks": risks[:12],
+        "risk_flags": (
+            (["dependency"] if flagged_deps else [])
+            + (["testing"] if not test_discovery.get("has_tests") else [])
+        ),
+        "human_approval_recommended": True,
+        "recommended_approach": (
+            f"Incremental slice execution with baseline preservation ({test_discovery.get('test_command') or 'characterisation tests'})."
+        ),
+        "recommended_mission_type": str(mission_type or "IMPORT_MODERNIZE").strip().upper(),
+        "extraction_summary": extraction_summary,
+    }
+
+    internal_dir = Path(ws.workspace_dir) / WORKSPACE_INTERNAL_DIR
+    internal_dir.mkdir(parents=True, exist_ok=True)
+    ws._write_git_exclude(ws.workspace_dir)
+    _workspace_aim_path(ws).write_text(
+        json.dumps(aim_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return aim_payload
+
+
+def _merge_workspace_aim(aim: dict[str, Any], workspace_aim: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(aim)
+    for key in (
+        "workspace_id",
+        "base_commit",
+        "language_versions",
+        "frameworks",
+        "source_framework",
+        "entrypoints",
+        "module_map",
+        "dependency_inventory",
+        "test_discovery",
+        "test_coverage_present",
+        "hotspots",
+        "symbol_graph_summary",
+        "index_stats",
+    ):
+        if key in workspace_aim:
+            merged[key] = workspace_aim[key]
+    if not merged.get("detected_languages") and workspace_aim.get("detected_languages"):
+        merged["detected_languages"] = list(workspace_aim["detected_languages"])
+    if not merged.get("primary_language") and workspace_aim.get("primary_language"):
+        merged["primary_language"] = workspace_aim["primary_language"]
+    return merged

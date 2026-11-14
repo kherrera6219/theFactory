@@ -5,7 +5,8 @@ import { Panel } from "../../../components/panel";
 import { EmptyState, SystemMessage } from "../../../components/status";
 import { sanitizeUserText } from "../../../lib/security";
 import { contractSourceLabel, isDegradedContract } from "../chat-helpers";
-import type { ContinuationContext, DisplayFeatureContract } from "../chat-types";
+import type { BaselinePolicy, ContinuationContext, DisplayFeatureContract } from "../chat-types";
+import { formatBaselinePolicy, formatSlicesLines, parseSlicesLines } from "../sow-display";
 
 export interface ChatSowSectionProps {
   contract: DisplayFeatureContract | null;
@@ -33,6 +34,8 @@ export function ChatSowSection({
   const [editDeliverables, setEditDeliverables] = useState("");
   const [editOutOfScope, setEditOutOfScope] = useState("");
   const [editAssumptions, setEditAssumptions] = useState("");
+  const [editBaselinePolicy, setEditBaselinePolicy] = useState<BaselinePolicy>("preserve_existing_behaviour");
+  const [editSlicesText, setEditSlicesText] = useState("");
 
   if (!contract && !hasClarificationPrompt) {
     return (
@@ -153,6 +156,54 @@ export function ChatSowSection({
                   </dd>
                 </div>
               )}
+              {contract.baselinePolicy && (
+                <div>
+                  <dt>Baseline Policy</dt>
+                  <dd>{formatBaselinePolicy(contract.baselinePolicy)}</dd>
+                </div>
+              )}
+              {contract.recommendedTargetLanguage?.language && (
+                <div>
+                  <dt>Recommended Target</dt>
+                  <dd>
+                    {contract.recommendedTargetLanguage.language}
+                    {contract.recommendedTargetLanguage.maturity_tier
+                      ? ` (${contract.recommendedTargetLanguage.maturity_tier})`
+                      : ""}
+                    {contract.recommendedTargetLanguage.rationale
+                      ? ` — ${contract.recommendedTargetLanguage.rationale}`
+                      : ""}
+                  </dd>
+                </div>
+              )}
+              {contract.targetVersions && Object.keys(contract.targetVersions).length > 0 && (
+                <div>
+                  <dt>Target Versions</dt>
+                  <dd>
+                    {Object.entries(contract.targetVersions)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(", ")}
+                  </dd>
+                </div>
+              )}
+              {contract.slices && contract.slices.length > 0 && (
+                <div>
+                  <dt>Execution Slices ({contract.slices.length})</dt>
+                  <dd style={{ fontFamily: "inherit" }}>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "1.2rem" }}>
+                      {contract.slices.map((slice) => (
+                        <li key={slice.id}>
+                          <strong>{slice.id}</strong>: {slice.title}
+                          {slice.files.length > 0 ? ` [${slice.files.join(", ")}]` : ""}
+                          {slice.depends_on && slice.depends_on.length > 0
+                            ? ` (after: ${slice.depends_on.join(", ")})`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Factory estimate</dt>
                 <dd>
@@ -194,6 +245,8 @@ export function ChatSowSection({
                   setEditDeliverables((contract.deliverables ?? []).join("\n"));
                   setEditOutOfScope((contract.outOfScope ?? []).join("\n"));
                   setEditAssumptions((contract.assumptions ?? []).join("\n"));
+                  setEditBaselinePolicy(contract.baselinePolicy ?? "preserve_existing_behaviour");
+                  setEditSlicesText(formatSlicesLines(contract.slices));
                   setEditingContract(true);
                 }}
               >
@@ -249,6 +302,7 @@ export function ChatSowSection({
                 const nextDeliverables = parseLines(editDeliverables);
                 const nextOutOfScope = parseLines(editOutOfScope);
                 const nextAssumptions = parseLines(editAssumptions);
+                const nextSlices = parseSlicesLines(editSlicesText);
 
                 setContract((c) => {
                   if (!c) return c;
@@ -261,6 +315,8 @@ export function ChatSowSection({
                     nextRaw.deliverables = nextDeliverables.map((name) => ({ name }));
                     nextRaw.out_of_scope = nextOutOfScope;
                     nextRaw.assumptions = nextAssumptions;
+                    nextRaw.baseline_policy = editBaselinePolicy;
+                    nextRaw.slices = nextSlices;
                   }
                   return {
                     ...c,
@@ -272,6 +328,8 @@ export function ChatSowSection({
                     deliverables: nextDeliverables,
                     outOfScope: nextOutOfScope,
                     assumptions: nextAssumptions,
+                    baselinePolicy: editBaselinePolicy,
+                    slices: nextSlices,
                     rawContract: nextRaw,
                   };
                 });
@@ -386,6 +444,37 @@ export function ChatSowSection({
                   value={editAssumptions}
                   onChange={(e) => setEditAssumptions(e.target.value)}
                   placeholder="One assumption per line…"
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-baseline-policy" className="contract-edit-label">
+                  Baseline Policy
+                </label>
+                <select
+                  id="modal-contract-baseline-policy"
+                  className="contract-edit-input"
+                  value={editBaselinePolicy}
+                  onChange={(e) => setEditBaselinePolicy(e.target.value as BaselinePolicy)}
+                >
+                  <option value="preserve_existing_behaviour">Preserve existing behaviour</option>
+                  <option value="update_behaviour">Update behaviour</option>
+                  <option value="greenfield">Greenfield</option>
+                </select>
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-slices" className="contract-edit-label">
+                  Execution Slices
+                  <span className="contract-edit-label-hint">
+                    Format per line: slice-id | title | file1.py, file2.py | deps: slice-0
+                  </span>
+                </label>
+                <textarea
+                  id="modal-contract-slices"
+                  className="contract-edit-textarea"
+                  rows={4}
+                  value={editSlicesText}
+                  onChange={(e) => setEditSlicesText(e.target.value)}
+                  placeholder="slice-1 | Core parser | src/parser.py, tests/test_parser.py"
                 />
               </div>
               <div className="contract-edit-modal-footer">

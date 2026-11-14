@@ -252,6 +252,50 @@
       "type": "object",
       "description": "Freeform metadata for operator tagging, CI correlation, or audit correlation.",
       "additionalProperties": { "type": "string" }
+    },
+    "slices": {
+      "type": "array",
+      "description": "Ordered vertical execution slices proposed in the SOW for brownfield/PORT work.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "files": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["id", "title", "files"]
+      }
+    },
+    "baseline_policy": {
+      "type": "string",
+      "description": "Whether existing workspace behaviour must be preserved or updated.",
+      "enum": ["preserve_existing_behaviour", "update_behaviour", "greenfield"]
+    },
+    "target_versions": {
+      "type": "object",
+      "description": "Requested target language/runtime/framework versions.",
+      "additionalProperties": { "type": "string" }
+    },
+    "recommended_target_language": {
+      "type": "object",
+      "description": "PM target language recommendation grounded in the Factory maturity matrix.",
+      "properties": {
+        "language": { "type": "string" },
+        "rationale": { "type": "string" },
+        "maturity_tier": { "type": "string" }
+      }
     }
   },
   "additionalProperties": false,
