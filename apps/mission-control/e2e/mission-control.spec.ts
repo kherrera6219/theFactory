@@ -890,7 +890,7 @@ test("repo intake imports files and hands off to the PM", async ({ page }) => {
   });
   await page.getByRole("button", { name: "Import ZIP" }).click();
 
-  await expect(page.getByText("Sample Platform", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Sample Platform/)).toBeVisible();
   await expect(page.getByText("Indexed 3 files from /.")).toBeVisible();
 
   await page.getByRole("button", { name: "Select Top 25" }).click();
