@@ -969,14 +969,22 @@ async def livez() -> dict[str, bool]:
 
 
 def _sanitize_provision_workspace_dir(raw_dir: str) -> Path:
-    allowed_roots = [os.path.abspath(tempfile.gettempdir())]
+    base_tmp = os.path.abspath(tempfile.gettempdir())
     configured_root = os.getenv("WORKSPACE_ROOT", "").strip()
-    if configured_root:
-        allowed_roots.append(os.path.abspath(configured_root))
+    base_ws = os.path.abspath(configured_root) if configured_root else base_tmp
     candidate = os.path.normpath(os.path.abspath(str(raw_dir)))
-    for root_abs in allowed_roots:
-        if candidate == root_abs or candidate.startswith(root_abs + os.sep):
-            return Path(candidate)
+    if candidate.startswith(base_ws + os.sep):
+        rel = os.path.relpath(candidate, base_ws)
+        rebuilt = os.path.normpath(os.path.join(base_ws, rel))
+        if not rebuilt.startswith(base_ws + os.sep):
+            raise HTTPException(status_code=403, detail="workspace_dir escapes WORKSPACE_ROOT")
+        return Path(rebuilt)
+    if candidate.startswith(base_tmp + os.sep):
+        rel = os.path.relpath(candidate, base_tmp)
+        rebuilt = os.path.normpath(os.path.join(base_tmp, rel))
+        if not rebuilt.startswith(base_tmp + os.sep):
+            raise HTTPException(status_code=403, detail="workspace_dir escapes tempdir")
+        return Path(rebuilt)
     raise HTTPException(
         status_code=403,
         detail="workspace_dir must reside under WORKSPACE_ROOT or tempdir",
@@ -1015,7 +1023,7 @@ async def provision_endpoint(
             language=safe_lang,
             data_classification=payload.data_classification,
             declared_dependencies=safe_deps,
-            execute_fetch=payload.execute_fetch,
+            execute_fetch=False,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

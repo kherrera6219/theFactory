@@ -14,16 +14,25 @@ function FileChipPreview({ file }: { file: File }) {
   useEffect(() => {
     if (!isRasterImageFile(file)) return;
 
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result.startsWith("data:image/")) {
+        setPreviewUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
 
     return () => {
-      URL.revokeObjectURL(url);
+      reader.abort();
     };
   }, [file]);
 
   const sizeKb = Math.max(1, Math.round(file.size / 1024));
   const label = safeFileName(file);
+  const safeImageSrc =
+    previewUrl && /^data:image\/(png|jpeg|jpg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$/.test(previewUrl)
+      ? previewUrl
+      : null;
 
   return (
     <li
@@ -42,9 +51,9 @@ function FileChipPreview({ file }: { file: File }) {
       <span style={{ fontSize: "12px", fontWeight: "bold" }}>
         {label} ({sizeKb}KB)
       </span>
-      {previewUrl && previewUrl.startsWith("blob:") && (
+      {safeImageSrc && (
         <img
-          src={previewUrl}
+          src={safeImageSrc}
           alt={label}
           style={{
             maxWidth: "200px",
