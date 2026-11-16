@@ -453,9 +453,20 @@ _IMAGE_PULL_TIMEOUT_SECONDS = float(os.getenv("SANDBOX_IMAGE_PULL_TIMEOUT_SECOND
 
 
 async def _docker_quiet(docker_bin: str, *args: str, timeout: float) -> tuple[int, str]:
+    bin_key = Path(str(docker_bin)).name.lower()
+    safe_bin_map = {"docker": "docker", "docker.exe": "docker.exe", "podman": "podman"}
+    safe_bin = safe_bin_map.get(bin_key)
+    if safe_bin is None:
+        raise ValueError(f"Disallowed container runtime binary: {docker_bin!r}")
+    safe_args: list[str] = []
+    for arg in args:
+        text = str(arg)
+        if "\x00" in text or "\n" in text or "\r" in text:
+            raise ValueError("Disallowed control character in container runtime argument")
+        safe_args.append(text)
     proc = await asyncio.create_subprocess_exec(
-        str(docker_bin),
-        *args,
+        safe_bin,
+        *safe_args,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )

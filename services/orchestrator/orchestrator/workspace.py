@@ -110,6 +110,16 @@ def validate_workspace_id(workspace_id: str) -> str:
     return cleaned
 
 
+def _resolve_workspace_dir(ws_root: Path, workspace_id: str) -> Path:
+    """Resolve and verify strict containment of ``ws_root / workspace_id``."""
+    safe_id = validate_workspace_id(workspace_id)
+    root_abs = os.path.abspath(str(ws_root))
+    ws_abs = os.path.normpath(os.path.join(root_abs, safe_id))
+    if not ws_abs.startswith(root_abs + os.sep):
+        raise WorkspaceSecurityError(f"Workspace directory escapes root: {safe_id!r}")
+    return Path(ws_abs)
+
+
 def validate_workspace_rel_path(rel_path: str) -> str:
     """Validate and normalize a repository-relative POSIX path, rejecting traversals."""
     raw = str(rel_path or "").strip()
@@ -316,7 +326,7 @@ class MissionWorkspace:
         ws_root = root if root is not None else resolve_workspace_root(settings)
         ws_root.mkdir(parents=True, exist_ok=True)
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
-        ws_dir = ws_root / ws_id
+        ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
             shutil.rmtree(ws_dir)
         ws_dir.mkdir(parents=True, exist_ok=True)
@@ -425,7 +435,7 @@ class MissionWorkspace:
         ws_root = root if root is not None else resolve_workspace_root(settings)
         ws_root.mkdir(parents=True, exist_ok=True)
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
-        ws_dir = ws_root / ws_id
+        ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
             shutil.rmtree(ws_dir)
         ws_dir.mkdir(parents=True, exist_ok=True)
@@ -470,7 +480,7 @@ class MissionWorkspace:
         ws_root = root if root is not None else resolve_workspace_root(settings)
         ws_root.mkdir(parents=True, exist_ok=True)
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
-        ws_dir = ws_root / ws_id
+        ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
             shutil.rmtree(ws_dir)
 
@@ -561,7 +571,7 @@ class MissionWorkspace:
         """Open an existing workspace directory under ``WORKSPACE_ROOT``."""
         ws_root = root if root is not None else resolve_workspace_root(settings, create=False)
         ws_id = validate_workspace_id(workspace_id)
-        ws_dir = ws_root / ws_id
+        ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if not ws_dir.exists() or not (ws_dir / ".git").exists():
             raise WorkspaceError(f"Workspace not found: {ws_id!r}")
         meta = cls._read_meta_file(ws_dir)

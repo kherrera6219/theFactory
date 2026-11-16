@@ -547,12 +547,16 @@ def scan_workspace_manifests(
     Returns ``(dependencies, manifests_found, warnings)`` and never imports or
     executes any code from *workspace_dir*.
     """
-    ws = Path(workspace_dir)
+    ws_abs = os.path.abspath(str(workspace_dir))
+    ws = Path(ws_abs)
     deps: list[dict[str, Any]] = []
     manifests: list[str] = []
     warnings: list[str] = _detect_gradle_unpinned_warnings(ws)
 
     for rel_path in sorted(ws.rglob("*")):
+        rel_abs = os.path.normpath(str(rel_path))
+        if not rel_abs.startswith(ws_abs + os.sep):
+            continue
         if not rel_path.is_file():
             continue
         rel = rel_path.relative_to(ws).as_posix()
@@ -688,9 +692,19 @@ def _safe_cache_key(mission_id: str) -> str:
     return cleaned[:96] or "mission"
 
 
-_ALLOWED_PM_BINS: frozenset[str] = frozenset(
-    {"pip", "python", "python3", "npm", "mvn", "dotnet", "go", "cargo", "composer", "bundle"}
-)
+_ALLOWED_PM_BIN_MAP: dict[str, str] = {
+    "pip": "pip",
+    "python": "python",
+    "python3": "python3",
+    "npm": "npm",
+    "mvn": "mvn",
+    "dotnet": "dotnet",
+    "go": "go",
+    "cargo": "cargo",
+    "composer": "composer",
+    "bundle": "bundle",
+}
+_SAFE_CLI_ARG_RE = re.compile(r"^[A-Za-z0-9._/:=@+,~\\ -]+$")
 
 
 def _run_no_exec_command(
@@ -703,14 +717,14 @@ def _run_no_exec_command(
     """Execute a package-manager fetch command inside a clean no-script env."""
     if not command:
         raise ValueError("Provision command cannot be empty")
-    bin_name = Path(str(command[0])).name.lower()
-    if bin_name not in _ALLOWED_PM_BINS:
+    bin_key = Path(str(command[0])).name.lower()
+    if bin_key not in _ALLOWED_PM_BIN_MAP:
         raise ValueError(f"Disallowed package manager binary: {command[0]!r}")
-    safe_cmd: list[str] = []
-    for arg in command:
+    safe_cmd: list[str] = [_ALLOWED_PM_BIN_MAP[bin_key]]
+    for arg in command[1:]:
         part = str(arg)
-        if "\x00" in part or "\n" in part or "\r" in part:
-            raise ValueError("Disallowed control character in command argument")
+        if not _SAFE_CLI_ARG_RE.fullmatch(part):
+            raise ValueError(f"Disallowed character in command argument: {part!r}")
         safe_cmd.append(part)
     proc = subprocess.run(  # noqa: S603 - validated allow-listed package manager binary & args
         safe_cmd,

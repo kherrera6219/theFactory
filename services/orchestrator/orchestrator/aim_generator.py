@@ -513,13 +513,20 @@ def _complexity(value: Any) -> str:
     return "medium"
 
 
-def _workspace_aim_path(ws: Any) -> Path:
+def _workspace_internal_dir(ws: Any) -> Path:
     from .workspace import WORKSPACE_INTERNAL_DIR
 
     base_abs = os.path.abspath(str(ws.workspace_dir))
-    aim_abs = os.path.normpath(
-        os.path.join(base_abs, WORKSPACE_INTERNAL_DIR, WORKSPACE_AIM_FILENAME)
-    )
+    internal_abs = os.path.normpath(os.path.join(base_abs, WORKSPACE_INTERNAL_DIR))
+    if not internal_abs.startswith(base_abs + os.sep):
+        raise ValueError("Internal workspace directory escapes workspace")
+    return Path(internal_abs)
+
+
+def _workspace_aim_path(ws: Any) -> Path:
+    base_dir = _workspace_internal_dir(ws)
+    base_abs = os.path.abspath(str(base_dir))
+    aim_abs = os.path.normpath(os.path.join(base_abs, WORKSPACE_AIM_FILENAME))
     if not aim_abs.startswith(base_abs + os.sep):
         raise ValueError("AIM path escapes workspace directory")
     return Path(aim_abs)
@@ -578,7 +585,6 @@ def generate_workspace_aim(
     mission_type: str = "ANALYZE_ONLY",
 ) -> dict[str, Any]:
     """Generate and persist a deterministic full-repo AIM keyed by ``workspace_id`` at import time."""
-    from .workspace import WORKSPACE_INTERNAL_DIR
     from .workspace_indexer import index_workspace, load_workspace_index
 
     idx = (
@@ -706,7 +712,7 @@ def generate_workspace_aim(
         "extraction_summary": extraction_summary,
     }
 
-    internal_dir = Path(ws.workspace_dir) / WORKSPACE_INTERNAL_DIR
+    internal_dir = _workspace_internal_dir(ws)
     internal_dir.mkdir(parents=True, exist_ok=True)
     ws._write_git_exclude(ws.workspace_dir)
     _workspace_aim_path(ws).write_text(
