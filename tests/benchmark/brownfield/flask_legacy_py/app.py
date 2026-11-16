@@ -70,8 +70,8 @@ def create_app(store: InMemoryOrderStore | None = None) -> Flask:
             unit_price_cents = int(payload.get("unit_price_cents", 0))
             quantity = int(payload.get("quantity", 0))
             record = backing_store.add_item(name, unit_price_cents, quantity)
-        except (TypeError, ValueError) as exc:
-            return jsonify({"error": str(exc)}), 400
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid item payload"}), 400
         return jsonify(record), 201
 
     @app.get("/items/<int:item_id>")
