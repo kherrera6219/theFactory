@@ -9,18 +9,51 @@ import {
   openMissionOutputInVsCode,
   type MissionOutputFolderStatus,
 } from '../../../../../lib/api-client';
-import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
+import type {
+  MissionBuildArtifactRecord,
+  MissionSlicePlanItem,
+} from '../../../../../lib/types';
+import {
+  buildSliceTimelineItems,
+  extractGithubPrResult,
+  extractMigrationNotes,
+} from '../../../../../lib/slice-delivery';
 import { copyToClipboard } from '../../../../../lib/clipboard';
 
 interface DeliveryPanelProps {
   missionId: string;
   buildArtifacts: MissionBuildArtifactRecord[];
+  missionMetadata?: Record<string, unknown> | null;
+  plannedSlices?: MissionSlicePlanItem[] | null;
 }
 
-export function DeliveryPanel({ missionId, buildArtifacts }: DeliveryPanelProps) {
+export function DeliveryPanel({
+  missionId,
+  buildArtifacts,
+  missionMetadata = null,
+  plannedSlices = null,
+}: DeliveryPanelProps) {
   const [openFolderStatus, setOpenFolderStatus] = useState<string | null>(null);
   const [outputFolder, setOutputFolder] = useState<MissionOutputFolderStatus | null>(null);
   const [outputFolderError, setOutputFolderError] = useState<string | null>(null);
+  const [expandedSliceId, setExpandedSliceId] = useState<string | null>(null);
+
+  const sliceTimeline = buildSliceTimelineItems(missionMetadata, plannedSlices);
+  const migrationNotes = extractMigrationNotes(missionMetadata);
+  const githubPr = extractGithubPrResult(missionMetadata);
+
+  function handleDownloadMigrationNotes() {
+    if (!migrationNotes || typeof window === 'undefined') return;
+    const blob = new Blob([migrationNotes], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'MIGRATION_NOTES.md';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   // Refetch whenever the newest artifact's timestamp changes, not just when the
   // count changes — an existing artifact transitioning e.g. packaging -> complete
@@ -140,6 +173,94 @@ export function DeliveryPanel({ missionId, buildArtifacts }: DeliveryPanelProps)
         <p className="muted mono-id" style={{ marginTop: 0 }}>
           {openFolderStatus}
         </p>
+      )}
+      {sliceTimeline.length > 0 && (
+        <div className="info-card" style={{ marginBottom: '0.75rem' }}>
+          <h3>Slice Execution Timeline ({sliceTimeline.length})</h3>
+          <ul className="card-list">
+            {sliceTimeline.map((slice) => (
+              <li key={slice.id} className="info-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>
+                    <strong className="mono-id">{slice.id}</strong> — {slice.title}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="status-badge">
+                      {slice.verdict ?? slice.status.toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() =>
+                        setExpandedSliceId(expandedSliceId === slice.id ? null : slice.id)
+                      }
+                    >
+                      {expandedSliceId === slice.id ? 'Hide Files' : 'Inspect'}
+                    </button>
+                  </div>
+                </div>
+                {slice.commitSha && (
+                  <p className="muted mono-id" style={{ marginTop: '0.25rem', marginBottom: 0 }}>
+                    Commit: {slice.commitSha.slice(0, 12)}
+                  </p>
+                )}
+                {expandedSliceId === slice.id && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <p className="muted" style={{ marginBottom: '0.25rem' }}>
+                      Files ({slice.files.length}):
+                    </p>
+                    <p className="mono-id" style={{ margin: 0 }}>
+                      {slice.files.join(', ') || 'None recorded'}
+                    </p>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {githubPr && (githubPr.pr_url || githubPr.reason) && (
+        <div className="info-card" style={{ marginBottom: '0.75rem' }}>
+          <h3>GitHub Pull Request Delivery</h3>
+          {githubPr.pr_url ? (
+            <p style={{ margin: 0 }}>
+              PR #{githubPr.pr_number ?? 'created'} on{' '}
+              <span className="mono-id">{githubPr.repo}</span>:{' '}
+              <a href={githubPr.pr_url} target="_blank" rel="noreferrer">
+                {githubPr.pr_url}
+              </a>
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              Status: {githubPr.status ?? 'skipped'} ({githubPr.reason})
+            </p>
+          )}
+        </div>
+      )}
+      {migrationNotes && (
+        <div className="info-card" style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>Migration Notes (MIGRATION_NOTES.md)</h3>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleDownloadMigrationNotes}
+            >
+              Download MIGRATION_NOTES.md
+            </button>
+          </div>
+          <pre
+            className="mono-id"
+            style={{
+              maxHeight: '14rem',
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              marginTop: '0.5rem',
+            }}
+          >
+            {migrationNotes}
+          </pre>
+        </div>
       )}
       {buildArtifacts.length > 0 && (
         <ul className="card-list">

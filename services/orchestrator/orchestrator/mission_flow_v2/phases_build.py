@@ -550,7 +550,98 @@ async def _prepare_specialist_plan(
 
     mission_contract = metadata.get("mission_contract")
     output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    from ..sliced_execution import execute_mission_slices, extract_mission_slices
+
+    mission_slices = extract_mission_slices(metadata)
+    generated_output: dict[str, Any] | None = None
+    _target_lang = (
+        str(metadata.get("port_target_language") or "").strip()
+        or mission.requested_target_language
+        or "python"
+    )
     if (
+        isinstance(mission_contract, dict)
+        and output_mode != "ANALYZE_ONLY"
+        and mission_slices
+        and not metadata.get("slice_paused")
+        and not isinstance(metadata.get("generated_output"), dict)
+    ):
+        from ..context_pack import parse_file_bundle
+        from ..workspace import workspace_from_mission_metadata
+
+        bound_ws = await asyncio.to_thread(
+            workspace_from_mission_metadata,
+            metadata,
+            settings=settings,
+        )
+        last_slice_output: dict[str, Any] = {}
+
+        async def _slice_codegen(
+            *,
+            slice_spec: dict[str, Any],
+            context_pack: dict[str, Any],
+            ws: Any,
+            metadata: dict[str, Any],
+        ) -> dict[str, Any]:
+            nonlocal last_slice_output
+            _slice_ctx: dict[str, Any] = {
+                **_mission_context(mission, metadata),
+                "feature_contract": metadata.get("feature_contract"),
+                "mission_contract": mission_contract,
+                "specialist_plan": normalized,
+                "active_slice": slice_spec,
+                "context_pack": context_pack,
+            }
+            if port_source_logicnodes:
+                _slice_ctx["port_source_logicnodes"] = port_source_logicnodes
+                _slice_ctx["port_source_language"] = metadata.get("port_source_language", "")
+                _slice_ctx["port_target_language"] = metadata.get("port_target_language", "")
+            out = await _pkg().generate_code_from_contract(
+                mission_context=_slice_ctx,
+                specialist_agent_id=specialist_agent_id,
+                mission_contract=mission_contract,
+                logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+                target_language=_target_lang,
+            )
+            last_slice_output = dict(out) if isinstance(out, dict) else {}
+            code_text = str(
+                last_slice_output.get("code") or last_slice_output.get("generated_code") or ""
+            )
+            parsed = parse_file_bundle(code_text) if code_text else {}
+            if not parsed and code_text:
+                fallback_name = str(
+                    last_slice_output.get("filename")
+                    or (slice_spec.get("files") or ["main.py"])[0]
+                )
+                parsed = {fallback_name: code_text}
+            return {"files": parsed, "output": last_slice_output}
+
+        slice_outcome = await execute_mission_slices(
+            mission_id=mission_id,
+            metadata=metadata,
+            ws=bound_ws,
+            settings=settings,
+            storage_module=_pkg().storage,
+            codegen_fn=_slice_codegen,
+            agent_id=specialist_agent_id,
+        )
+        if slice_outcome.get("paused") or slice_outcome.get("regressed"):
+            return False
+        bundle_code = (
+            await asyncio.to_thread(bound_ws.build_source_bundle_excerpt)
+            if bound_ws is not None
+            else str(last_slice_output.get("code") or "")
+        )
+        generated_output = {
+            **last_slice_output,
+            "code": bundle_code,
+            "code_length_chars": len(bundle_code),
+            "language": _target_lang,
+            "specialist_agent_id": specialist_agent_id,
+            "slice_count": len(slice_outcome.get("slices_completed") or []),
+        }
+        metadata["generated_output"] = generated_output
+    elif (
         isinstance(mission_contract, dict)
         and output_mode != "ANALYZE_ONLY"
         and not isinstance(metadata.get("generated_output"), dict)
@@ -607,11 +698,6 @@ async def _prepare_specialist_plan(
                 query=str(getattr(mission, "prompt", "") or getattr(mission, "title", "") or ""),
             )
 
-        _target_lang = (
-            str(metadata.get("port_target_language") or "").strip()
-            or mission.requested_target_language
-            or "python"
-        )
         # Knowledge Lake retrieval (Phase 2): inject documentation context the
         # IS-Agent stocked during FETCH into the specialist codegen prompt.
         _query_hint = str(getattr(mission, "title", "") or "")
@@ -689,6 +775,8 @@ async def _prepare_specialist_plan(
                         "harness_status": harness_result.status,
                     }
                     metadata["generated_output"] = generated_output
+
+    if isinstance(generated_output, dict):
         gen_source = str(generated_output.get("source") or "").strip().lower()
         if gen_source == "fallback":
             from ..settings import resolve_mission_fallback_policy

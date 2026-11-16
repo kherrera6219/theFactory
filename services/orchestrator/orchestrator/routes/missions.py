@@ -546,6 +546,14 @@ async def download_mission_artifact(
                 fallback_name = f"main{ext}"
                 archive.writestr(fallback_name, artifact_text)
                 file_paths.append(fallback_name)
+            if (
+                isinstance(mission_meta, dict)
+                and isinstance(mission_meta.get("migration_notes_md"), str)
+                and mission_meta["migration_notes_md"].strip()
+                and "MIGRATION_NOTES.md" not in file_paths
+            ):
+                archive.writestr("MIGRATION_NOTES.md", mission_meta["migration_notes_md"])
+                file_paths.append("MIGRATION_NOTES.md")
             manifest = {
                 "mission_id": mission_id,
                 "artifact_id": record.get("artifact_id"),

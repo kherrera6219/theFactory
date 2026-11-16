@@ -212,6 +212,13 @@ export type MissionCharter = {
   success_criteria: string[];
   definition_of_done: Record<string, unknown>;
   non_functional_constraints?: Record<string, unknown>;
+  slices?: MissionSlicePlanItem[];
+  checkpoint?: {
+    last_completed_slice_id?: string | null;
+    active_slice_id?: string | null;
+    workspace_commit_sha?: string | null;
+    updated_at?: string;
+  };
   metadata?: Record<string, string>;
 };
 
@@ -1224,4 +1231,41 @@ export type WorkspaceDiffResponse = {
   branch: string | null;
   modified_files: string[];
   diff: string;
+};
+
+export type MissionSlicePlanItem = {
+  id: string;
+  title: string;
+  description?: string;
+  files: string[];
+  acceptance_criteria?: string[];
+  depends_on?: string[];
+  pause_after_slice?: boolean;
+};
+
+export type SliceCompletedRecord = {
+  id: string;
+  title?: string;
+  files?: string[];
+  commit_sha?: string;
+  diff_stat?: {
+    files_changed?: number;
+    modified_files?: string[];
+  };
+  verdict?: string;
+  verified_at?: string;
+  cost_usd?: number;
+};
+
+export type GithubPrResult = {
+  exported: boolean;
+  skipped?: boolean;
+  status?: string;
+  repo?: string;
+  head_branch?: string;
+  base_branch?: string;
+  pr_number?: number | null;
+  pr_url?: string;
+  reason?: string;
+  created_at?: string;
 };

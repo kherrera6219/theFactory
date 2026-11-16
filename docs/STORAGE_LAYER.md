@@ -1,12 +1,12 @@
 # Storage Layer Reference
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.11.13
+Last updated: 2026-11-13
 Status: Canonical
 Audience: Developers and operators
 
 **Files:** `services/orchestrator/orchestrator/storage_core.py` and all `storage_*.py` modules  
-**Last documented:** 2026-06-13
+**Last documented:** 2026-11-13
 
 ---
 
@@ -310,3 +310,4 @@ All storage configuration comes from `settings.py` environment variables:
 - **`prepare_threshold=None` on all connections** — required for PgBouncer transaction-pool compatibility.
 - **`factory_json_dumps()` for all JSONB writes** — ensures consistent sorting and UTC datetime serialization for reproducible SHA-256 hashes.
 - **`write_agent_action_event()` is the only audit ledger write path** — do not insert directly into `agent_action_events`.
+- **Workspace & Slice Checkpoint Storage (`workspace.py`, `sliced_execution.py`, `mission_vault.py`):** Large brownfield repository trees live on disk under `WORKSPACE_ROOT` (`.git` `baseline` -> `thefactory/mission-<id>`) rather than inside `missions.metadata_json`; per-workspace index/baseline/AIM state is kept under `.thefactory/` (excluded from Git diffs). Postgres `metadata_json` stores only compact checkpoint descriptors (`slices_completed[]`, `mission_charter.checkpoint`, `migration_notes_md`, and sanitized `github_pr_result`). Provider keys and optional `github_token` credentials live exclusively in Redis `mission-vault:<mission_id>` (`shared_runtime/mission_vault.py`) and are rejected/scrubbed from `metadata_json`.

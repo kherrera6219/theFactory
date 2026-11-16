@@ -280,6 +280,7 @@ reader does not re-derive them.
   (UPG-12), removing its contradiction with `docs/LOGICNODE_SCHEMA.md`.
 - Design areas 4, 6, 7, 8, 10, 17 have named execution phases; areas 5, 11, 13, 14,
   16, 18 are closed decisions requiring no further work beyond the string edits above.
+- **Brownfield Initiative Closure (`2026-11-13`):** Phases 1–7 of `GEMINI_NEXT_PHASE_PLAN_2026-11-13.md` ("Make Brownfield Work Real") completed while preserving Decisions D1 (single-specialist routing), D2 (no binary synthesis), and sandbox/auth invariants — adding Git workspaces, role-scoped `AgentHarness`, offline `dependency-provisioner`, AST repo indexing + `LANGUAGE_MATURITY.md`, baseline preservation gates + PORT dual-run equivalence, and sliced execution + vaulted PR delivery.
 - External technical due diligence can be answered from one table rather than by
   reading 64 design documents against a live codebase.
 - What was an apparently 60%-implemented design becomes a fully-implemented and

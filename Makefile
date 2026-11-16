@@ -121,7 +121,9 @@ test:
 		--module-threshold services/orchestrator/orchestrator/workspace_indexer.py=80 \
 		--module-threshold services/orchestrator/orchestrator/context_pack.py=80 \
 		--module-threshold services/orchestrator/orchestrator/language_maturity.py=80 \
-		--module-threshold services/orchestrator/orchestrator/baseline_verification.py=80
+		--module-threshold services/orchestrator/orchestrator/baseline_verification.py=80 \
+		--module-threshold services/orchestrator/orchestrator/sliced_execution.py=80 \
+		--module-threshold services/orchestrator/orchestrator/github_pr_exporter.py=80
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test

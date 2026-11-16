@@ -869,7 +869,14 @@ function MissionDetailPageContent() {
         className="mission-tab-panels"
       >
         <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
-        <ErrorBoundary><DeliveryPanel missionId={missionId} buildArtifacts={buildArtifacts} /></ErrorBoundary>
+        <ErrorBoundary>
+          <DeliveryPanel
+            missionId={missionId}
+            buildArtifacts={buildArtifacts}
+            missionMetadata={(mission?.metadata as Record<string, unknown> | undefined) ?? null}
+            plannedSlices={missionCharter?.slices ?? featureContract?.slices ?? null}
+          />
+        </ErrorBoundary>
         <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} deltaAuditGate={(mission?.metadata as Record<string, unknown> | undefined)?.delta_audit_gate ?? null} /></ErrorBoundary>
         <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
         <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport} /></ErrorBoundary>

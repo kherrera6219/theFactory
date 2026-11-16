@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-Document version: 2026.11.07  
-Last updated: 2026-11-07  
+Document version: 2026.11.13  
+Last updated: 2026-11-13  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -382,3 +382,11 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 |-----|---------|
 | [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) | Dual-mode auth: API keys default + JWT/OIDC enterprise path |
 | [`ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Condensed workers default; dedicated-agent profiles are available as optional expansion modes |
+
+---
+
+## Brownfield Modernization Architecture (2026-11-13)
+
+- **Workspace & Repository Intelligence (`workspace.py`, `workspace_indexer.py`, `aim_generator.py`, `context_pack.py`):** Imports ZIP/local/Git repositories onto an isolated `baseline` Git branch, builds AST/tree-sitter/structural symbol+call graphs and multi-ecosystem test discovery (`aim.json` under `.thefactory/`), and composes untruncated slice context packs with 1-hop caller/callee context.
+- **Role-Scoped Agent Harness & Offline Dependency Provisioning (`agent_harness.py`, `agent_tools.py`, `dependency_provisioner.py`, `sandbox_exec.py`):** Enables bounded multi-turn file inspection and sandbox test execution (`AGENT_HARNESS_ENABLED_ROLES`), backed by pre-fetched `/deps:ro` caches inside `--network=none` execution containers and hashed into CycloneDX 1.5 SBOMs.
+- **Preservation Gates, Sliced Execution & PR Delivery (`baseline_verification.py`, `equivalence_execution.py`, `sliced_execution.py`, `github_pr_exporter.py`):** Captures existing baseline test pass/fail signatures, curates passing characterisation tests (`thefactory/baseline-tests`), runs PORT dual-run equivalence, commits slices sequentially with crash-resumable checkpoints and `MIGRATION_NOTES.md`, and optionally creates GitHub pull requests using vaulted tokens.

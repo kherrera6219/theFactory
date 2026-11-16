@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.11.13
+Last updated: 2026-11-13
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -222,3 +222,15 @@ non-compiling artifacts still FAIL.
 A local `.env` may still pin `false`. Watch for `verified_scope_detail:
 "started_only"` on missions that should have been exercised — that means
 the usage example did not yield invocation args and tests did not run.
+
+---
+
+## Brownfield Modernization Program (`GEMINI_NEXT_PHASE_PLAN_2026-11-13.md`) — Complete (2026-11-13)
+
+- [x] **Phase 1:** Brownfield MIT benchmark corpus (`tests/benchmark/brownfield/`) + honest scorer, startup provider preflight (`/health`, `/readyz`), non-skippable live CI gate, `MISSION_FALLBACK_POLICY`, and agent activation timeline UI.
+- [x] **Phase 2:** Git-backed `MissionWorkspace` (`workspace.py`, `WORKSPACE_ROOT`, local/Git/ZIP import, `thefactory/mission-<id>` commits, full-tree ZIP and `git diff` patch export).
+- [x] **Phase 3:** Role-scoped multi-turn `AgentHarness` (`agent_harness.py`, `agent_tools.py`, `capabilities.py`, `adapters.py`) with sandbox containment and persisted transcripts.
+- [x] **Phase 4:** Offline `dependency-provisioner` service (`dependency_provisioner.py`, `dep-cache` `/deps:ro` mounts, allow-listed registries, `TIER_3_REGULATED` mirror gate, SBOM hashes).
+- [x] **Phase 5:** AST/tree-sitter/structural `workspace_indexer.py`, import-time AIM, auto-generated `docs/LANGUAGE_MATURITY.md`, sliced SOW schema/UI, and untruncated slice `context_pack.py`.
+- [x] **Phase 6:** Multi-ecosystem `baseline_verification.py` capture, `thefactory/baseline-tests` characterisation curation, enforced `PRESERVED`/`REGRESSED`/`UNVERIFIABLE` gate with surgical repair, and `run_port_dual_equivalence`.
+- [x] **Phase 7:** Topological `sliced_execution.py` with crash-safe checkpoints and PM pause/change-order controls, `MIGRATION_NOTES.md`, opt-in vaulted `github_pr_exporter.py`, and Mission Control slice timeline UI.

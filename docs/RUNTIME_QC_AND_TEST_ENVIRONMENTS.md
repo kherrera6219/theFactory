@@ -1,8 +1,8 @@
 # Runtime QC and Ephemeral Test Environments
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
-Status: Canonical (Forward-Looking — Phases 9 and 10)
+Document version: 2026.11.13
+Last updated: 2026-11-13
+Status: Canonical (Brownfield Phases 4, 6 & 7 Active)
 Audience: Operators, mission designers, agent developers, security reviewers
 
 This document describes how theFactory provisions disposable runtime environments and validates built or patched applications through automated QC sessions.
@@ -300,3 +300,12 @@ The production replacement plan is included in the mission evidence bundle. It i
   "video_ref": "artifacts/qc_session.webm"
 }
 ```
+
+---
+
+## Brownfield Baseline Capture, Preservation Gate & PORT Dual-Run (2026-11-13)
+
+- **Offline Dependency Cache Mount (`dependency_provisioner.py`, `sandbox_exec.py`):** Prefetched ecosystem caches (`dep-cache`) mount read-only at `/deps:ro` with offline env vars (`PIP_NO_INDEX=1`, `NPM_CONFIG_OFFLINE=true`, `GOPROXY=off`, `CARGO_NET_OFFLINE=true`) while retaining `--network=none` and all `SANDBOX_SECURITY_FLAGS`.
+- **Baseline Capture & Characterisation Suites (`baseline_verification.py`):** `capture_workspace_baseline` records pre-modification test pass/fail results (JUnit XML/pytest/Go/TAP/Node/PHPUnit/Maven) into `.thefactory/baseline.json`; `generate_characterisation_tests` filters candidate tests against the baseline and commits **only** baseline-passing tests onto `thefactory/baseline-tests`.
+- **Preservation Gate & Per-Slice Verification (`phases_runtime.py`, `sliced_execution.py`):** `evaluate_preservation_gate` distinguishes `PRESERVED`, `REGRESSED`, and `UNVERIFIABLE` (honoring `behaviour_change_allowed`), routing `REGRESSED` into `rqca_repair.py` bounded surgical self-repair and blocking `COMPLETE` under `RQCA_ENFORCEMENT_ENABLED`.
+- **PORT Dual-Run Equivalence (`equivalence_execution.py`, `phases_delivery.py`):** `run_port_dual_equivalence` executes shared CLI and direct-call vectors across both source and ported target runtimes in the sandbox and surfaces pass ratios and mismatched outputs.

@@ -1,9 +1,9 @@
 # Mission Flow v2 — Internals Reference
 
-Document version: 2026.06.18
-Last updated: 2026-06-18
+Document version: 2026.11.13
+Last updated: 2026-11-13
 
-**Version:** 2026.06.11  
+**Version:** 2026.11.13  
 **Code package:** `services/orchestrator/orchestrator/mission_flow_v2/`  
 **Status:** Default production engine as of ADR_MISSION_FLOW_V2_STATUS_2026-03-08  
 **Audience:** Developers, Architects
@@ -259,6 +259,14 @@ The LangGraph engine targets feature parity with v2 but has not yet completed th
 ## v1 Legacy (`mission_flow.py`)
 
 `mission_flow.py` (v1) is retained as a fallback for emergency use only. It is a monolithic single-file implementation of a 7-phase flow that predates the pod worker architecture. It is not reachable via normal configuration; activating it requires a code change. It will be removed in v1.3.0.
+
+---
+
+## Brownfield Workspaces, Sliced Execution & Delivery (2026-11-13)
+
+- **Git-Backed Workspaces (`workspace.py`):** Brownfield and multi-file missions operate inside an isolated per-mission Git workspace (`thefactory/mission-<id>` branched from `baseline`), synced automatically across intake, specialist build, slice commits, dependency absorption, self-repair, and delivery export.
+- **Sliced Execution & Crash Recovery (`sliced_execution.py`):** When `mission_charter.slices` / `feature_contract.slices` is populated, `phases_build.py` delegates to `execute_mission_slices`: topological ordering via `topological_sort_slices`, slice-scoped `build_specialist_context_pack`, per-slice workspace commits (`mission <id>: slice <id>`), `evaluate_preservation_gate` verification with bounded self-repair, `MISSION_SLICE_STARTED` / `MISSION_SLICE_VERIFIED` / `MISSION_SLICE_REGRESSED` / `MISSION_SLICE_PAUSED` events (`V2_EVENT_TO_PHASE`), crash-safe progress checkpointing (`slices_completed`, `mission_charter.checkpoint`), and PM change orders (`apply_slice_change_order`) that mutate only uncompleted slices. Greenfield missions without `slices[]` follow the existing single-shot build path unchanged.
+- **Migration Notes & Vaulted PR Export (`phases_delivery.py`, `github_pr_exporter.py`):** Delivery always renders `MIGRATION_NOTES.md` (`generate_migration_notes`) into metadata/workspace/ZIP exports and, only when `github_pr_export.enabled` is explicitly `True`, opens a pull request via `export_mission_as_github_pr` using a fine-grained `github_token` retrieved exclusively from `shared_runtime.mission_vault`.
 
 ---
 

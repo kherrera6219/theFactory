@@ -393,7 +393,7 @@ class TestV2PhaseOrder:
 
 class TestV2EventToPhase:
     def test_covers_all_13_events(self) -> None:
-        assert len(V2_EVENT_TO_PHASE) == 14
+        assert len(V2_EVENT_TO_PHASE) == 18
 
     def test_all_v2_phase_order_values_mapped(self) -> None:
         mapped_phases = set(V2_EVENT_TO_PHASE.values())

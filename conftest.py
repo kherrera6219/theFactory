@@ -70,11 +70,12 @@ def pytest_sessionfinish(session, exitstatus: int) -> None:
         ".ruff-cache",
         "backups",
         "output",
+        "workspaces",
     }
     leaked = new_entries - ignored
 
     # Clean up transient runtime outputs created by tests if they were not initially present
-    for transient_dir in ("backups", "output"):
+    for transient_dir in ("backups", "output", "workspaces"):
         p = _REPO_ROOT / transient_dir
         if p.exists() and transient_dir not in _INITIAL_ROOT_ENTRIES:
             try:

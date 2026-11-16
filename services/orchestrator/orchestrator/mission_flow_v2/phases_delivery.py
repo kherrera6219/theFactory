@@ -245,6 +245,52 @@ async def _prepare_delivery_summary(
     except Exception as exc:
         LOGGER.debug("failed to fetch llm_usage_summary for %s: %s", mission.mission_id, exc)
 
+    # Phase 7: Generate MIGRATION_NOTES.md and (when explicitly opted in) create a GitHub PR.
+    from ..github_pr_exporter import export_mission_as_github_pr
+    from ..sliced_execution import generate_migration_notes
+    from ..workspace import workspace_from_mission_metadata
+
+    migration_notes = generate_migration_notes(mission.mission_id, metadata)
+    metadata["migration_notes_md"] = migration_notes
+    ws = await asyncio.to_thread(
+        workspace_from_mission_metadata,
+        metadata,
+        settings=settings,
+    )
+    if ws is not None:
+        try:
+            await asyncio.to_thread(
+                ws.write_files,
+                {"MIGRATION_NOTES.md": migration_notes},
+                message=f"mission {mission.mission_id}: add MIGRATION_NOTES.md",
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to write MIGRATION_NOTES.md into workspace for %s: %s",
+                mission.mission_id,
+                type(exc).__name__,
+            )
+
+    if isinstance(metadata.get("github_pr_export"), dict) and metadata["github_pr_export"].get(
+        "enabled"
+    ):
+        try:
+            await export_mission_as_github_pr(
+                mission.mission_id,
+                metadata,
+                redis_client=getattr(app.state, "redis", None),
+            )
+            # Re-render migration notes if PR URL was added.
+            metadata["migration_notes_md"] = generate_migration_notes(mission.mission_id, metadata)
+        except ValueError:
+            raise
+        except Exception as exc:
+            LOGGER.warning(
+                "GitHub PR export failed for mission %s: %s",
+                mission.mission_id,
+                type(exc).__name__,
+            )
+
     if not _chain_event_exists(metadata, "MISSION_DELIVERED"):
         append_chain_event(
             metadata,
