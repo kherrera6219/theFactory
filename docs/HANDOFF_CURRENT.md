@@ -8,7 +8,12 @@ Audience: Maintainers, operators, and AI coding agents
 ---
 
 
-## Latest session (2026-11-13) — read first
+## Latest session (2026-11-15) — read first
+
+**COMPLETE — 2026-11-15: GitHub Dependabot (#260), Bandit (`B310`/`B314`), CodeQL Hardening & Desktop Installer Refresh.**
+- **Dependabot & NPM Audit (`apps/mission-control/package.json`, `package-lock.json`):** Bumped `basic-ftp` override to `6.2.4` (`0 vulnerabilities` under `npm audit --audit-level=moderate`).
+- **Bandit & CodeQL (`scripts/run_brownfield_benchmark.py`, `baseline_verification.py`, `dependency_provisioner.py`, `aim_generator.py`, `workspace.py`):** Replaced `urllib.request.urlopen` with scheme-validated `httpx.Client` (`B310`), added explicit DTD/XXE rejection in `parse_junit_xml` (`B314`), added `_ALLOWED_PM_BINS` + argument validation + `shell=False` in `_run_no_exec_command`, and added `os.path.abspath`/`os.path.normpath` containment guards across cache, manifest, AIM, and workspace path helpers.
+- **Verification & Desktop Packaging:** Passed `ruff check`, `bandit -r services scripts -ll -ii`, `validate_documentation.py`, Mission Control `npm run lint && npm run test`, and rebuilt/reinstalled `theFactory Mission Control`.
 
 **COMPLETE — 2026-11-13: Phase 7 of "Make Brownfield Work Real" (`GEMINI_NEXT_PHASE_PLAN_2026-11-13.md` — Sliced execution, PM checkpoints/change orders, `MIGRATION_NOTES.md`, & vaulted PR delivery; Phases 1–7 complete).**
 - **Topological Sliced Execution & Recovery (`services/orchestrator/orchestrator/sliced_execution.py`, `mission_flow_v2/{transitions,phases_build,phases_delivery}.py`, `models.py`, `routes/missions.py`):** Added `MISSION_SLICE_STARTED`, `MISSION_SLICE_VERIFIED`, `MISSION_SLICE_REGRESSED`, and `MISSION_SLICE_PAUSED` to `V2_EVENT_TO_PHASE` and `EventType` (with `docs/openapi/orchestrator.v1.json` updated). Added `topological_sort_slices`, `execute_mission_slices` (per-slice context packs, Git commits `mission <id>: slice <id>`, `evaluate_preservation_gate` verification + bounded self-repair, crash-safe `slices_completed` / `mission_charter.checkpoint` persistence via `storage.update_mission_metadata`, and `pause_after_slice` PM checkpoints), `apply_slice_change_order`, and `generate_migration_notes` (`MIGRATION_NOTES.md` written to workspace & ZIP bundles without changing greenfield single-shot execution).

@@ -688,6 +688,11 @@ def _safe_cache_key(mission_id: str) -> str:
     return cleaned[:96] or "mission"
 
 
+_ALLOWED_PM_BINS: frozenset[str] = frozenset(
+    {"pip", "python", "python3", "npm", "mvn", "dotnet", "go", "cargo", "composer", "bundle"}
+)
+
+
 def _run_no_exec_command(
     command: list[str],
     *,
@@ -696,13 +701,25 @@ def _run_no_exec_command(
     timeout_s: float = 120.0,
 ) -> tuple[int, str, str]:
     """Execute a package-manager fetch command inside a clean no-script env."""
-    proc = subprocess.run(  # noqa: S603 - hardcoded safe command args from build_provision_command
-        command,
+    if not command:
+        raise ValueError("Provision command cannot be empty")
+    bin_name = Path(str(command[0])).name.lower()
+    if bin_name not in _ALLOWED_PM_BINS:
+        raise ValueError(f"Disallowed package manager binary: {command[0]!r}")
+    safe_cmd: list[str] = []
+    for arg in command:
+        part = str(arg)
+        if "\x00" in part or "\n" in part or "\r" in part:
+            raise ValueError("Disallowed control character in command argument")
+        safe_cmd.append(part)
+    proc = subprocess.run(  # noqa: S603 - validated allow-listed package manager binary & args
+        safe_cmd,
         cwd=str(cwd),
         env=env,
         capture_output=True,
         text=True,
         timeout=timeout_s,
+        shell=False,
         check=False,
     )
     return proc.returncode, proc.stdout or "", proc.stderr or ""
@@ -742,7 +759,11 @@ def provision_workspace_dependencies(
     inferred_lang = inferred_lang or "python"
 
     root = Path(dep_cache_root) if dep_cache_root is not None else _default_dep_cache_root()
-    mission_cache_dir = root / _safe_cache_key(mission_id)
+    root_abs = os.path.abspath(str(root))
+    cache_abs = os.path.normpath(os.path.join(root_abs, _safe_cache_key(mission_id)))
+    if not cache_abs.startswith(root_abs + os.sep):
+        raise ValueError("Invalid cache path escapes dep_cache_root")
+    mission_cache_dir = Path(cache_abs)
     mission_cache_dir.mkdir(parents=True, exist_ok=True)
 
     mirror = str(
@@ -875,7 +896,10 @@ def provision_workspace_dependencies(
         "allowed_registries": sorted(ALLOWED_REGISTRIES),
         "generated_at": datetime.now(UTC).isoformat(),
     }
-    manifest_path = mission_cache_dir / "provisioning_manifest.json"
+    manifest_abs = os.path.normpath(os.path.join(cache_abs, "provisioning_manifest.json"))
+    if not manifest_abs.startswith(cache_abs + os.sep):
+        raise ValueError("Invalid manifest path escapes cache directory")
+    manifest_path = Path(manifest_abs)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest
 

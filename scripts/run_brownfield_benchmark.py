@@ -18,9 +18,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 
+import httpx
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -190,20 +189,23 @@ def _http_json(
     headers: dict[str, str] | None = None,
     timeout: float = 15.0,
 ) -> tuple[int, dict[str, Any]]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    if not url.startswith(("http://", "https://")):
+        return 0, {"error": f"unsupported URL scheme: {url}"}
     req_headers = {"Content-Type": "application/json", **(headers or {})}
-    req = urllib_request.Request(url, data=data, headers=req_headers, method=method)
     try:
-        with urllib_request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            return resp.status, json.loads(body) if body else {}
-    except urllib_error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.request(
+                method=method,
+                url=url,
+                json=payload,
+                headers=req_headers,
+            )
+        body = resp.text
         try:
-            parsed = json.loads(body) if body else {"error": body}
+            parsed = json.loads(body) if body else {}
         except json.JSONDecodeError:
             parsed = {"error": body}
-        return exc.code, parsed
+        return resp.status_code, parsed
     except Exception as exc:
         return 0, {"error": str(exc)}
 

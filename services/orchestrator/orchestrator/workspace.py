@@ -132,8 +132,12 @@ def validate_workspace_rel_path(rel_path: str) -> str:
 
 def _ensure_contained_path(workspace_dir: Path, rel_posix: str) -> Path:
     """Resolve ``workspace_dir / rel_posix`` and verify strict containment without symlink escape."""
+    base_abs = os.path.abspath(str(workspace_dir))
+    norm_candidate = os.path.normpath(os.path.join(base_abs, *rel_posix.split("/")))
+    if not norm_candidate.startswith(base_abs + os.sep):
+        raise WorkspaceSecurityError(f"Normalized path escapes workspace root: {rel_posix!r}")
     resolved_root = workspace_dir.resolve()
-    candidate = workspace_dir.joinpath(*rel_posix.split("/"))
+    candidate = Path(norm_candidate)
     # Reject symlinks along any existing prefix inside the workspace before reading/writing.
     probe = workspace_dir
     for segment in rel_posix.split("/"):

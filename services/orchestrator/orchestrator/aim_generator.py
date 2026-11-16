@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import sys
 from datetime import UTC, datetime
@@ -515,7 +516,13 @@ def _complexity(value: Any) -> str:
 def _workspace_aim_path(ws: Any) -> Path:
     from .workspace import WORKSPACE_INTERNAL_DIR
 
-    return Path(ws.workspace_dir) / WORKSPACE_INTERNAL_DIR / WORKSPACE_AIM_FILENAME
+    base_abs = os.path.abspath(str(ws.workspace_dir))
+    aim_abs = os.path.normpath(
+        os.path.join(base_abs, WORKSPACE_INTERNAL_DIR, WORKSPACE_AIM_FILENAME)
+    )
+    if not aim_abs.startswith(base_abs + os.sep):
+        raise ValueError("AIM path escapes workspace directory")
+    return Path(aim_abs)
 
 
 def load_workspace_aim(ws: Any) -> dict[str, Any] | None:

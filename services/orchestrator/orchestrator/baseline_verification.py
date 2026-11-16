@@ -164,8 +164,11 @@ def parse_junit_xml(junit_xml: str) -> dict[str, list[str]]:
     skipped: list[str] = []
     if not junit_xml or "<testsuite" not in junit_xml:
         return {"passed": passed, "failed": failed, "skipped": skipped}
+    low_xml = junit_xml.lower()
+    if "<!doctype" in low_xml or "<!entity" in low_xml:
+        return {"passed": passed, "failed": failed, "skipped": skipped}
     try:
-        root = ET.fromstring(junit_xml)  # noqa: S314 - controlled sandbox output
+        root = ET.fromstring(junit_xml)  # nosec B314 - DTD/XXE rejected above; controlled sandbox output
     except ET.ParseError:
         return {"passed": passed, "failed": failed, "skipped": skipped}
     for case in root.iter("testcase"):
