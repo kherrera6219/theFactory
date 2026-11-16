@@ -90,12 +90,12 @@ def make_workspace_readable(workspace_dir: str | Path, workspace_root: str = "")
         return
     root_abs = os.path.abspath(str(root))
     try:
-        os.chmod(root_abs, 0o755)
+        os.chmod(root_abs, 0o755)  # nosec B103 - sandbox UID 65534 reads mounted workspace :ro
         for dirpath, dirnames, filenames in os.walk(root_abs, followlinks=False):
             for dname in dirnames:
                 dpath = os.path.normpath(os.path.join(dirpath, dname))
                 if dpath.startswith(root_abs + os.sep) and not os.path.islink(dpath):
-                    os.chmod(dpath, 0o755)
+                    os.chmod(dpath, 0o755)  # nosec B103 - sandbox UID 65534 dir traversal
             for fname in filenames:
                 fpath = os.path.normpath(os.path.join(dirpath, fname))
                 if fpath.startswith(root_abs + os.sep) and not os.path.islink(fpath):
