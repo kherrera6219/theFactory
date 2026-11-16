@@ -47,6 +47,7 @@ COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates liblzma5 \
     && apt-get upgrade -y --no-install-recommends ca-certificates liblzma5 \
+    && /usr/local/bin/python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
     && python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --uid 10001 appuser \

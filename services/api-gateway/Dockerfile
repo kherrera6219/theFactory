@@ -18,6 +18,7 @@ COPY schemas /app/schemas
 COPY protocol /app/protocol
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends ca-certificates liblzma5 \
+    && /usr/local/bin/python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
     && python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --uid 10001 appuser \

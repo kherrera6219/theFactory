@@ -742,25 +742,16 @@ def _run_no_exec_command(
     return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 
-def provision_workspace_dependencies(
+def _prepare_workspace_provisioning_context(
     workspace_dir: str | Path,
     *,
     mission_id: str,
-    workspace_id: str = "",
     language: str | None = None,
     data_classification: str = "TIER_1_INTERNAL",
     dep_cache_root: str | Path | None = None,
     internal_mirror_url: str = "",
     declared_dependencies: Iterable[str] = (),
-    execute_fetch: bool = False,
-    fetcher: Callable[[list[str], Path, dict[str, str]], tuple[int, str, str]] | None = None,
-) -> dict[str, Any]:
-    """Provision dependencies for *workspace_dir* without running any project code.
-
-    When ``execute_fetch`` is True, invokes no-exec fetch commands against
-    allow-listed registries (or checks ``fetcher`` in tests). When False, resolves
-    already-cached artifacts in ``dep_cache_dir`` and vendored offline frameworks.
-    """
+) -> tuple[Path, list[dict[str, Any]], list[str], list[str], str, Path, str, bool, str]:
     ws_abs = os.path.normpath(os.path.abspath(str(workspace_dir)))
     if not os.path.isdir(ws_abs):
         raise FileNotFoundError(f"Workspace directory not found: {ws_abs}")
@@ -791,6 +782,105 @@ def provision_workspace_dependencies(
         data_classification,
         internal_mirror_url=mirror,
     )
+    return (
+        ws,
+        deps,
+        manifests,
+        warnings,
+        inferred_lang,
+        mission_cache_dir,
+        cache_abs,
+        policy_ok,
+        policy_reason,
+    )
+
+
+def _provision_workspace_offline(
+    workspace_dir: str | Path,
+    *,
+    mission_id: str,
+    workspace_id: str = "",
+    language: str | None = None,
+    data_classification: str = "TIER_1_INTERNAL",
+    dep_cache_root: str | Path | None = None,
+    internal_mirror_url: str = "",
+    declared_dependencies: Iterable[str] = (),
+) -> dict[str, Any]:
+    (
+        _ws,
+        deps,
+        manifests,
+        warnings,
+        inferred_lang,
+        mission_cache_dir,
+        cache_abs,
+        policy_ok,
+        policy_reason,
+    ) = _prepare_workspace_provisioning_context(
+        workspace_dir,
+        mission_id=mission_id,
+        language=language,
+        data_classification=data_classification,
+        dep_cache_root=dep_cache_root,
+        internal_mirror_url=internal_mirror_url,
+        declared_dependencies=declared_dependencies,
+    )
+    return _finalize_provisioning_manifest(
+        mission_id=mission_id,
+        workspace_id=workspace_id,
+        data_classification=data_classification,
+        inferred_lang=inferred_lang,
+        deps=deps,
+        manifests=manifests,
+        warnings=warnings,
+        mission_cache_dir=mission_cache_dir,
+        cache_abs=cache_abs,
+        policy_ok=policy_ok,
+        policy_reason=policy_reason,
+    )
+
+
+def provision_workspace_dependencies(
+    workspace_dir: str | Path,
+    *,
+    mission_id: str,
+    workspace_id: str = "",
+    language: str | None = None,
+    data_classification: str = "TIER_1_INTERNAL",
+    dep_cache_root: str | Path | None = None,
+    internal_mirror_url: str = "",
+    declared_dependencies: Iterable[str] = (),
+    execute_fetch: bool = False,
+    fetcher: Callable[[list[str], Path, dict[str, str]], tuple[int, str, str]] | None = None,
+) -> dict[str, Any]:
+    """Provision dependencies for *workspace_dir* without running any project code.
+
+    When ``execute_fetch`` is True, invokes no-exec fetch commands against
+    allow-listed registries (or checks ``fetcher`` in tests). When False, resolves
+    already-cached artifacts in ``dep_cache_dir`` and vendored offline frameworks.
+    """
+    (
+        ws,
+        deps,
+        manifests,
+        warnings,
+        inferred_lang,
+        mission_cache_dir,
+        cache_abs,
+        policy_ok,
+        policy_reason,
+    ) = _prepare_workspace_provisioning_context(
+        workspace_dir,
+        mission_id=mission_id,
+        language=language,
+        data_classification=data_classification,
+        dep_cache_root=dep_cache_root,
+        internal_mirror_url=internal_mirror_url,
+        declared_dependencies=declared_dependencies,
+    )
+    mirror = str(
+        internal_mirror_url or os.getenv("DEPENDENCY_PROVISIONER_INTERNAL_MIRROR_URL", "")
+    ).strip()
 
     if execute_fetch and policy_ok and deps:
         run_fetch = fetcher or (lambda cmd, cwd, env: _run_no_exec_command(cmd, cwd=cwd, env=env))
@@ -819,6 +909,36 @@ def provision_workspace_dependencies(
                     warnings.append("source distribution skipped (--only-binary=:all:): needs_build")
                 elif stderr.strip():
                     warnings.append(f"provision fetch exited {rc}: {stderr.strip()[:240]}")
+
+    return _finalize_provisioning_manifest(
+        mission_id=mission_id,
+        workspace_id=workspace_id,
+        data_classification=data_classification,
+        inferred_lang=inferred_lang,
+        deps=deps,
+        manifests=manifests,
+        warnings=warnings,
+        mission_cache_dir=mission_cache_dir,
+        cache_abs=cache_abs,
+        policy_ok=policy_ok,
+        policy_reason=policy_reason,
+    )
+
+
+def _finalize_provisioning_manifest(
+    *,
+    mission_id: str,
+    workspace_id: str,
+    data_classification: str,
+    inferred_lang: str,
+    deps: list[dict[str, Any]],
+    manifests: list[str],
+    warnings: list[str],
+    mission_cache_dir: Path,
+    cache_abs: str,
+    policy_ok: bool,
+    policy_reason: str,
+) -> dict[str, Any]:
 
     package_records: list[ProvisionedPackage] = []
     for entry in deps:
@@ -1016,14 +1136,13 @@ async def provision_endpoint(
     }
     safe_lang = safe_lang_map.get(str(payload.language or "").strip().lower())
     try:
-        return provision_workspace_dependencies(
+        return _provision_workspace_offline(
             safe_ws_dir,
             mission_id=_safe_cache_key(payload.mission_id),
             workspace_id=_safe_cache_key(payload.workspace_id) if payload.workspace_id else "",
             language=safe_lang,
             data_classification=payload.data_classification,
             declared_dependencies=safe_deps,
-            execute_fetch=False,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

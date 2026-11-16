@@ -123,15 +123,17 @@ def test_provision_no_exec_postinstall_leaves_no_marker_and_uses_safe_flags(tmp_
 
     recorded_cmds: list[list[str]] = []
 
+    expected_node_cache = tmp_path / "dep-cache" / "mission-noexec-node" / "npm"
+
     def fake_fetcher(cmd: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str, str]:
         recorded_cmds.append(list(cmd))
         assert "--ignore-scripts" in cmd
         assert env.get("NPM_CONFIG_IGNORE_SCRIPTS") == "true"
         # Simulate writing packed tarball into cache without running postinstall
         cache_idx = cmd.index("--pack-destination") + 1
-        dest = Path(cmd[cache_idx])
-        dest.mkdir(parents=True, exist_ok=True)
-        (dest / "express-4.19.2.tgz").write_bytes(b"tarball-bytes")
+        assert Path(cmd[cache_idx]) == expected_node_cache
+        expected_node_cache.mkdir(parents=True, exist_ok=True)
+        (expected_node_cache / "express-4.19.2.tgz").write_bytes(b"tarball-bytes")
         return 0, "packed", ""
 
     manifest = dependency_provisioner.provision_workspace_dependencies(
@@ -180,12 +182,14 @@ def test_egress_allow_list_and_tier3_regulated_mirror_policy(tmp_path: Path) -> 
     assert blocked["unmet_reasons"] == {"flask": "blocked_by_policy"}
     assert blocked["executable_with_cache"] is False
 
+    expected_mirror_cache = tmp_path / "cache-allowed" / "mission-reg-mirror" / "pip"
+
     def fake_mirror_fetch(cmd: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str, str]:
         assert env.get("PIP_INDEX_URL") == "http://mirror.corp.internal/simple"
         assert "--only-binary=:all:" in cmd
-        dest = Path(cmd[cmd.index("--dest") + 1])
-        dest.mkdir(parents=True, exist_ok=True)
-        (dest / "flask-3.0.3-py3-none-any.whl").write_bytes(b"wheel-data")
+        assert Path(cmd[cmd.index("--dest") + 1]) == expected_mirror_cache
+        expected_mirror_cache.mkdir(parents=True, exist_ok=True)
+        (expected_mirror_cache / "flask-3.0.3-py3-none-any.whl").write_bytes(b"wheel-data")
         return 0, "", ""
 
     allowed = dependency_provisioner.provision_workspace_dependencies(
