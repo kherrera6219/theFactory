@@ -964,20 +964,53 @@ async def livez() -> dict[str, bool]:
     return {"ok": True}
 
 
+def _sanitize_provision_workspace_dir(raw_dir: str) -> Path:
+    allowed_roots = [os.path.abspath(tempfile.gettempdir())]
+    configured_root = os.getenv("WORKSPACE_ROOT", "").strip()
+    if configured_root:
+        allowed_roots.append(os.path.abspath(configured_root))
+    candidate = os.path.normpath(os.path.abspath(str(raw_dir)))
+    for root_abs in allowed_roots:
+        if candidate == root_abs or candidate.startswith(root_abs + os.sep):
+            return Path(candidate)
+    raise HTTPException(
+        status_code=403,
+        detail="workspace_dir must reside under WORKSPACE_ROOT or tempdir",
+    )
+
+
 @app.post("/internal/provision")
 async def provision_endpoint(
     payload: ProvisionRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _authorize(authorization)
+    safe_ws_dir = _sanitize_provision_workspace_dir(payload.workspace_dir)
+    safe_deps = [
+        cleaned
+        for item in payload.declared_dependencies
+        if (cleaned := re.sub(r"[^A-Za-z0-9._/:=@+,~-]", "", str(item).strip()))
+    ]
+    safe_lang_map = {
+        "python": "python",
+        "javascript": "javascript",
+        "typescript": "typescript",
+        "java": "java",
+        "csharp": "csharp",
+        "go": "go",
+        "rust": "rust",
+        "php": "php",
+        "ruby": "ruby",
+    }
+    safe_lang = safe_lang_map.get(str(payload.language or "").strip().lower())
     try:
         return provision_workspace_dependencies(
-            payload.workspace_dir,
-            mission_id=payload.mission_id,
-            workspace_id=payload.workspace_id,
-            language=payload.language or None,
+            safe_ws_dir,
+            mission_id=_safe_cache_key(payload.mission_id),
+            workspace_id=_safe_cache_key(payload.workspace_id) if payload.workspace_id else "",
+            language=safe_lang,
             data_classification=payload.data_classification,
-            declared_dependencies=payload.declared_dependencies,
+            declared_dependencies=safe_deps,
             execute_fetch=payload.execute_fetch,
         )
     except FileNotFoundError as exc:
