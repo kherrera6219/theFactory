@@ -315,7 +315,8 @@ class ProviderAdapter:
         """Send a multi-turn conversation payload and return an ``AssistantTurn``."""
         if is_circuit_open(self.provider):
             LOGGER.warning(
-                "%s skipping provider %s — circuit breaker open", call_context, self.provider
+                "%s skipping provider — circuit breaker open",
+                call_context,
             )
             return None
 
@@ -345,7 +346,11 @@ class ProviderAdapter:
                 call_context=call_context,
             )
         except Exception as exc:
-            LOGGER.warning("%s adapter invoke error (%s): %s", call_context, self.provider, exc)
+            LOGGER.warning(
+                "%s adapter invoke failed: %s",
+                call_context,
+                type(exc).__name__,
+            )
             turn = None
 
         elapsed = max(0.0, time.monotonic() - t0)

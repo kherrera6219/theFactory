@@ -726,9 +726,12 @@ def _run_no_exec_command(
         if not _SAFE_CLI_ARG_RE.fullmatch(part):
             raise ValueError(f"Disallowed character in command argument: {part!r}")
         safe_cmd.append(part)
+    cwd_norm = os.path.normpath(os.path.abspath(str(cwd)))
+    if not os.path.isdir(cwd_norm):
+        raise FileNotFoundError(f"Working directory does not exist: {cwd_norm}")
     proc = subprocess.run(  # noqa: S603 - validated allow-listed package manager binary & args
         safe_cmd,
-        cwd=str(cwd),
+        cwd=cwd_norm,
         env=env,
         capture_output=True,
         text=True,
@@ -758,9 +761,10 @@ def provision_workspace_dependencies(
     allow-listed registries (or checks ``fetcher`` in tests). When False, resolves
     already-cached artifacts in ``dep_cache_dir`` and vendored offline frameworks.
     """
-    ws = Path(workspace_dir)
-    if not ws.is_dir():
-        raise FileNotFoundError(f"Workspace directory not found: {ws}")
+    ws_abs = os.path.normpath(os.path.abspath(str(workspace_dir)))
+    if not os.path.isdir(ws_abs):
+        raise FileNotFoundError(f"Workspace directory not found: {ws_abs}")
+    ws = Path(ws_abs)
 
     deps, manifests, warnings = scan_workspace_manifests(
         ws,

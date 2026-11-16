@@ -69,11 +69,12 @@ def contained_workspace(workspace_dir: str | Path, workspace_root: str = "") -> 
         return None
 
     for root in _allowed_roots(workspace_root):
-        if os.path.dirname(raw) != root:
+        root_abs = os.path.abspath(root)
+        if os.path.dirname(raw) != root_abs:
             continue
-        # Built from the validated root plus a validated single name -- no part
-        # of the caller's path string reaches this join.
-        rebuilt = os.path.join(root, safe)
+        rebuilt = os.path.normpath(os.path.join(root_abs, safe))
+        if not rebuilt.startswith(root_abs + os.sep):
+            continue
         if not os.path.isdir(rebuilt):
             return None
         return Path(rebuilt)
@@ -87,13 +88,17 @@ def make_workspace_readable(workspace_dir: str | Path, workspace_root: str = "")
     root = contained_workspace(workspace_dir, workspace_root=workspace_root)
     if root is None:
         return
+    root_abs = os.path.abspath(str(root))
     try:
-        root.chmod(0o755)
-        for entry in root.rglob("*"):
-            try:
-                entry.resolve().relative_to(root.resolve())
-            except ValueError:
-                continue
-            entry.chmod(0o755 if entry.is_dir() else 0o644)
+        os.chmod(root_abs, 0o755)
+        for dirpath, dirnames, filenames in os.walk(root_abs, followlinks=False):
+            for dname in dirnames:
+                dpath = os.path.normpath(os.path.join(dirpath, dname))
+                if dpath.startswith(root_abs + os.sep) and not os.path.islink(dpath):
+                    os.chmod(dpath, 0o755)
+            for fname in filenames:
+                fpath = os.path.normpath(os.path.join(dirpath, fname))
+                if fpath.startswith(root_abs + os.sep) and not os.path.islink(fpath):
+                    os.chmod(fpath, 0o644)
     except OSError as exc:
         LOGGER.warning("could not relax sandbox workspace permissions on %s: %s", root, exc)

@@ -42,7 +42,7 @@ function FileChipPreview({ file }: { file: File }) {
       <span style={{ fontSize: "12px", fontWeight: "bold" }}>
         {label} ({sizeKb}KB)
       </span>
-      {previewUrl && (
+      {previewUrl && previewUrl.startsWith("blob:") && (
         <img
           src={previewUrl}
           alt={label}

@@ -41,13 +41,16 @@ export function stripZipExtension(fileName: string): string {
 }
 
 export function sanitizeDisplayName(value: string): string {
-  const cleaned = value
+  const replaced = value
     .trim()
     .replace(/\.zip$/i, "")
     .replace(/[^A-Za-z0-9._ -]+/g, "-")
-    .replace(/[-_ .]+$/g, "")
     .slice(0, 120);
-  return cleaned || "repository-archive";
+  let end = replaced.length;
+  while (end > 0 && "-_ .".includes(replaced[end - 1])) {
+    end -= 1;
+  }
+  return replaced.slice(0, end) || "repository-archive";
 }
 
 export function archiveLooksLikeZip(buffer: Buffer): boolean {
