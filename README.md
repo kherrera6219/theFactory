@@ -25,11 +25,12 @@
 ---
 
 > **Key Architecture & Operational Highlights:**
-> - **20 Language Toolchains**: Automated syntax parsing, comment-stripped structural & AST extraction (`ast`, `esprima`, `javalang`, `go`, `haskell`, `ocaml`, `julia`, `treesitter_extractor`), and isolated test execution across 20 languages.
-> - **41 Specialist Agents**: Role-based multi-agent architecture spanning conversational PM Studio (`AGENT-01-PM`), fast-path SOW routing, paradigm pods, language specialists, and contract-driven quality control.
-> - **Hardened Container Sandbox & Multi-Turn Surgical Self-Repair**: Untrusted code executes in an unprivileged, non-networked Docker container (`--user=65534`, `--network=none`, `--read-only`) with surgical file-level self-repair (`rqca_repair.py`) and polyglot behavioral equivalence (`Python`, `JavaScript`, `TypeScript`, plus CLI contract oracles across all 20 languages).
-> - **Native Desktop & Web UI**: Mission Control operator console with a Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, and 1-click `.zip`, `.patch`, and `ECDSA-P256-SHA256`-signed CycloneDX `1.5` SBOM exports (authenticated end-to-end via gateway + `INTERNAL_AUTH_DEP`).
-> - **Out-of-Band Credential Vault & Zero-Trust Identity**: Ephemeral Redis vault (`mission-vault:<id>`) keeps provider API keys out of Postgres and Redis intake/DLQ streams; strict multi-tenant OIDC & mutual TLS (`mTLS`) secure service boundaries.
+> - **20 Language Toolchains**: Automated syntax parsing, comment-stripped structural & AST extraction (`ast`, `esprima`, `javalang`, `go`, `haskell`, `ocaml`, `julia`, `treesitter_extractor`), and isolated test execution across 20 languages ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)).
+> - **41 Specialist Agents & Role-Scoped Harness**: Multi-agent architecture spanning conversational PM Studio (`AGENT-01-PM`), fast-path SOW routing, paradigm pods, language specialists, and bounded multi-turn `AgentHarness` tool execution.
+> - **Brownfield Workspaces, Sliced Execution & Preservation Gates**: Git-backed mission workspaces (`baseline` -> `thefactory/mission-<id>`), AST symbol/call indexing, baseline characterisation tests, enforced `PRESERVED`/`REGRESSED` gates, PORT dual-run equivalence, topological slice commits with `MIGRATION_NOTES.md`, and opt-in vaulted GitHub PR delivery.
+> - **Hardened Container Sandbox & Offline Dependency Provisioner**: Untrusted code executes in unprivileged, `--network=none`, `--read-only` Docker containers with `/deps:ro` offline dependency caches, surgical file-level self-repair (`rqca_repair.py`), and polyglot behavioral equivalence.
+> - **Native Desktop & Web UI**: Mission Control desktop/web console with Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, Slice Timeline, and 1-click `.zip`, `.patch`, and `ECDSA-P256-SHA256`-signed CycloneDX `1.5` SBOM exports.
+> - **Out-of-Band Credential Vault & Next-Gen Model Fleet**: Ephemeral Redis vault (`mission-vault:<id>`) keeps provider API keys and GitHub tokens out of Postgres and intake streams, supporting `gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`, and local Ollama models alongside multi-tenant OIDC & mTLS.
 > - **Dynamic Deployment Topologies**: One-command scaling between lightweight condensed mode and a 41-container dedicated fleet.
 
 ---
@@ -567,9 +568,9 @@ Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finaliz
 
 ## Documentation Index & License
 
-### Roadmap & Current Status
-- **Current Status (`2026-11-13`)**: All 8 phases of the Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`), `F1`–`F11` remediation, and **all 7 phases** of [`GEMINI_NEXT_PHASE_PLAN_2026-11-13.md`](GEMINI_NEXT_PHASE_PLAN_2026-11-13.md) ("Make Brownfield Work Real": MIT brownfield benchmark corpus, Git-backed `MissionWorkspace`, role-scoped `AgentHarness`, offline `dependency-provisioner`, AST repo indexing + [`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md), baseline preservation gates + PORT dual-run equivalence, and topological sliced execution + `MIGRATION_NOTES.md` + opt-in vaulted PR delivery) are **complete**. See [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md) and [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
-- **Engineering Review Record (`F1`–`F11`)**: [`GEMINI_REVIEW_FINDINGS_2026-11-13.md`](GEMINI_REVIEW_FINDINGS_2026-11-13.md)
+### Latest Release & Status
+- **Latest Application Capabilities**: Git-backed brownfield workspaces, role-scoped `AgentHarness`, offline dependency provisioning, AST repo indexing ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)), baseline preservation gates & PORT dual-run equivalence, sliced execution with `MIGRATION_NOTES.md`, opt-in vaulted GitHub PR export, and the Next-Gen model fleet (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`).
+- **Release History & Engineering Status**: See [`CHANGELOG.md`](CHANGELOG.md), [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
 
 ### Documentation & Specifications
 - **Full Documentation Index**: [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md)
