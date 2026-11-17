@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { inferRequestedTargetLanguage, requestedLanguageFromPath } from "./language";
+import {
+  inferRequestedTargetLanguage,
+  languageMaturityTier,
+  requestedLanguageFromPath,
+} from "./language";
 
 describe("language helpers", () => {
   it("maps file paths to requested target languages", () => {
@@ -65,5 +69,12 @@ describe("language helpers", () => {
         contractLanguages: ["typescript", "html", "css", "batch"],
       }),
     ).toBe("typescript");
+  });
+
+  it("maps target languages to maturity tiers", () => {
+    expect(languageMaturityTier("python")?.tier).toBe("Tier 1");
+    expect(languageMaturityTier("rust")?.tier).toBe("Tier 2");
+    expect(languageMaturityTier("zig")?.tier).toBe("Tier 3");
+    expect(languageMaturityTier("")).toBeNull();
   });
 });

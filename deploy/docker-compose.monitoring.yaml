@@ -62,18 +62,32 @@ services:
     networks:
       - hgr-monitoring
 
+  monitoring-docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.1.1
+    environment:
+      CONTAINERS: "1"
+      INFO: "1"
+      EVENTS: "1"
+      PING: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - hgr-monitoring
+
   promtail:
     image: grafana/promtail:3.1.1
     command: -config.file=/etc/promtail/promtail-config.yml
+    environment:
+      DOCKER_HOST: tcp://monitoring-docker-proxy:2375
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - loki
+      - monitoring-docker-proxy
     networks:
       - hgr-monitoring
 

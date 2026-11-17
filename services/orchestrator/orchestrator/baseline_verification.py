@@ -8,10 +8,11 @@ import logging
 import re
 import shutil
 import tempfile
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from defusedxml import ElementTree as ET
 
 from .dependency_provisioner import offline_sandbox_env
 from .rqca_agent import _LANGUAGE_RUNTIMES, _VENDORED_TEST_RUNTIMES
@@ -168,7 +169,7 @@ def parse_junit_xml(junit_xml: str) -> dict[str, list[str]]:
     if "<!doctype" in low_xml or "<!entity" in low_xml:
         return {"passed": passed, "failed": failed, "skipped": skipped}
     try:
-        root = ET.fromstring(junit_xml)  # nosec B314 - DTD/XXE rejected above; controlled sandbox output
+        root = ET.fromstring(junit_xml)
     except ET.ParseError:
         return {"passed": passed, "failed": failed, "skipped": skipped}
     for case in root.iter("testcase"):

@@ -116,3 +116,25 @@ export function inferRequestedTargetLanguage(params: {
 
   return winningLanguage;
 }
+
+export type LanguageMaturityInfo = {
+  tier: "Tier 1" | "Tier 2" | "Tier 3";
+  label: string;
+};
+
+const TIER_1_LANGUAGES = new Set(["python", "javascript", "typescript", "java", "go"]);
+const TIER_2_LANGUAGES = new Set(["rust", "csharp", "kotlin", "scala", "php", "ruby", "haskell", "ocaml", "julia"]);
+
+export function languageMaturityTier(language: string | null | undefined): LanguageMaturityInfo | null {
+  const normalized = String(language ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (TIER_1_LANGUAGES.has(normalized)) {
+    return { tier: "Tier 1", label: "AST + Offline Sandbox + Dep Cache" };
+  }
+  if (TIER_2_LANGUAGES.has(normalized)) {
+    return { tier: "Tier 2", label: "Structural/Regex + Offline Sandbox" };
+  }
+  return { tier: "Tier 3", label: "Regex + Syntax/Dry-Run Verification" };
+}

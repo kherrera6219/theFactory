@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Panel } from "../../../components/panel";
 import { EmptyState, SystemMessage } from "../../../components/status";
+import { inferRequestedTargetLanguage, languageMaturityTier } from "../../../lib/language";
 import { sanitizeUserText } from "../../../lib/security";
 import { contractSourceLabel, isDegradedContract } from "../chat-helpers";
 import type { BaselinePolicy, ContinuationContext, DisplayFeatureContract } from "../chat-types";
@@ -80,7 +81,22 @@ export function ChatSowSection({
               </div>
               <div>
                 <dt>Languages</dt>
-                <dd>{contract.languages}</dd>
+                <dd>
+                  {contract.languages}
+                  {(() => {
+                    const inferred = inferRequestedTargetLanguage({ contractLanguages: contract.languages });
+                    const maturity = languageMaturityTier(inferred);
+                    return maturity ? (
+                      <span
+                        className="badge"
+                        style={{ marginLeft: "0.5rem", fontSize: "0.75rem", opacity: 0.85 }}
+                        title={maturity.label}
+                      >
+                        {maturity.tier}: {maturity.label}
+                      </span>
+                    ) : null;
+                  })()}
+                </dd>
               </div>
               <div>
                 <dt>In scope</dt>

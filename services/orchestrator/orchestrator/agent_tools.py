@@ -318,31 +318,40 @@ def _is_non_public_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> 
     )
 
 
-def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
+def _resolve_and_validate_fetch_target(url: str) -> tuple[bool, str, str | None]:
     parsed = urlparse(str(url or "").strip())
     if parsed.scheme.lower() not in {"http", "https"}:
-        return False, "Only http:// and https:// URLs are permitted."
+        return False, "Only http:// and https:// URLs are permitted.", None
     host = (parsed.hostname or "").strip().lower()
     if not host:
-        return False, "Missing hostname in URL."
+        return False, "Missing hostname in URL.", None
     if host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".local"):
-        return False, f"Loopback or local hostname rejected: {host}"
+        return False, f"Loopback or local hostname rejected: {host}", None
+    resolved_ip: str | None = None
     try:
         ip_obj = ipaddress.ip_address(host)
         if _is_non_public_ip(ip_obj):
-            return False, f"Private/reserved IP rejected: {host}"
+            return False, f"Private/reserved IP rejected: {host}", None
+        resolved_ip = str(ip_obj)
     except ValueError:
         try:
             infos = socket.getaddrinfo(host, None)
             for info in infos:
-                addr = info[4][0]
-                ip_resolved = ipaddress.ip_address(addr.split("%", 1)[0])
+                addr = info[4][0].split("%", 1)[0]
+                ip_resolved = ipaddress.ip_address(addr)
                 if _is_non_public_ip(ip_resolved):
-                    return False, f"Hostname resolves to non-public address: {host}"
+                    return False, f"Hostname resolves to non-public address: {host}", None
+                if resolved_ip is None:
+                    resolved_ip = str(ip_resolved)
         except OSError:
             # DNS resolution may not exist in offline CI tests; allow caller HTTP layer to fail cleanly.
             pass
-    return True, ""
+    return True, "", resolved_ip
+
+
+def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
+    safe, reason, _ = _resolve_and_validate_fetch_target(url)
+    return safe, reason
 
 
 def _resolve_sandbox_runtime(
@@ -795,12 +804,20 @@ async def _tool_research_fetch(
     if ctx.fetch_handler is not None:
         status, ctype, text = await ctx.fetch_handler(url)
     else:
-        safe, reason = _is_safe_fetch_url(url)
+        safe, reason, resolved_ip = _resolve_and_validate_fetch_target(url)
         if not safe:
             return ToolResult(call_id, "research.fetch", reason, is_error=True)
+        request_url = url
+        headers = {"User-Agent": "theFactory-AgentHarness/1.0"}
+        parsed_url = urlparse(url)
+        if parsed_url.scheme.lower() == "http" and resolved_ip and parsed_url.hostname:
+            ip_host = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+            netloc = f"{ip_host}:{parsed_url.port}" if parsed_url.port else ip_host
+            request_url = parsed_url._replace(netloc=netloc).geturl()
+            headers["Host"] = parsed_url.netloc
         try:
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
-                resp = await client.get(url, headers={"User-Agent": "theFactory-AgentHarness/1.0"})
+                resp = await client.get(request_url, headers=headers)
             status = int(resp.status_code)
             ctype = str(resp.headers.get("content-type") or "text/plain")
             text = resp.text[:_MAX_FETCH_BYTES]
