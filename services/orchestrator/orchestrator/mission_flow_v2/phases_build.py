@@ -463,6 +463,419 @@ async def _prepare_specialist_assignment(
     )
 
 
+async def _execute_sliced_specialist_codegen(
+    *,
+    mission: Any,
+    mission_id: str,
+    metadata: dict[str, Any],
+    settings: Any,
+    mission_contract: dict[str, Any],
+    normalized_plan: dict[str, Any],
+    specialist_agent_id: str,
+    target_lang: str,
+    port_source_logicnodes: Any,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Run topological sliced execution; returns ``(generated_output, paused_or_regressed)``."""
+    from ..context_pack import parse_file_bundle
+    from ..sliced_execution import execute_mission_slices
+    from ..workspace import workspace_from_mission_metadata
+
+    bound_ws = await asyncio.to_thread(
+        workspace_from_mission_metadata,
+        metadata,
+        settings=settings,
+    )
+    last_slice_output: dict[str, Any] = {}
+
+    async def _slice_codegen(
+        *,
+        slice_spec: dict[str, Any],
+        context_pack: dict[str, Any],
+        ws: Any,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        nonlocal last_slice_output
+        _slice_ctx: dict[str, Any] = {
+            **_mission_context(mission, metadata),
+            "feature_contract": metadata.get("feature_contract"),
+            "mission_contract": mission_contract,
+            "specialist_plan": normalized_plan,
+            "active_slice": slice_spec,
+            "context_pack": context_pack,
+        }
+        if port_source_logicnodes:
+            _slice_ctx["port_source_logicnodes"] = port_source_logicnodes
+            _slice_ctx["port_source_language"] = metadata.get("port_source_language", "")
+            _slice_ctx["port_target_language"] = metadata.get("port_target_language", "")
+        out = await _pkg().generate_code_from_contract(
+            mission_context=_slice_ctx,
+            specialist_agent_id=specialist_agent_id,
+            mission_contract=mission_contract,
+            logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+            target_language=target_lang,
+        )
+        last_slice_output = dict(out) if isinstance(out, dict) else {}
+        code_text = str(
+            last_slice_output.get("code") or last_slice_output.get("generated_code") or ""
+        )
+        parsed_entries = parse_file_bundle(code_text) if code_text else []
+        parsed: dict[str, str] = {}
+        if isinstance(parsed_entries, dict):
+            parsed = {str(k): str(v) for k, v in parsed_entries.items()}
+        elif isinstance(parsed_entries, list):
+            for entry in parsed_entries:
+                if isinstance(entry, dict) and entry.get("path") and entry.get("content") is not None:
+                    parsed[str(entry["path"])] = str(entry["content"])
+        if not parsed and code_text:
+            fallback_name = str(
+                last_slice_output.get("filename")
+                or (slice_spec.get("files") or ["main.py"])[0]
+            )
+            parsed = {fallback_name: code_text}
+        return {"files": parsed, "output": last_slice_output}
+
+    slice_outcome = await execute_mission_slices(
+        mission_id=mission_id,
+        metadata=metadata,
+        ws=bound_ws,
+        settings=settings,
+        storage_module=_pkg().storage,
+        codegen_fn=_slice_codegen,
+        agent_id=specialist_agent_id,
+    )
+    if slice_outcome.get("paused") or slice_outcome.get("regressed"):
+        return None, True
+    bundle_code = (
+        await asyncio.to_thread(bound_ws.build_source_bundle_excerpt)
+        if bound_ws is not None
+        else str(last_slice_output.get("code") or "")
+    )
+    generated_output = {
+        **last_slice_output,
+        "code": bundle_code,
+        "code_length_chars": len(bundle_code),
+        "language": target_lang,
+        "specialist_agent_id": specialist_agent_id,
+        "slice_count": len(slice_outcome.get("slices_completed") or []),
+    }
+    metadata["generated_output"] = generated_output
+    return generated_output, False
+
+
+async def _execute_single_shot_specialist_codegen(
+    *,
+    mission: Any,
+    mission_id: str,
+    metadata: dict[str, Any],
+    settings: Any,
+    mission_contract: dict[str, Any],
+    normalized_plan: dict[str, Any],
+    specialist_agent_id: str,
+    target_lang: str,
+    port_source_logicnodes: Any,
+) -> dict[str, Any]:
+    """Run single-shot specialist codegen plus optional multi-turn AgentHarness refinement."""
+    from ..agent_harness import is_role_harness_enabled, run_activation
+    from ..context_pack import build_specialist_context_pack
+    from ..workspace import sync_generated_output_to_workspace, workspace_from_mission_metadata
+
+    _codegen_context: dict[str, Any] = {
+        **_mission_context(mission, metadata),
+        "feature_contract": metadata.get("feature_contract"),
+        "mission_contract": mission_contract,
+        "specialist_plan": normalized_plan,
+    }
+    if port_source_logicnodes:
+        _codegen_context["port_source_logicnodes"] = port_source_logicnodes
+        _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
+        _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
+    source_bundle = metadata.get("source_code")
+    if isinstance(source_bundle, str) and source_bundle.strip():
+        _codegen_context["imported_source_code"] = source_bundle
+    aim = metadata.get("application_intelligence_map")
+    if isinstance(aim, dict) and aim:
+        _codegen_context["application_intelligence_map"] = {
+            key: aim.get(key)
+            for key in (
+                "workspace_id",
+                "languages",
+                "detected_languages",
+                "primary_language",
+                "frameworks",
+                "entrypoints",
+                "test_discovery",
+                "file_count",
+                "summary",
+                "repository_summary",
+            )
+            if key in aim
+        }
+
+    bound_ws = await asyncio.to_thread(
+        workspace_from_mission_metadata,
+        metadata,
+        settings=settings,
+    )
+    active_slice = (
+        metadata.get("active_slice")
+        if isinstance(metadata.get("active_slice"), dict)
+        else None
+    )
+    if bound_ws is not None or (isinstance(source_bundle, str) and source_bundle.strip()):
+        _codegen_context["context_pack"] = await asyncio.to_thread(
+            build_specialist_context_pack,
+            ws=bound_ws,
+            source_code=str(source_bundle or ""),
+            slice_spec=active_slice,
+            aim=aim if isinstance(aim, dict) else None,
+            query=str(getattr(mission, "prompt", "") or getattr(mission, "title", "") or ""),
+        )
+
+    _query_hint = str(getattr(mission, "title", "") or "")
+    knowledge_context = await asyncio.to_thread(
+        knowledge_lake.get_language_context,
+        settings=settings,
+        language=target_lang,
+        query=_query_hint,
+    )
+    if knowledge_context:
+        _codegen_context["knowledge_context"] = knowledge_context
+        LOGGER.info(
+            "Injected Knowledge Lake context for mission %s language=%s (%d chars)",
+            mission_id,
+            target_lang,
+            len(knowledge_context),
+        )
+    generated_output = await _pkg().generate_code_from_contract(
+        mission_context=_codegen_context,
+        specialist_agent_id=specialist_agent_id,
+        mission_contract=mission_contract,
+        logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+        target_language=target_lang,
+    )
+    metadata["generated_output"] = generated_output
+
+    await asyncio.to_thread(
+        sync_generated_output_to_workspace,
+        mission_id,
+        metadata,
+        generated_output,
+        commit_message=f"mission {mission_id}: specialist codegen",
+        settings=settings,
+    )
+
+    if is_role_harness_enabled(settings, "specialist", specialist_agent_id, metadata):
+        ws = await asyncio.to_thread(
+            workspace_from_mission_metadata,
+            metadata,
+            settings=settings,
+        )
+        harness_result = await run_activation(
+            role="specialist",
+            agent_id=specialist_agent_id,
+            stage="specialist_harness",
+            goal=(
+                f"Inspect, verify, and refine generated deliverables for mission {mission_id} "
+                f"against the SOW and existing repository."
+            ),
+            context_pack={
+                "mission_contract": mission_contract,
+                "specialist_plan": normalized_plan,
+            },
+            workspace=ws,
+            settings=settings,
+            mission_id=mission_id,
+            mission_metadata=metadata,
+            data_classification=str(
+                getattr(mission.data_classification, "value", mission.data_classification)
+                or "TIER_1_INTERNAL"
+            ),
+            target_language=target_lang,
+        )
+        if ws is not None and harness_result.modified_files:
+            updated_bundle = await asyncio.to_thread(ws.build_source_bundle_excerpt)
+            if updated_bundle:
+                generated_output = {
+                    **generated_output,
+                    "code": updated_bundle,
+                    "code_length_chars": len(updated_bundle),
+                    "harness_status": harness_result.status,
+                }
+                metadata["generated_output"] = generated_output
+
+    return generated_output
+
+
+async def _record_specialist_generation_outcome(
+    *,
+    mission: Any,
+    mission_id: str,
+    metadata: dict[str, Any],
+    settings: Any,
+    generated_output: dict[str, Any],
+    specialist_agent_id: str,
+    pod_manager_agent_id: str,
+    target_lang: str,
+    port_source_logicnodes: Any,
+) -> None:
+    """Record fallback degradation, Beta emission, chain events, and PORT completion."""
+    from ..settings import resolve_mission_fallback_policy
+    from .phases_runtime import _send_beta_production_result  # noqa: PLC0415
+
+    gen_source = str(generated_output.get("source") or "").strip().lower()
+    if gen_source == "fallback":
+        raw_policy = metadata.get("fallback_policy")
+        if not isinstance(raw_policy, str) or not raw_policy.strip():
+            settings_policy = getattr(settings, "mission_fallback_policy", "auto")
+            raw_policy = settings_policy if isinstance(settings_policy, str) else "auto"
+        raw_env = getattr(settings, "environment", "development")
+        env_name = raw_env if isinstance(raw_env, str) else "development"
+        policy = resolve_mission_fallback_policy(raw_policy, environment=env_name)
+        reason = str(generated_output.get("fallback_reason") or "specialist_codegen_fallback")
+        metadata["generation_degraded"] = True
+        metadata["generation_degraded_reason"] = reason
+        metadata["generation_fallback_policy"] = policy
+        if policy == "block":
+            metadata["generation_degraded_blocked"] = True
+        degraded_details = {
+            "source": gen_source,
+            "policy": policy,
+            "blocked": policy == "block",
+            "reason": reason,
+        }
+        append_chain_event(
+            metadata,
+            event_type="MISSION_GENERATION_DEGRADED",
+            agent_id=specialist_agent_id,
+            details=degraded_details,
+        )
+        await asyncio.to_thread(
+            _pkg().storage.insert_mission_event,
+            settings,
+            mission.mission_id,
+            mission.state,
+            mission.state,
+            "MISSION_GENERATION_DEGRADED",
+        )
+        record_agent_activation(
+            metadata,
+            agent_id=specialist_agent_id,
+            stage="specialist_codegen_degraded",
+            status="blocked" if policy == "block" else "degraded",
+            event_type="MISSION_GENERATION_DEGRADED",
+            provider=str(generated_output.get("provider"))
+            if generated_output.get("provider")
+            else None,
+            model=str(generated_output.get("model"))
+            if generated_output.get("model")
+            else None,
+            source=gen_source,
+            details=degraded_details,
+        )
+
+    await _send_beta_production_result(
+        settings=settings,
+        mission_id=mission_id,
+        specialist_agent_id=generated_output.get("specialist_agent_id", specialist_agent_id),
+        pod_manager_agent_id=pod_manager_agent_id,
+        logicnode_id=f"ln-{mission_id}-specialist",
+        confidence_score=0.0,
+        source_language=str(generated_output.get("language") or target_lang),
+    )
+    generated_output_details = {
+        "source": generated_output.get("source"),
+        "filename": generated_output.get("filename"),
+        "language": generated_output.get("language"),
+        "code_length_chars": generated_output.get("code_length_chars", 0),
+        "model_provider": generated_output.get("model_provider"),
+        "model": generated_output.get("model"),
+    }
+    if not _restate_chain_event(
+        metadata,
+        event_type="GENERATED_OUTPUT_CREATED",
+        agent_id=specialist_agent_id,
+        details=generated_output_details,
+    ):
+        append_chain_event(
+            metadata,
+            event_type="GENERATED_OUTPUT_CREATED",
+            agent_id=specialist_agent_id,
+            details=generated_output_details,
+        )
+    if port_source_logicnodes and not _chain_event_exists(
+        metadata, "MISSION_PORT_GENERATION_COMPLETE"
+    ):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_PORT_GENERATION_COMPLETE",
+            agent_id=specialist_agent_id,
+            details={
+                "target_language": metadata.get("port_target_language", ""),
+                "source_logicnode_count": len(port_source_logicnodes),
+                "filename": generated_output.get("filename"),
+                "source": generated_output.get("source"),
+            },
+        )
+
+
+async def _maybe_compute_specialist_scaling(
+    *,
+    app: Any,
+    mission: Any,
+    mission_id: str,
+    metadata: dict[str, Any],
+    normalized_plan: dict[str, Any],
+    settings: Any,
+    specialist_agent_id: str,
+) -> None:
+    existing_scaling_decision = metadata.get("scaling_decision")
+    if not (
+        _setting_bool(settings, "agent_scaling_enabled", False)
+        and is_scalable_agent(specialist_agent_id)
+        and not isinstance(existing_scaling_decision, dict)
+    ):
+        return
+    workload_items = _scaling_workload_items(metadata, normalized_plan)
+    scaling = compute_scaling_decision(
+        agent_id=specialist_agent_id,
+        workload_items=workload_items,
+        max_instances=_setting_int(settings, "agent_scaling_max_instances", 4),
+        items_per_instance=_setting_int(settings, "agent_scaling_items_per_instance", 3),
+    )
+    embed_scaling_decision(metadata, scaling)
+    metadata["scaling_partition_events_emitted"] = False
+    if not _chain_event_exists(metadata, "MISSION_SCALING_DECIDED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SCALING_DECIDED",
+            agent_id=specialist_agent_id,
+            details={
+                "instance_count": scaling.instance_count,
+                "reason": scaling.reason,
+                "scaling_version": scaling.scaling_version,
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="scaling_decided",
+        event_type="MISSION_SCALING_DECIDED",
+        agent_id=specialist_agent_id,
+        details=scaling.to_dict(),
+    )
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=specialist_agent_id,
+        service_name="orchestrator",
+        event_type="MISSION_SCALING_DECIDED",
+        object_type="scaling_plan",
+        object_id=specialist_agent_id,
+        payload_summary=scaling.to_dict(),
+        content_hash_source=scaling.to_dict(),
+    )
+
+
 async def _prepare_specialist_plan(
     *,
     app: Any,
@@ -482,13 +895,6 @@ async def _prepare_specialist_plan(
         str(metadata.get("mission_type") or "").strip().upper() == "PORT"
         and _setting_bool(settings, "port_two_phase_enabled")
         and str(metadata.get("port_phase") or "").strip().lower() == "extraction"
-        # Unlike every sibling branch in this function, this one had no
-        # re-entrancy guard: mission state stays at specialist_assigned for
-        # the whole extraction+generation two-phase flow, so nothing in the
-        # transition-based dedup protects a second invocation while
-        # port_phase is still "extraction" -- it would re-run two LLM calls,
-        # mint a fresh non-deterministic port_source_aim/source_logicnodes,
-        # and append a duplicate MISSION_PORT_EXTRACTION_COMPLETE event.
         and not _chain_event_exists(metadata, "MISSION_PORT_EXTRACTION_COMPLETE")
     ):
         extraction_updates = await run_port_extraction_phase(
@@ -499,9 +905,6 @@ async def _prepare_specialist_plan(
         )
         for key, value in extraction_updates.items():
             metadata[key] = value
-        # Persist extraction results — port_phase is now "generation".
-        # The lifecycle engine will re-enter _prepare_specialist_plan on the
-        # next SPECIALIST_ASSIGNED transition and take the generation path.
         updated = await asyncio.to_thread(
             _pkg().storage.update_mission_metadata, settings, mission_id, metadata
         )
@@ -516,7 +919,6 @@ async def _prepare_specialist_plan(
         fallback=resolve_specialist_agent_id(mission.requested_target_language),
     )
 
-    # PORT generation phase: inject source logicnodes into context
     port_source_logicnodes = None
     if (
         str(metadata.get("mission_type") or "").strip().upper() == "PORT"
@@ -550,7 +952,7 @@ async def _prepare_specialist_plan(
 
     mission_contract = metadata.get("mission_contract")
     output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
-    from ..sliced_execution import execute_mission_slices, extract_mission_slices
+    from ..sliced_execution import extract_mission_slices
 
     mission_slices = extract_mission_slices(metadata)
     generated_output: dict[str, Any] | None = None
@@ -566,346 +968,48 @@ async def _prepare_specialist_plan(
         and not metadata.get("slice_paused")
         and not isinstance(metadata.get("generated_output"), dict)
     ):
-        from ..context_pack import parse_file_bundle
-        from ..workspace import workspace_from_mission_metadata
-
-        bound_ws = await asyncio.to_thread(
-            workspace_from_mission_metadata,
-            metadata,
-            settings=settings,
-        )
-        last_slice_output: dict[str, Any] = {}
-
-        async def _slice_codegen(
-            *,
-            slice_spec: dict[str, Any],
-            context_pack: dict[str, Any],
-            ws: Any,
-            metadata: dict[str, Any],
-        ) -> dict[str, Any]:
-            nonlocal last_slice_output
-            _slice_ctx: dict[str, Any] = {
-                **_mission_context(mission, metadata),
-                "feature_contract": metadata.get("feature_contract"),
-                "mission_contract": mission_contract,
-                "specialist_plan": normalized,
-                "active_slice": slice_spec,
-                "context_pack": context_pack,
-            }
-            if port_source_logicnodes:
-                _slice_ctx["port_source_logicnodes"] = port_source_logicnodes
-                _slice_ctx["port_source_language"] = metadata.get("port_source_language", "")
-                _slice_ctx["port_target_language"] = metadata.get("port_target_language", "")
-            out = await _pkg().generate_code_from_contract(
-                mission_context=_slice_ctx,
-                specialist_agent_id=specialist_agent_id,
-                mission_contract=mission_contract,
-                logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
-                target_language=_target_lang,
-            )
-            last_slice_output = dict(out) if isinstance(out, dict) else {}
-            code_text = str(
-                last_slice_output.get("code") or last_slice_output.get("generated_code") or ""
-            )
-            parsed_entries = parse_file_bundle(code_text) if code_text else []
-            parsed: dict[str, str] = {}
-            if isinstance(parsed_entries, dict):
-                parsed = {str(k): str(v) for k, v in parsed_entries.items()}
-            elif isinstance(parsed_entries, list):
-                for entry in parsed_entries:
-                    if isinstance(entry, dict) and entry.get("path") and entry.get("content") is not None:
-                        parsed[str(entry["path"])] = str(entry["content"])
-            if not parsed and code_text:
-                fallback_name = str(
-                    last_slice_output.get("filename")
-                    or (slice_spec.get("files") or ["main.py"])[0]
-                )
-                parsed = {fallback_name: code_text}
-            return {"files": parsed, "output": last_slice_output}
-
-        slice_outcome = await execute_mission_slices(
+        generated_output, paused_or_regressed = await _execute_sliced_specialist_codegen(
+            mission=mission,
             mission_id=mission_id,
             metadata=metadata,
-            ws=bound_ws,
             settings=settings,
-            storage_module=_pkg().storage,
-            codegen_fn=_slice_codegen,
-            agent_id=specialist_agent_id,
+            mission_contract=mission_contract,
+            normalized_plan=normalized,
+            specialist_agent_id=specialist_agent_id,
+            target_lang=_target_lang,
+            port_source_logicnodes=port_source_logicnodes,
         )
-        if slice_outcome.get("paused") or slice_outcome.get("regressed"):
+        if paused_or_regressed:
             return False
-        bundle_code = (
-            await asyncio.to_thread(bound_ws.build_source_bundle_excerpt)
-            if bound_ws is not None
-            else str(last_slice_output.get("code") or "")
-        )
-        generated_output = {
-            **last_slice_output,
-            "code": bundle_code,
-            "code_length_chars": len(bundle_code),
-            "language": _target_lang,
-            "specialist_agent_id": specialist_agent_id,
-            "slice_count": len(slice_outcome.get("slices_completed") or []),
-        }
-        metadata["generated_output"] = generated_output
     elif (
         isinstance(mission_contract, dict)
         and output_mode != "ANALYZE_ONLY"
         and not isinstance(metadata.get("generated_output"), dict)
     ):
-        # Build codegen context — inject PORT source logicnodes when in generation phase
-        _codegen_context: dict[str, Any] = {
-            **_mission_context(mission, metadata),
-            "feature_contract": metadata.get("feature_contract"),
-            "mission_contract": mission_contract,
-            "specialist_plan": normalized,
-        }
-        if port_source_logicnodes:
-            _codegen_context["port_source_logicnodes"] = port_source_logicnodes
-            _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
-            _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
-        source_bundle = metadata.get("source_code")
-        if isinstance(source_bundle, str) and source_bundle.strip():
-            _codegen_context["imported_source_code"] = source_bundle
-        aim = metadata.get("application_intelligence_map")
-        if isinstance(aim, dict) and aim:
-            _codegen_context["application_intelligence_map"] = {
-                key: aim.get(key)
-                for key in (
-                    "workspace_id",
-                    "languages",
-                    "detected_languages",
-                    "primary_language",
-                    "frameworks",
-                    "entrypoints",
-                    "test_discovery",
-                    "file_count",
-                    "summary",
-                    "repository_summary",
-                )
-                if key in aim
-            }
-
-        from ..context_pack import build_specialist_context_pack
-        from ..workspace import workspace_from_mission_metadata
-
-        bound_ws = await asyncio.to_thread(
-            workspace_from_mission_metadata,
-            metadata,
+        generated_output = await _execute_single_shot_specialist_codegen(
+            mission=mission,
+            mission_id=mission_id,
+            metadata=metadata,
             settings=settings,
-        )
-        active_slice = (
-            metadata.get("active_slice")
-            if isinstance(metadata.get("active_slice"), dict)
-            else None
-        )
-        if bound_ws is not None or (isinstance(source_bundle, str) and source_bundle.strip()):
-            _codegen_context["context_pack"] = await asyncio.to_thread(
-                build_specialist_context_pack,
-                ws=bound_ws,
-                source_code=str(source_bundle or ""),
-                slice_spec=active_slice,
-                aim=aim if isinstance(aim, dict) else None,
-                query=str(getattr(mission, "prompt", "") or getattr(mission, "title", "") or ""),
-            )
-
-        # Knowledge Lake retrieval (Phase 2): inject documentation context the
-        # IS-Agent stocked during FETCH into the specialist codegen prompt.
-        _query_hint = str(getattr(mission, "title", "") or "")
-        # Knowledge Lake retrieval: inject documentation context the
-        # IS-Agent stocked during FETCH into the specialist codegen prompt.
-        knowledge_context = await asyncio.to_thread(
-            knowledge_lake.get_language_context,
-            settings=settings,
-            language=_target_lang,
-            query=_query_hint,
-        )
-        if knowledge_context:
-            _codegen_context["knowledge_context"] = knowledge_context
-            LOGGER.info(
-                "Injected Knowledge Lake context for mission %s language=%s (%d chars)",
-                mission_id,
-                _target_lang,
-                len(knowledge_context),
-            )
-        generated_output = await _pkg().generate_code_from_contract(
-            mission_context=_codegen_context,
-            specialist_agent_id=specialist_agent_id,
             mission_contract=mission_contract,
-            logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
-            target_language=_target_lang,
+            normalized_plan=normalized,
+            specialist_agent_id=specialist_agent_id,
+            target_lang=_target_lang,
+            port_source_logicnodes=port_source_logicnodes,
         )
-        metadata["generated_output"] = generated_output
-        from ..workspace import sync_generated_output_to_workspace, workspace_from_mission_metadata
-
-        await asyncio.to_thread(
-            sync_generated_output_to_workspace,
-            mission_id,
-            metadata,
-            generated_output,
-            commit_message=f"mission {mission_id}: specialist codegen",
-            settings=settings,
-        )
-        from ..agent_harness import is_role_harness_enabled, run_activation
-
-        if is_role_harness_enabled(settings, "specialist", specialist_agent_id, metadata):
-            ws = await asyncio.to_thread(
-                workspace_from_mission_metadata,
-                metadata,
-                settings=settings,
-            )
-            harness_result = await run_activation(
-                role="specialist",
-                agent_id=specialist_agent_id,
-                stage="specialist_harness",
-                goal=(
-                    f"Inspect, verify, and refine generated deliverables for mission {mission_id} "
-                    f"against the SOW and existing repository."
-                ),
-                context_pack={
-                    "mission_contract": mission_contract,
-                    "specialist_plan": normalized,
-                },
-                workspace=ws,
-                settings=settings,
-                mission_id=mission_id,
-                mission_metadata=metadata,
-                data_classification=str(
-                    getattr(mission.data_classification, "value", mission.data_classification)
-                    or "TIER_1_INTERNAL"
-                ),
-                target_language=_target_lang,
-            )
-            if ws is not None and harness_result.modified_files:
-                updated_bundle = await asyncio.to_thread(ws.build_source_bundle_excerpt)
-                if updated_bundle:
-                    generated_output = {
-                        **generated_output,
-                        "code": updated_bundle,
-                        "code_length_chars": len(updated_bundle),
-                        "harness_status": harness_result.status,
-                    }
-                    metadata["generated_output"] = generated_output
 
     if isinstance(generated_output, dict):
-        gen_source = str(generated_output.get("source") or "").strip().lower()
-        if gen_source == "fallback":
-            from ..settings import resolve_mission_fallback_policy
-
-            raw_policy = metadata.get("fallback_policy")
-            if not isinstance(raw_policy, str) or not raw_policy.strip():
-                settings_policy = getattr(settings, "mission_fallback_policy", "auto")
-                raw_policy = settings_policy if isinstance(settings_policy, str) else "auto"
-            raw_env = getattr(settings, "environment", "development")
-            env_name = raw_env if isinstance(raw_env, str) else "development"
-            policy = resolve_mission_fallback_policy(
-                raw_policy,
-                environment=env_name,
-            )
-            reason = str(
-                generated_output.get("fallback_reason") or "specialist_codegen_fallback"
-            )
-            metadata["generation_degraded"] = True
-            metadata["generation_degraded_reason"] = reason
-            metadata["generation_fallback_policy"] = policy
-            if policy == "block":
-                metadata["generation_degraded_blocked"] = True
-            degraded_details = {
-                "source": gen_source,
-                "policy": policy,
-                "blocked": policy == "block",
-                "reason": reason,
-            }
-            append_chain_event(
-                metadata,
-                event_type="MISSION_GENERATION_DEGRADED",
-                agent_id=specialist_agent_id,
-                details=degraded_details,
-            )
-            await asyncio.to_thread(
-                _pkg().storage.insert_mission_event,
-                settings,
-                mission.mission_id,
-                mission.state,
-                mission.state,
-                "MISSION_GENERATION_DEGRADED",
-            )
-            record_agent_activation(
-                metadata,
-                agent_id=specialist_agent_id,
-                stage="specialist_codegen_degraded",
-                status="blocked" if policy == "block" else "degraded",
-                event_type="MISSION_GENERATION_DEGRADED",
-                provider=str(generated_output.get("provider"))
-                if generated_output.get("provider")
-                else None,
-                model=str(generated_output.get("model"))
-                if generated_output.get("model")
-                else None,
-                source=gen_source,
-                details=degraded_details,
-            )
-        # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
-        # This is the primary Beta emission site: generated_output is set here,
-        # before fusion ever runs, so by the time _prepare_fusion's own Beta call
-        # (phases_runtime.py) executes, mission_has_generated_output(metadata) is
-        # already True and that call is a no-op for a normal BUILD_NEW mission —
-        # it remains the fallback emission for missions whose codegen only
-        # succeeds on a later fusion-stage retry. The shared
-        # mission_has_generated_output guard keeps the two call sites mutually
-        # exclusive, so no separate idempotency marker is needed here.
-        from .phases_runtime import _send_beta_production_result  # noqa: PLC0415
-
-        await _send_beta_production_result(
-            settings=settings,
+        await _record_specialist_generation_outcome(
+            mission=mission,
             mission_id=mission_id,
-            specialist_agent_id=generated_output.get(
-                "specialist_agent_id", specialist_agent_id
-            ),
+            metadata=metadata,
+            settings=settings,
+            generated_output=generated_output,
+            specialist_agent_id=specialist_agent_id,
             pod_manager_agent_id=pod_manager_agent_id,
-            logicnode_id=f"ln-{mission_id}-specialist",
-            confidence_score=0.0,
-            source_language=str(generated_output.get("language") or _target_lang),
+            target_lang=_target_lang,
+            port_source_logicnodes=port_source_logicnodes,
         )
-        # This record describes the outcome, not merely that codegen ran, so a
-        # later successful retry must restate it. Leaving it first-write-wins
-        # left the trace reporting a 0-char fallback for missions that went on
-        # to deliver real code from the fusion-stage retry.
-        generated_output_details = {
-            "source": generated_output.get("source"),
-            "filename": generated_output.get("filename"),
-            "language": generated_output.get("language"),
-            "code_length_chars": generated_output.get("code_length_chars", 0),
-            "model_provider": generated_output.get("model_provider"),
-            "model": generated_output.get("model"),
-        }
-        if not _restate_chain_event(
-            metadata,
-            event_type="GENERATED_OUTPUT_CREATED",
-            agent_id=specialist_agent_id,
-            details=generated_output_details,
-        ):
-            append_chain_event(
-                metadata,
-                event_type="GENERATED_OUTPUT_CREATED",
-                agent_id=specialist_agent_id,
-                details=generated_output_details,
-            )
-        # PORT generation phase complete
-        if port_source_logicnodes and not _chain_event_exists(
-            metadata, "MISSION_PORT_GENERATION_COMPLETE"
-        ):
-            append_chain_event(
-                metadata,
-                event_type="MISSION_PORT_GENERATION_COMPLETE",
-                agent_id=specialist_agent_id,
-                details={
-                    "target_language": metadata.get("port_target_language", ""),
-                    "source_logicnode_count": len(port_source_logicnodes),
-                    "filename": generated_output.get("filename"),
-                    "source": generated_output.get("source"),
-                },
-            )
 
     should_emit = not _chain_event_exists(metadata, "MISSION_SPECIALIST_PLANNED")
     if should_emit:
@@ -975,59 +1079,15 @@ async def _prepare_specialist_plan(
             content_hash_source=generated_output_for_audit,
         )
 
-    # Compute scaling decision when feature is enabled. Guarded so this
-    # function's re-entrant invocations (the PORT two-phase flow explicitly
-    # re-enters _prepare_specialist_plan, and any retry while the mission
-    # is still at specialist_assigned would too) don't recompute a fresh
-    # decision with new random partition IDs — that would orphan any
-    # partition work already emitted/completed under the original IDs and
-    # silently defeat the per-partition emitted-ID dedup in
-    # _emit_partition_work_items.
-    existing_scaling_decision = metadata.get("scaling_decision")
-    if (
-        _setting_bool(settings, "agent_scaling_enabled", False)
-        and is_scalable_agent(specialist_agent_id)
-        and not isinstance(existing_scaling_decision, dict)
-    ):
-        workload_items = _scaling_workload_items(metadata, normalized)
-        scaling = compute_scaling_decision(
-            agent_id=specialist_agent_id,
-            workload_items=workload_items,
-            max_instances=_setting_int(settings, "agent_scaling_max_instances", 4),
-            items_per_instance=_setting_int(settings, "agent_scaling_items_per_instance", 3),
-        )
-        embed_scaling_decision(metadata, scaling)
-        metadata["scaling_partition_events_emitted"] = False
-        if not _chain_event_exists(metadata, "MISSION_SCALING_DECIDED"):
-            append_chain_event(
-                metadata,
-                event_type="MISSION_SCALING_DECIDED",
-                agent_id=specialist_agent_id,
-                details={
-                    "instance_count": scaling.instance_count,
-                    "reason": scaling.reason,
-                    "scaling_version": scaling.scaling_version,
-                },
-            )
-        _record_artifact(
-            metadata,
-            stage="scaling_decided",
-            event_type="MISSION_SCALING_DECIDED",
-            agent_id=specialist_agent_id,
-            details=scaling.to_dict(),
-        )
-        await _pkg().record_audit_event(
-            app,
-            mission_id=mission_id,
-            mission=mission,
-            agent_id=specialist_agent_id,
-            service_name="orchestrator",
-            event_type="MISSION_SCALING_DECIDED",
-            object_type="scaling_plan",
-            object_id=specialist_agent_id,
-            payload_summary=scaling.to_dict(),
-            content_hash_source=scaling.to_dict(),
-        )
+    await _maybe_compute_specialist_scaling(
+        app=app,
+        mission=mission,
+        mission_id=mission_id,
+        metadata=metadata,
+        normalized_plan=normalized,
+        settings=settings,
+        specialist_agent_id=specialist_agent_id,
+    )
 
     return (
         await _persist_metadata(

@@ -742,9 +742,18 @@ async def _check_rate_limit(
     window = int(time.time() // RATE_LIMIT_WINDOW_SECONDS)
     identifier_hash = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
     key = f"{RATE_LIMIT_KEY_PREFIX}:{bucket}:{identifier_hash}:{window}"
-    current = int(await redis_client.incr(key))
-    if current == 1:
-        await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 5)
+    ttl = RATE_LIMIT_WINDOW_SECONDS + 5
+    pipeline_fn = getattr(redis_client, "pipeline", None)
+    if callable(pipeline_fn):
+        async with pipeline_fn(transaction=True) as pipe:
+            pipe.incr(key)
+            pipe.expire(key, ttl, nx=True)
+            results = await pipe.execute()
+        current = int(results[0])
+    else:
+        current = int(await redis_client.incr(key))
+        if current == 1:
+            await redis_client.expire(key, ttl)
 
     retry_after = RATE_LIMIT_WINDOW_SECONDS - int(time.time() % RATE_LIMIT_WINDOW_SECONDS)
     remaining = max(0, effective_limit - current)

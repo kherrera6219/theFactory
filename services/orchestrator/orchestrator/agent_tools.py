@@ -307,6 +307,17 @@ class ToolExecutionContext:
         return normalize_agent_role(self.role)
 
 
+def _is_non_public_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return bool(
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_reserved
+        or ip_obj.is_multicast
+        or ip_obj.is_unspecified
+    )
+
+
 def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
     parsed = urlparse(str(url or "").strip())
     if parsed.scheme.lower() not in {"http", "https"}:
@@ -318,7 +329,7 @@ def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
         return False, f"Loopback or local hostname rejected: {host}"
     try:
         ip_obj = ipaddress.ip_address(host)
-        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+        if _is_non_public_ip(ip_obj):
             return False, f"Private/reserved IP rejected: {host}"
     except ValueError:
         try:
@@ -326,11 +337,7 @@ def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
             for info in infos:
                 addr = info[4][0]
                 ip_resolved = ipaddress.ip_address(addr.split("%", 1)[0])
-                if (
-                    ip_resolved.is_private
-                    or ip_resolved.is_loopback
-                    or ip_resolved.is_link_local
-                ):
+                if _is_non_public_ip(ip_resolved):
                     return False, f"Hostname resolves to non-public address: {host}"
         except OSError:
             # DNS resolution may not exist in offline CI tests; allow caller HTTP layer to fail cleanly.
