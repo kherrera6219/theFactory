@@ -1817,3 +1817,23 @@ def test_runtime_module_import_fallback_without_redis(monkeypatch) -> None:
     spec.loader.exec_module(module)
     assert module.redis is None
     assert issubclass(module.ResponseError, Exception)
+
+
+def test_start_lifecycle_task_logs_unhandled_exception(monkeypatch, caplog) -> None:
+    import logging
+
+    async def _boom(_app, _mission_id):
+        raise RuntimeError("lifecycle crash 777")
+
+    async def _exercise():
+        app = _app_state()
+        monkeypatch.setattr(runtime, "advance_mission_lifecycle", _boom)
+        with caplog.at_level(logging.ERROR, logger="orchestrator.runtime"):
+            runtime.start_lifecycle_task(app, "mission-crash-777")
+            task = app.state.lifecycle_tasks["mission-crash-777"]
+            with pytest.raises(RuntimeError, match="lifecycle crash 777"):
+                await task
+            await asyncio.sleep(0)
+
+    asyncio.run(_exercise())
+    assert any("lifecycle task crashed for mission mission-crash-777" in r.message for r in caplog.records)

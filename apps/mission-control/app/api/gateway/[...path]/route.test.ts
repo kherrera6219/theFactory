@@ -166,5 +166,39 @@ describe("gateway proxy route", () => {
       expect(sentPayload.metadata?.vault).not.toHaveProperty("llm_provider");
       expect(sentPayload.metadata?.vault).not.toHaveProperty("llm_model");
     });
+
+    it("rejects traversal and SSRF path segments with 400 before forwarding", async () => {
+      const { GET } = await import("./route");
+      const traversalRes = await GET(
+        new Request("http://localhost/api/gateway/..%2Fetc%2Fpasswd", { method: "GET" }),
+        context(["..", "etc", "passwd"]),
+      );
+      expect(traversalRes.status).toBe(400);
+
+      const doubleSlashRes = await GET(
+        new Request("http://localhost/api/gateway//evil.com", { method: "GET" }),
+        context(["", "evil.com"]),
+      );
+      expect(doubleSlashRes.status).toBe(400);
+
+      const externalOriginRes = await GET(
+        new Request("http://localhost/api/gateway/https%3A%2F%2Fevil.com", { method: "GET" }),
+        context(["https://evil.com"]),
+      );
+      expect(externalOriginRes.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 on invalid JSON for POST /v1/missions without forwarding", async () => {
+      const response = await POST(
+        new Request("http://localhost/api/gateway/v1/missions", {
+          method: "POST",
+          body: "{not-json",
+        }),
+        context(["v1", "missions"]),
+      );
+      expect(response.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 });

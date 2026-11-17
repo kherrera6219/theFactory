@@ -18,6 +18,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import uuid
 import zipfile
 from datetime import UTC, datetime
@@ -192,6 +193,22 @@ def _git_env() -> dict[str, str]:
     return env
 
 
+def _rmtree_force(path: Path) -> None:
+    """Remove a workspace directory tree cleanly on Windows where git objects are read-only."""
+
+    def _on_error(func: Any, target: str, _exc: Any) -> None:
+        try:
+            os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_on_error)
+    else:
+        shutil.rmtree(path, onerror=_on_error)
+
+
 def _run_git(
     cwd: Path,
     args: list[str],
@@ -328,7 +345,7 @@ class MissionWorkspace:
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
         ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
-            shutil.rmtree(ws_dir)
+            _rmtree_force(ws_dir)
         ws_dir.mkdir(parents=True, exist_ok=True)
 
         source_obj: Any = io.BytesIO(archive) if isinstance(archive, (bytes, bytearray)) else Path(archive)
@@ -437,7 +454,7 @@ class MissionWorkspace:
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
         ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
-            shutil.rmtree(ws_dir)
+            _rmtree_force(ws_dir)
         ws_dir.mkdir(parents=True, exist_ok=True)
 
         for raw_rel, content in files.items():
@@ -482,7 +499,7 @@ class MissionWorkspace:
         ws_id = validate_workspace_id(workspace_id or f"ws-{uuid.uuid4().hex[:12]}")
         ws_dir = _resolve_workspace_dir(ws_root, ws_id)
         if ws_dir.exists():
-            shutil.rmtree(ws_dir)
+            _rmtree_force(ws_dir)
 
         source_path = Path(source_str) if is_local else None
         if is_local and source_path is not None and not (source_path / ".git").exists():
@@ -572,13 +589,19 @@ class MissionWorkspace:
         ws_root = root if root is not None else resolve_workspace_root(settings, create=False)
         ws_id = validate_workspace_id(workspace_id)
         ws_dir = _resolve_workspace_dir(ws_root, ws_id)
-        if not ws_dir.exists() or not (ws_dir / ".git").exists():
+        git_marker = ws_dir / ".git"
+        if not ws_dir.exists() or not git_marker.exists() or (
+            git_marker.is_dir() and not (git_marker / "HEAD").exists()
+        ):
             raise WorkspaceError(f"Workspace not found: {ws_id!r}")
         meta = cls._read_meta_file(ws_dir)
         base_commit = str(meta.get("base_commit") or "").strip()
-        if not base_commit:
-            base_commit = _run_git(ws_dir, ["rev-parse", "baseline"]).stdout.strip()
-        branch_name = _run_git(ws_dir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+        try:
+            if not base_commit:
+                base_commit = _run_git(ws_dir, ["rev-parse", "baseline"]).stdout.strip()
+            branch_name = _run_git(ws_dir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+        except subprocess.CalledProcessError as exc:
+            raise WorkspaceError(f"Workspace repository is incomplete: {ws_id!r}") from exc
         return cls(
             workspace_id=ws_id,
             root=ws_root,

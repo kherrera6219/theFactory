@@ -26,6 +26,8 @@ import os
 import tempfile
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +39,37 @@ def _path_lock(path: Path) -> threading.Lock:
     resolved = path.resolve(strict=False)
     with _PATH_LOCKS_GUARD:
         return _PATH_LOCKS.setdefault(resolved, threading.Lock())
+
+
+@contextmanager
+def file_lock(lock_path: str | os.PathLike[str]) -> Iterator[None]:
+    """Acquire an in-process thread lock and an advisory OS file lock on *lock_path*."""
+    target = Path(lock_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with _path_lock(target):
+        with open(target, "a+b") as fh:
+            if os.name == "nt":
+                import msvcrt
+
+                fh.seek(0, os.SEEK_END)
+                if fh.tell() == 0:
+                    fh.write(b"\x00")
+                    fh.flush()
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def _replace_with_retry(src: Path, dest: Path) -> None:

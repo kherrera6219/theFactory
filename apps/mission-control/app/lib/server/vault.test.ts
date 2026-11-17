@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -131,6 +131,9 @@ describe("vault backend", () => {
 
       // File was written — secret must not appear in plaintext on disk
       expect(existsSync(tempFile)).toBe(true);
+      if (process.platform !== "win32") {
+        expect(statSync(tempFile).mode & 0o777).toBe(0o600);
+      }
       const raw = readFileSync(tempFile, "utf8");
       expect(raw).not.toContain("sk-ant-test-123456");
 

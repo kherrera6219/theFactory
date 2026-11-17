@@ -71,7 +71,7 @@ def build_specialist_context_pack(
             if rel in ws_paths:
                 try:
                     content = ws.read_file(rel)
-                except OSError:
+                except (OSError, ValueError):
                     content = bundle_by_path.get(rel, "")
                 if "\x00" not in content:
                     target_files.append({"path": rel, "content": content})

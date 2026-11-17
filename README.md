@@ -28,9 +28,9 @@
 > - **20 Language Toolchains**: Automated syntax parsing, comment-stripped structural & AST extraction (`ast`, `esprima`, `javalang`, `go`, `haskell`, `ocaml`, `julia`, `treesitter_extractor`), and isolated test execution across 20 languages ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)).
 > - **41 Specialist Agents & Role-Scoped Harness**: Multi-agent architecture spanning conversational PM Studio (`AGENT-01-PM`), fast-path SOW routing, paradigm pods, language specialists, and bounded multi-turn `AgentHarness` tool execution.
 > - **Brownfield Workspaces, Sliced Execution & Preservation Gates**: Git-backed mission workspaces (`baseline` -> `thefactory/mission-<id>`), AST symbol/call indexing, baseline characterisation tests, enforced `PRESERVED`/`REGRESSED` gates, PORT dual-run equivalence, topological slice commits with `MIGRATION_NOTES.md`, and opt-in vaulted GitHub PR delivery.
-> - **Hardened Container Sandbox & Offline Dependency Provisioner**: Untrusted code executes in unprivileged, `--network=none`, `--read-only` Docker containers with `/deps:ro` offline dependency caches, surgical file-level self-repair (`rqca_repair.py`), and polyglot behavioral equivalence.
-> - **Native Desktop & Web UI**: Mission Control desktop/web console with Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, Slice Timeline, and 1-click `.zip`, `.patch`, and `ECDSA-P256-SHA256`-signed CycloneDX `1.5` SBOM exports.
-> - **Out-of-Band Credential Vault & Next-Gen Model Fleet**: Ephemeral Redis vault (`mission-vault:<id>`) keeps provider API keys and GitHub tokens out of Postgres and intake streams, supporting `gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`, and local Ollama models alongside multi-tenant OIDC & mTLS.
+> - **Hardened Container Sandbox & Offline Dependency Provisioner**: Untrusted code executes in unprivileged, `--network=none`, `--read-only` Docker containers (with hardened RQCA compose isolation via `run_compose_in_sandbox`, `pids_limit: 64`, and non-root UID `65534:65534`), `/deps:ro` offline dependency caches, surgical file-level self-repair (`rqca_repair.py`), and polyglot behavioral equivalence.
+> - **Native Desktop & Web UI**: Mission Control desktop/web console with Split-Screen PM Studio, Multi-File IDE Workspace & LCS Diff Viewer, Slice Timeline, and 1-click `.zip`, `.patch`, and `ECDSA-P256-SHA256`-signed CycloneDX `1.5` SBOM exports, protected by strict JSON/path validation, hardened Chromium CSP (`'unsafe-eval'` dev-only, `frame-ancestors 'none'`), and Electron artifact-dir containment.
+> - **Out-of-Band Credential Vault & Next-Gen Model Fleet**: Ephemeral Redis vault (`mission-vault:<id>`, failing closed if unavailable) keeps provider API keys and GitHub tokens out of Postgres and intake streams, with header-based API key preflight (`x-goog-api-key`, `x-api-key`), `0o600` local vault storage permissions, and support for `gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`, and local Ollama models alongside multi-tenant OIDC & mTLS.
 > - **Dynamic Deployment Topologies**: One-command scaling between lightweight condensed mode and a 41-container dedicated fleet.
 
 ---
@@ -263,7 +263,7 @@ For operators preferring a dedicated desktop interface, theFactory ships a compl
 - **Pure Native Preflight**: Built using pure-native NSIS `FileExists` instructions, avoiding SysWOW64 child-process hangs during setup.
 - **Local Pre-Cached Image Detection**: Automatically inspects local Docker Desktop images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners, skipping multi-gigabyte downloads.
 - **Live Throughput Progress UX**: Real-time download speed in MB/s (`45.2 MB / 180.0 MB • 14.2 MB/s`) rendered in `starting.html`.
-- **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller and keep-data uninstallation.
+- **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller, keep-data uninstallation, strict `SHELL_OPEN_ARTIFACT_DIR` directory containment, direct `Code.exe` IDE launch without shell interpolation, and security response headers (`X-Frame-Options`, `X-Content-Type-Options`, tightened CSP).
 - **Automatic Release Model Synchronization**: `releaseModelDefaults()` in [`apps/mission-control/electron/env-generator.ts`](apps/mission-control/electron/env-generator.ts) refreshes `GEMINI_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GEMINI_TIMEOUT_SECONDS` in `%APPDATA%\theFactory Mission Control\backend.env` on every startup while preserving all generated secrets and API keys.
 
 ---
@@ -569,8 +569,8 @@ Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finaliz
 ## Documentation Index & License
 
 ### Latest Release & Status
-- **Latest Application Capabilities**: Git-backed brownfield workspaces, role-scoped `AgentHarness`, offline dependency provisioning, AST repo indexing ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)), baseline preservation gates & PORT dual-run equivalence, sliced execution with `MIGRATION_NOTES.md`, opt-in vaulted GitHub PR export, and the Next-Gen model fleet (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`).
-- **Release History & Engineering Status**: See [`CHANGELOG.md`](CHANGELOG.md), [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
+- **Latest Application Capabilities**: Git-backed brownfield workspaces, role-scoped `AgentHarness`, offline dependency provisioning, AST repo indexing ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)), baseline preservation gates & PORT dual-run equivalence, sliced execution with `MIGRATION_NOTES.md`, opt-in vaulted GitHub PR export, Next-Gen model fleet (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`), and full-stack security hardening (`2026-11-16`: header-only API keys, gateway SSRF/path guards, RQCA compose isolation, `xautoclaim` crash recovery, cross-process file locks, Electron IPC containment, and `0o600` local vault permissions).
+- **Release History & Engineering Status**: See [`CHANGELOG.md`](CHANGELOG.md), [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md), and [`docs/SECURITY_ALERT_REMEDIATION.md`](docs/SECURITY_ALERT_REMEDIATION.md).
 
 ### Documentation & Specifications
 - **Full Documentation Index**: [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md)

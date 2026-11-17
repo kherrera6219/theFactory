@@ -676,7 +676,10 @@ export default function SettingsPage() {
         </div>
 
         {/* FIX #10: Save button and inline feedback in same panel as the fields */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+        <p className="help-text" style={{ marginTop: "12px" }}>
+          Preferences below are stored locally in this browser for local UI behavior and connection targeting; cluster-wide worker orchestration limits remain governed by the running stack environment.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "12px" }}>
           <button
             type="button"
             className="primary-button"

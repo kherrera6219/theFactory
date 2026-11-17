@@ -128,8 +128,28 @@ def _message_dedup_ttl_seconds() -> int:
 # MCP_DEDUP_TTL_SECONDS is the canonical name; MESSAGE_DEDUP_TTL_SECONDS remains
 # accepted for older compose overlays.
 MESSAGE_DEDUP_TTL_SECONDS = _message_dedup_ttl_seconds()
+# Replay window is bounded separately (default 300s, capped at dedup TTL) so
+# short-window replay rejection (409) and longer-window idempotent dedup (200)
+# are both reachable when MESSAGE_DEDUP_TTL_SECONDS > MCP_REPLAY_TTL_SECONDS.
+REPLAY_TTL_SECONDS = min(
+    MESSAGE_DEDUP_TTL_SECONDS,
+    max(1, int(os.getenv("MCP_REPLAY_TTL_SECONDS", "300"))),
+)
 # Message TTL — streams older than this age (seconds) are pruned (via XTRIM approximate)
 MESSAGE_TTL_SECONDS = int(os.getenv("MCP_MESSAGE_TTL_SECONDS", "3600"))
+
+
+def _require_mcp_api_key(x_api_key: str | None) -> None:
+    """Validate X-API-Key against MCP_API_KEY, returning 401 when absent and 403 when wrong."""
+    if not MCP_API_KEY:
+        return
+    provided = (x_api_key or "").strip()
+    if not provided:
+        LOGGER.warning("protocol-bus-mcp rejected request due to missing api key")
+        raise HTTPException(status_code=401, detail="missing mcp api key")
+    if not hmac.compare_digest(provided.encode("utf-8"), MCP_API_KEY.encode("utf-8")):
+        LOGGER.warning("protocol-bus-mcp rejected request due to invalid api key")
+        raise HTTPException(status_code=403, detail="invalid mcp api key")
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -459,12 +479,13 @@ def _counter_value_by_protocol(counter: Counter) -> dict[str, float]:
 
 
 @app.get("/lane-stats")
-async def lane_stats() -> dict[str, Any]:
+async def lane_stats(x_api_key: str | None = Header(default=None)) -> dict[str, Any]:
     """Read-only per-lane activity snapshot for PBLA-05 observability.
 
     No new producers — reads the same Prometheus counters and DLQ streams
     every ``/send``/``/dlq`` call already maintains.
     """
+    _require_mcp_api_key(x_api_key)
     redis_client = getattr(app.state, "redis", None)
     redis_ready = bool(getattr(app.state, "redis_ready", False))
     queued = _counter_value_by_protocol(MESSAGES_QUEUED)
@@ -500,7 +521,13 @@ async def lane_stats() -> dict[str, Any]:
 
 
 @app.get("/dlq")
-async def list_dlq(protocol: str, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+async def list_dlq(
+    protocol: str,
+    limit: int = 50,
+    offset: int = 0,
+    x_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_mcp_api_key(x_api_key)
     if protocol not in ALLOWED_PROTOCOLS:
         raise HTTPException(status_code=422, detail=f"unsupported protocol: {protocol}")
 
@@ -551,12 +578,7 @@ async def send_message(
 
     if not _is_valid_agent_id(payload.sender):
         raise HTTPException(status_code=422, detail=f"invalid sender id: {payload.sender}")
-    if MCP_API_KEY and not hmac.compare_digest(
-        (x_api_key or "").strip().encode("utf-8"),
-        MCP_API_KEY.encode("utf-8"),
-    ):
-        LOGGER.warning("protocol-bus-mcp rejected request due to invalid api key")
-        raise HTTPException(status_code=403, detail="invalid mcp api key")
+    _require_mcp_api_key(x_api_key)
     if (x_agent_id or "").strip() != payload.sender:
         LOGGER.warning(
             "protocol-bus-mcp rejected sender mismatch header=%s sender=%s",
@@ -635,7 +657,7 @@ async def send_message(
         await protocol_guard.check_replay(
             envelope.correlation_id,
             redis_client,
-            ttl_seconds=MESSAGE_DEDUP_TTL_SECONDS,
+            ttl_seconds=REPLAY_TTL_SECONDS,
         )
     except protocol_guard.ReplayDetectedError as exc:
         MESSAGES_REPLAYED.labels(protocol=payload.protocol).inc()
@@ -689,10 +711,18 @@ async def send_message(
     # Failing open here would let the system be flooded silently, so a Redis
     # failure must fail closed (503). Every resolved channel is inspected: if
     # ANY channel is over the limit, the request is rejected.
+    use_pipeline = len(channels) > 1 and callable(getattr(redis_client, "pipeline", None))
     try:
-        queue_depths = {
-            channel: await redis_client.xlen(channel) for channel in channels
-        }
+        if use_pipeline:
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for channel in channels:
+                    pipe.xlen(channel)
+                depths = await pipe.execute()
+            queue_depths = dict(zip(channels, depths, strict=True))
+        else:
+            queue_depths = {
+                channel: await redis_client.xlen(channel) for channel in channels
+            }
     except Exception as exc:
         LOGGER.error("protocol-bus-mcp: backpressure check failed: %s", exc)
         raise HTTPException(
@@ -711,17 +741,33 @@ async def send_message(
             )
 
     try:
-        for channel in channels:
-            await redis_client.xadd(
-                channel,
-                {
-                    "envelope": envelope_json,
-                    "payload": json.dumps(protocol_payload),
-                    "sender": payload.sender,
-                },
-                maxlen=MAX_STREAM_LEN,
-                approximate=True,
-            )
+        serialized_payload = json.dumps(protocol_payload)
+        if use_pipeline:
+            async with redis_client.pipeline(transaction=False) as pipe:
+                for channel in channels:
+                    pipe.xadd(
+                        channel,
+                        {
+                            "envelope": envelope_json,
+                            "payload": serialized_payload,
+                            "sender": payload.sender,
+                        },
+                        maxlen=MAX_STREAM_LEN,
+                        approximate=True,
+                    )
+                await pipe.execute()
+        else:
+            for channel in channels:
+                await redis_client.xadd(
+                    channel,
+                    {
+                        "envelope": envelope_json,
+                        "payload": serialized_payload,
+                        "sender": payload.sender,
+                    },
+                    maxlen=MAX_STREAM_LEN,
+                    approximate=True,
+                )
         MESSAGES_QUEUED.labels(protocol=payload.protocol).inc()
     except Exception as exc:
         await _write_dlq(redis_client, payload.protocol, body, str(exc))

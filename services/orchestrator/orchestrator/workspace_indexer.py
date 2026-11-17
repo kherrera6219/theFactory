@@ -1124,30 +1124,37 @@ def _sync_new_chunks_to_knowledge_lake(
 ) -> int:
     if not chunks or settings is None:
         return 0
-    mirrored = 0
-    for chunk in chunks:
-        try:
-            coro = knowledge_lake.index_documentation(
-                settings=settings,
-                language=str(chunk.get("language") or "text"),
-                doc_id=f"ws.{workspace_id}.{chunk['chunk_id']}",
-                text=str(chunk.get("text") or ""),
-                concept=str(chunk.get("symbol_name") or chunk.get("path") or "code"),
-                source=f"workspace:{workspace_id}:{chunk.get('path')}",
-            )
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None and loop.is_running():
+        # Do not block active loop; caller may mirror async separately.
+        return 0
+
+    async def _mirror_all() -> int:
+        mirrored = 0
+        for chunk in chunks:
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop is not None and loop.is_running():
-                # Do not block active loop; caller may mirror async separately.
-                coro.close()
-                break
-            if asyncio.run(coro):
-                mirrored += 1
-        except Exception as exc:
-            LOGGER.debug("workspace chunk mirror skipped: %s", exc)
-    return mirrored
+                ok = await knowledge_lake.index_documentation(
+                    settings=settings,
+                    language=str(chunk.get("language") or "text"),
+                    doc_id=f"ws.{workspace_id}.{chunk['chunk_id']}",
+                    text=str(chunk.get("text") or ""),
+                    concept=str(chunk.get("symbol_name") or chunk.get("path") or "code"),
+                    source=f"workspace:{workspace_id}:{chunk.get('path')}",
+                )
+                if ok:
+                    mirrored += 1
+            except Exception as exc:
+                LOGGER.debug("workspace chunk mirror skipped: %s", exc)
+        return mirrored
+
+    try:
+        return asyncio.run(_mirror_all())
+    except Exception as exc:
+        LOGGER.debug("workspace chunk mirror batch skipped: %s", exc)
+        return 0
 
 
 def index_workspace(

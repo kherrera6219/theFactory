@@ -925,14 +925,16 @@ async def health() -> dict[str, Any]:
 
     jaeger_ready = None
     if os.getenv("OTEL_TRACING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
-        jaeger_ready = False
-        # Simple reachability check for Jaeger OTLP port
         import socket
-        try:
-            with socket.create_connection(("jaeger", 4318), timeout=0.5):
-                jaeger_ready = True
-        except Exception:
-            jaeger_ready = False
+
+        def _probe_jaeger() -> bool:
+            try:
+                with socket.create_connection(("jaeger", 4318), timeout=0.5):
+                    return True
+            except Exception:
+                return False
+
+        jaeger_ready = await asyncio.to_thread(_probe_jaeger)
 
     # Cross-reference AGENT_REGISTRY against recent heartbeats so missing agents
     # are visible at the /health endpoint rather than only surfacing when a mission stalls.

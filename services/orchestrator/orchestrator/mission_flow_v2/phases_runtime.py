@@ -748,7 +748,10 @@ async def _prepare_runtime_qc(
             repaired_output["generated_code"] = merged_code
             parsed_tree = parse_file_tree(merged_code)
             if parsed_tree:
-                repaired_output["files"] = [{"path": item["path"]} for item in parsed_tree]
+                repaired_output["files"] = [
+                    {"path": item["path"], "content": item["content"]}
+                    for item in parsed_tree
+                ]
                 repaired_output["file_count"] = len(parsed_tree)
             generated_output = repaired_output
             metadata["generated_output"] = repaired_output

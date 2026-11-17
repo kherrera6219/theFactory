@@ -141,6 +141,17 @@ def _extract_files_and_cost(result: Any) -> tuple[dict[str, str], float]:
     raw_files = result.get("files")
     if isinstance(raw_files, dict):
         return {str(k): str(v) for k, v in raw_files.items()}, cost
+    if isinstance(raw_files, list):
+        extracted: dict[str, str] = {}
+        for item in raw_files:
+            if not isinstance(item, dict):
+                continue
+            path = str(item.get("path") or "").strip()
+            content = item.get("content")
+            if path and content is not None:
+                extracted[path] = str(content)
+        if extracted:
+            return extracted, cost
     if all(isinstance(k, str) and isinstance(v, str) for k, v in result.items()):
         excluded = {"status", "output", "summary", "verdict"}
         return {k: v for k, v in result.items() if k not in excluded}, cost
@@ -171,8 +182,7 @@ async def _run_preservation_check(
         allowed = metadata.get("behaviour_change_allowed")
         if not isinstance(allowed, list):
             allowed = []
-        return await asyncio.to_thread(
-            evaluate_preservation_gate,
+        return await evaluate_preservation_gate(
             ws,
             baseline=metadata["baseline"],
             baseline_policy=str(metadata.get("baseline_policy") or "preserve"),

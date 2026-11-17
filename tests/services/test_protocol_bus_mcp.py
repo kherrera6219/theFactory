@@ -276,14 +276,18 @@ def test_health_endpoint_handles_ping_failure() -> None:
 
 
 def test_dlq_endpoint_validation_and_success() -> None:
+    auth_headers = {"x-api-key": mcp_main.MCP_API_KEY}
     with TestClient(app) as client:
         app.state.redis = FakeRedis()
         app.state.redis_ready = True
-        response = client.get("/dlq", params={"protocol": "invalid"})
+        assert client.get("/dlq", params={"protocol": "alpha"}).status_code == 401
+        assert client.get("/dlq", params={"protocol": "alpha"}, headers={"x-api-key": "wrong"}).status_code == 403
+
+        response = client.get("/dlq", params={"protocol": "invalid"}, headers=auth_headers)
         assert response.status_code == 422
 
         app.state.redis_ready = False
-        response = client.get("/dlq", params={"protocol": "alpha"})
+        response = client.get("/dlq", params={"protocol": "alpha"}, headers=auth_headers)
         assert response.status_code == 503
 
         app.state.redis = FakeRedis()
@@ -294,7 +298,7 @@ def test_dlq_endpoint_validation_and_success() -> None:
                 {"error": "boom", "payload": "{\"a\":1}", "ts": "2026-03-01T00:00:00+00:00"},
             )
         )
-        response = client.get("/dlq", params={"protocol": "alpha"})
+        response = client.get("/dlq", params={"protocol": "alpha"}, headers=auth_headers)
     assert response.status_code == 200
     payload = response.json()
     assert payload["protocol"] == "alpha"
@@ -408,16 +412,19 @@ def test_metrics_endpoint() -> None:
 
 
 def test_lane_stats_endpoint_reports_all_lanes_and_dlq_depth() -> None:
+    auth_headers = {"x-api-key": mcp_main.MCP_API_KEY}
     with TestClient(app) as client:
         app.state.redis = FakeRedis()
         app.state.redis_ready = True
+        assert client.get("/lane-stats").status_code == 401
+        assert client.get("/lane-stats", headers={"x-api-key": "wrong"}).status_code == 403
         asyncio.run(
             app.state.redis.xadd(
                 "dlq:beta",
                 {"error": "boom", "payload": "{}", "ts": "2026-03-01T00:00:00+00:00"},
             )
         )
-        response = client.get("/lane-stats")
+        response = client.get("/lane-stats", headers=auth_headers)
     assert response.status_code == 200
     payload = response.json()
     assert payload["redis_ready"] is True
@@ -435,7 +442,7 @@ def test_lane_stats_endpoint_without_redis_reports_none_dlq_depth() -> None:
     with TestClient(app) as client:
         app.state.redis = None
         app.state.redis_ready = False
-        response = client.get("/lane-stats")
+        response = client.get("/lane-stats", headers={"x-api-key": mcp_main.MCP_API_KEY})
     assert response.status_code == 200
     payload = response.json()
     assert payload["redis_ready"] is False
@@ -454,7 +461,7 @@ def test_lane_stats_endpoint_xlen_exception_yields_none_dlq_depth() -> None:
     with TestClient(app) as client:
         app.state.redis = XlenFailingRedis()
         app.state.redis_ready = True
-        response = client.get("/lane-stats")
+        response = client.get("/lane-stats", headers={"x-api-key": mcp_main.MCP_API_KEY})
     assert response.status_code == 200
     payload = response.json()
     assert payload["redis_ready"] is True
@@ -985,3 +992,73 @@ def test_send_message_returns_503_when_backpressure_xlen_raises() -> None:
         )
     assert response.status_code == 503
     assert "Backpressure service unavailable" in response.json()["detail"]
+
+
+def test_send_rejects_missing_api_key_with_401() -> None:
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO"},
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 401
+    assert "missing mcp api key" in response.json()["detail"]
+
+
+def test_send_uses_redis_pipeline_for_multi_recipient() -> None:
+    class _Pipe:
+        def __init__(self, redis_obj) -> None:
+            self._redis = redis_obj
+            self._ops: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        def xlen(self, stream: str) -> None:
+            self._ops.append(("xlen", (stream,), {}))
+
+        def xadd(self, stream: str, fields: dict[str, str], **kwargs: Any) -> None:
+            self._ops.append(("xadd", (stream, fields), kwargs))
+
+        async def execute(self) -> list[Any]:
+            results: list[Any] = []
+            for name, args, kwargs in self._ops:
+                fn = getattr(self._redis, name)
+                results.append(await fn(*args, **kwargs))
+            return results
+
+    class _PipelineRedis(FakeRedis):
+        def __init__(self) -> None:
+            super().__init__()
+            self.pipeline_calls = 0
+
+        def pipeline(self, transaction: bool = False):
+            _ = transaction
+            self.pipeline_calls += 1
+            return _Pipe(self)
+
+    redis_client = _PipelineRedis()
+    payload = _alpha_payload()
+    payload["recipient"] = ["AGENT-12-PODA-MGR", "broadcast"]
+    with TestClient(app) as client:
+        app.state.redis = redis_client
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+            json=payload,
+        )
+    assert response.status_code == 200
+    assert redis_client.pipeline_calls == 2
+    assert len(redis_client.streams["protocol:alpha:AGENT-12-PODA-MGR"]) == 1
+    assert len(redis_client.streams["protocol:alpha:broadcast"]) == 1
+
+
+def test_require_mcp_api_key_allows_when_unset(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_main, "MCP_API_KEY", "")
+    mcp_main._require_mcp_api_key(None)

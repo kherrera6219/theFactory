@@ -13,8 +13,27 @@ type RouteContext = {
 };
 
 function targetUrl(pathSegments: string[] | undefined, requestUrl: string): string {
+  const baseUrl = new URL(gatewayBase.endsWith("/") ? gatewayBase : `${gatewayBase}/`);
+  const segments = (pathSegments ?? []).map((segment) => String(segment));
+  if (
+    segments.some(
+      (segment) =>
+        segment === "" ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\\") ||
+        segment.includes("\0") ||
+        segment.startsWith("/"),
+    )
+  ) {
+    throw new Error("Invalid gateway proxy path segment.");
+  }
+  const joined = segments.join("/");
   const request = new URL(requestUrl);
-  const target = new URL(pathSegments?.join("/") ?? "", gatewayBase.endsWith("/") ? gatewayBase : `${gatewayBase}/`);
+  const target = new URL(joined, baseUrl);
+  if (target.origin !== baseUrl.origin) {
+    throw new Error("Gateway proxy target origin mismatch.");
+  }
   target.search = request.search;
   return target.toString();
 }
@@ -76,15 +95,22 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     try {
       const decoder = new TextDecoder("utf-8");
       const text = decoder.decode(body);
-      const payload = JSON.parse(text);
+      const parsed: unknown = JSON.parse(text);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return Response.json({ detail: "Invalid JSON mission payload." }, { status: 400 });
+      }
+      const payload = parsed as Record<string, unknown>;
 
       const geminiKey = await getVaultSecret("GEMINI-API-KEY");
       const openaiKey = await getVaultSecret("OPENAI-API-KEY");
       const anthropicKey = await getVaultSecret("ANTHROPIC-API-KEY");
       const activeRoute = await getActiveLlmRoute();
 
-      payload.metadata = payload.metadata || {};
-      payload.metadata.vault = {
+      const metadata =
+        typeof payload.metadata === "object" && payload.metadata !== null && !Array.isArray(payload.metadata)
+          ? (payload.metadata as Record<string, unknown>)
+          : {};
+      metadata.vault = {
         gemini_api_key: geminiKey || "",
         openai_api_key: openaiKey || "",
         anthropic_api_key: anthropicKey || "",
@@ -94,16 +120,28 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
           ? { llm_provider: activeRoute.provider, llm_model: activeRoute.model }
           : {}),
       };
+      payload.metadata = metadata;
 
       const encoder = new TextEncoder();
       requestBody = encoder.encode(JSON.stringify(payload)).buffer;
     } catch (err) {
       console.error("Failed to inject vault secrets in proxy route:", err);
+      return Response.json({ detail: "Invalid JSON mission payload." }, { status: 400 });
     }
   }
 
+  let resolvedUrl: string;
   try {
-    let upstream = await fetch(targetUrl(path, request.url), {
+    resolvedUrl = targetUrl(path, request.url);
+  } catch (err) {
+    return Response.json(
+      { detail: err instanceof Error ? err.message : "Invalid gateway proxy path." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    let upstream = await fetch(resolvedUrl, {
       method,
       headers,
       body: requestBody,
@@ -121,7 +159,7 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     ) {
       const retryHeaders = new Headers(headers);
       retryHeaders.set("x-api-key", INTERNAL_SERVICE_API_KEY);
-      upstream = await fetch(targetUrl(path, request.url), {
+      upstream = await fetch(resolvedUrl, {
         method,
         headers: retryHeaders,
         body: requestBody,
@@ -140,7 +178,8 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       statusText: upstream.statusText,
       headers: responseHeaders,
     });
-  } catch {
+  } catch (err) {
+    console.error("Gateway proxy request failed:", err);
     // The backend is unreachable (connection refused, DNS failure, timeout).
     // Report it as a genuine 503 so the client treats it as a service outage.
     return Response.json(

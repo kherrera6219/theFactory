@@ -31,7 +31,13 @@ from shared_runtime.mission_types import (
     normalize_mission_type,
     normalize_output_mode,
 )
-from shared_runtime.mission_vault import split_vault, store_vault, strip_vault
+from shared_runtime.mission_vault import (
+    load_vault,
+    split_vault,
+    store_vault,
+    strip_vault,
+    vault_key,
+)
 from shared_runtime.pii_guard import detect_pii, scan_dict_for_pii
 from shared_runtime.prompt_guard import check_prompt
 from shared_runtime.protocol import (
@@ -126,7 +132,25 @@ OIDC_ALLOWED_ALGORITHMS = [
 ] or ["RS256"]
 OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
 IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
+IDEMPOTENCY_PROCESSING_TTL_SECONDS = max(
+    30,
+    int(os.getenv("IDEMPOTENCY_PROCESSING_TTL_SECONDS", "120")),
+)
 IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
+_SAFE_PATH_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _validate_path_identifier(value: str, label: str = "identifier") -> str:
+    """Reject path traversal, slashes, or query/fragment characters in proxy path params."""
+    candidate = str(value or "")
+    if (
+        not candidate
+        or candidate.startswith(".")
+        or ".." in candidate
+        or not _SAFE_PATH_IDENTIFIER_RE.fullmatch(candidate)
+    ):
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+    return candidate
 MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS = max(
     1,
     int(os.getenv("MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS", "4")),
@@ -797,10 +821,15 @@ async def _save_idempotency_record(
     *,
     nx: bool = False,
 ) -> bool:
+    ttl = (
+        IDEMPOTENCY_PROCESSING_TTL_SECONDS
+        if record.get("status") == "processing"
+        else IDEMPOTENCY_TTL_SECONDS
+    )
     saved = await redis_client.set(
         redis_key,
         json.dumps(record),
-        ex=IDEMPOTENCY_TTL_SECONDS,
+        ex=ttl,
         nx=nx,
     )
     return bool(saved)
@@ -1765,12 +1794,14 @@ async def _gemini_builder_preview(
         async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{GEMINI_BASE_URL}/models/{model}:generateContent",
-                params={"key": GEMINI_API_KEY},
                 json=request_payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": GEMINI_API_KEY,
+                },
             )
     except Exception as exc:
-        LOGGER.warning("gemini preview request failed: %s", exc)
+        LOGGER.warning("gemini preview request failed: %s", type(exc).__name__)
         return None
 
     if response.status_code >= 400:
@@ -2191,7 +2222,11 @@ async def stream_state_events(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> StreamingResponse:
-    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    _require_operator_access(
+        x_api_key=x_api_key,
+        authorization=authorization,
+        enforce_oidc_regardless_of_operator_flag=True,
+    )
 
     redis_client = getattr(app.state, "redis", None)
     if redis_client is None:
@@ -2330,12 +2365,22 @@ async def _handle_mission_idempotency(
         "mission_id": provisional_mission_id,
     }
     
-    acquired = await _save_idempotency_record(redis_client, redis_key, in_progress_record, nx=True)
+    acquired = await _save_idempotency_record(
+        redis_client,
+        redis_key,
+        in_progress_record,
+        nx=True,
+    )
     if not acquired:
         existing = await _load_idempotency_record(redis_client, redis_key)
         if existing is None:
             await asyncio.sleep(0.05)
-            acquired = await _save_idempotency_record(redis_client, redis_key, in_progress_record, nx=True)
+            acquired = await _save_idempotency_record(
+                redis_client,
+                redis_key,
+                in_progress_record,
+                nx=True,
+            )
             if not acquired:
                 raise HTTPException(status_code=409, detail="request with this Idempotency-Key is in progress")
         else:
@@ -2425,7 +2470,8 @@ async def create_mission(
     if idempotency_key:
         mission_id, existing = await _handle_mission_idempotency(redis_client, idempotency_key, payload, provisional_id)
         if existing:
-            await store_vault(redis_client, existing.mission_id, vault_secrets)
+            if vault_secrets and not await load_vault(redis_client, existing.mission_id):
+                await store_vault(redis_client, existing.mission_id, vault_secrets)
             return existing
         idempotency_redis_key = _idempotency_redis_key(idempotency_key.strip())
         request_hash = _request_hash(payload)
@@ -2445,6 +2491,11 @@ async def create_mission(
                 "status": "upstream_unknown", "request_hash": request_hash,
                 "mission_id": mission_id, "last_error": str(exc)
             })
+        elif vault_secrets and callable(getattr(redis_client, "delete", None)):
+            try:
+                await redis_client.delete(vault_key(mission_id))
+            except Exception:
+                pass
         raise
 
     # Merge persisted state
@@ -2480,7 +2531,6 @@ async def create_mission(
 
 
 def _create_internal_client(timeout: float = 4.0) -> httpx.AsyncClient:
-    verify: Any = True
     if INTERNAL_MTLS_ENABLED:
         ctx = build_mtls_ssl_context(
             ca_cert=INTERNAL_MTLS_CA_CERT,
@@ -2488,8 +2538,8 @@ def _create_internal_client(timeout: float = 4.0) -> httpx.AsyncClient:
             client_key=INTERNAL_MTLS_CLIENT_KEY,
         )
         if ctx:
-            verify = ctx
-    return httpx.AsyncClient(timeout=timeout, verify=verify)
+            return httpx.AsyncClient(timeout=timeout, verify=ctx)
+    return httpx.AsyncClient(timeout=timeout)
 
 
 async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
@@ -2508,6 +2558,16 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
         raise HTTPException(status_code=404, detail="resource not found")
     if response.status_code in {401, 403}:
         raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
+    if 400 <= response.status_code < 500:
+        try:
+            err_payload = response.json()
+        except ValueError:
+            err_payload = {}
+        detail = err_payload.get("detail") if isinstance(err_payload, dict) else None
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=str(detail or "orchestrator rejected request"),
+        )
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail="orchestrator internal query failed")
     resp_headers = getattr(response, "headers", None) or {}
@@ -2546,6 +2606,16 @@ async def _proxy_post_internal(
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code in {401, 403}:
         raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
+    if 400 <= response.status_code < 500:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=str(detail or "orchestrator rejected request"),
+        )
     if response.status_code >= 400:
         try:
             payload = response.json()
@@ -2659,26 +2729,41 @@ async def update_mission_state(
     x_api_key: str | None = Header(default=None),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
+    safe_mission_id = _validate_path_identifier(mission_id, "mission_id")
+    if x_api_key and not GATEWAY_ADMIN_BYPASS and AUTH_MODE in {"api_key", "hybrid"}:
+        matched_roles = _match_gateway_api_key(x_api_key)
+        if matched_roles is not None and "mutate" not in matched_roles:
+            raise HTTPException(status_code=403, detail="insufficient role for endpoint")
     forward_headers = _resolve_mutation_forward_headers(
         x_api_key=x_api_key,
         authorization=authorization,
     )
 
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with _create_internal_client(timeout=4.0) as client:
             response = await client.post(
-                f"{ORCHESTRATOR_URL}/missions/{mission_id}/state",
+                f"{ORCHESTRATOR_URL}/missions/{safe_mission_id}/state",
                 json=payload.model_dump(),
                 headers=forward_headers,
             )
     except httpx.RequestError as exc:
-        LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
+        LOGGER.exception("orchestrator mission state update failed for mission %s", safe_mission_id)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
 
     if response.status_code in {401, 403}:
         raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="mission not found")
+    if 400 <= response.status_code < 500:
+        try:
+            err_body = response.json()
+        except ValueError:
+            err_body = {}
+        detail = err_body.get("detail") if isinstance(err_body, dict) else None
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=str(detail or "orchestrator mutation rejected"),
+        )
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail="orchestrator mutation failed")
     return response.json()

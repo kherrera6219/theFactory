@@ -105,7 +105,7 @@ async function createBackendWorkspace(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-internal-api-key": apiKey,
+      "x-api-key": apiKey,
     },
     body: JSON.stringify(payload),
     cache: "no-store",
@@ -269,27 +269,39 @@ export async function POST(request: Request) {
 
   let workspaceId: string | null = null;
   let baseCommit: string | null = null;
+  const maxInlineSyncBytes = 64_000_000;
   if (internalServiceApiKey()) {
-    try {
-      const synced = await createBackendWorkspace({
-        source_type: "zip",
-        archive_base64: buffer.toString("base64"),
-        display_name: displayName,
-        source_ref: sourceRef || "zip-upload",
-        subdirectory: normalizedSubdirectory,
-        max_files: maxFiles,
-      });
-      if (synced.status >= 200 && synced.status < 300) {
-        const syncedRepo = synced.data.repository as Record<string, unknown> | undefined;
-        if (syncedRepo && typeof syncedRepo.workspace_id === "string") {
-          workspaceId = syncedRepo.workspace_id;
-          baseCommit =
-            typeof syncedRepo.base_commit === "string" ? syncedRepo.base_commit : null;
-          logs.push(`Initialized Git-backed workspace ${workspaceId}.`);
+    if (buffer.byteLength > maxInlineSyncBytes) {
+      logs.push("Archive exceeds 64 MB inline sync limit; using local ZIP index.");
+    } else {
+      try {
+        const synced = await createBackendWorkspace({
+          source_type: "zip",
+          archive_base64: buffer.toString("base64"),
+          display_name: displayName,
+          source_ref: sourceRef || "zip-upload",
+          subdirectory: normalizedSubdirectory,
+          max_files: maxFiles,
+        });
+        if (synced.status >= 200 && synced.status < 300) {
+          const syncedRepo = synced.data.repository as Record<string, unknown> | undefined;
+          if (syncedRepo && typeof syncedRepo.workspace_id === "string") {
+            workspaceId = syncedRepo.workspace_id;
+            baseCommit =
+              typeof syncedRepo.base_commit === "string" ? syncedRepo.base_commit : null;
+            logs.push(`Initialized Git-backed workspace ${workspaceId}.`);
+          }
+        } else {
+          logs.push(
+            `Backend workspace initialization returned HTTP ${synced.status}; using local ZIP index.`,
+          );
         }
+      } catch (syncError) {
+        const reason = syncError instanceof Error ? syncError.message : "unknown error";
+        logs.push(
+          `Backend workspace initialization unavailable (${reason}); using local ZIP index.`,
+        );
       }
-    } catch {
-      logs.push("Backend workspace initialization unavailable; using local ZIP index.");
     }
   }
 

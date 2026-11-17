@@ -112,6 +112,7 @@ def _git_commit_for_path(store_root: Path) -> str | None:
             check=True,
             capture_output=True,
             text=True,
+            timeout=3.0,
         )
     except Exception:
         return None
@@ -599,25 +600,26 @@ def update_refined_ir_catalog(
     """
     root = Path(store_root)
     index_path = root / "index.json"
-    records: list[dict[str, Any]] = []
-    if index_path.exists():
-        try:
-            existing = json.loads(index_path.read_text(encoding="utf-8"))
-            candidate = existing.get("artifacts")
-            if isinstance(candidate, list):
-                records = [r for r in candidate if isinstance(r, dict)]
-        except (OSError, json.JSONDecodeError):
-            # A corrupt index must not block the mission; it is rebuilt from
-            # the modules on disk by scripts/build_refined_ir_catalog.py.
-            LOGGER.warning("RIR catalog unreadable, rewriting: %s", index_path)
-            records = []
+    from shared_runtime.atomic_io import atomic_write_json, file_lock
 
-    record = catalog_record_for(module, relative_path=relative_path)
-    records = [r for r in records if r.get("path") != relative_path]
-    records.append(record)
-    records.sort(key=lambda r: str(r.get("path") or ""))
+    with file_lock(root / "index.json.lock"):
+        records: list[dict[str, Any]] = []
+        if index_path.exists():
+            try:
+                existing = json.loads(index_path.read_text(encoding="utf-8"))
+                candidate = existing.get("artifacts")
+                if isinstance(candidate, list):
+                    records = [r for r in candidate if isinstance(r, dict)]
+            except (OSError, json.JSONDecodeError):
+                # A corrupt index must not block the mission; it is rebuilt from
+                # the modules on disk by scripts/build_refined_ir_catalog.py.
+                LOGGER.warning("RIR catalog unreadable, rewriting: %s", index_path)
+                records = []
 
-    from shared_runtime.atomic_io import atomic_write_json
+        record = catalog_record_for(module, relative_path=relative_path)
+        records = [r for r in records if r.get("path") != relative_path]
+        records.append(record)
+        records.sort(key=lambda r: str(r.get("path") or ""))
 
-    atomic_write_json(index_path, {"artifacts": records}, indent=2)
+        atomic_write_json(index_path, {"artifacts": records}, indent=2)
     return index_path

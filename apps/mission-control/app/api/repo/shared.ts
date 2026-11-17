@@ -113,5 +113,20 @@ export function clampMaxFiles(value: number | undefined): number {
 }
 
 export function branchLooksValid(value: string): boolean {
-  return /^[A-Za-z0-9._/-]{1,120}$/.test(value);
+  if (!/^[A-Za-z0-9._/-]{1,120}$/.test(value)) {
+    return false;
+  }
+  if (
+    value.startsWith("-") ||
+    value.startsWith("/") ||
+    value.endsWith("/") ||
+    value.endsWith(".") ||
+    value.endsWith(".lock") ||
+    value.includes("..") ||
+    value.includes("//") ||
+    value.includes("@{")
+  ) {
+    return false;
+  }
+  return true;
 }

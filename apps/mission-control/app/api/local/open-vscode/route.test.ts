@@ -58,6 +58,12 @@ describe("open VS Code route", () => {
 
     expect(response.status).toBe(400);
   });
+
+  it("rejects non-object JSON bodies", async () => {
+    const response = await POST(jsonRequest(["mission-abc123"]));
+
+    expect(response.status).toBe(400);
+  });
 });
 
 function restoreEnv(key: string, value: string | undefined): void {

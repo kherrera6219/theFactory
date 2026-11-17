@@ -62,9 +62,14 @@ export function CommandPalette() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const hasLoadedRef = useRef(false);
 
-  // Pre-load data once on mount.
+  // Lazy-load palette data the first time the palette opens.
   useEffect(() => {
+    if (!open || hasLoadedRef.current) {
+      return;
+    }
+    hasLoadedRef.current = true;
     void listMissions(100)
       .then(setMissions)
       .catch(() => {});
@@ -91,7 +96,7 @@ export function CommandPalette() {
         ),
       )
       .catch(() => {});
-  }, []);
+  }, [open]);
 
   // Debounce query.
   useEffect(() => {

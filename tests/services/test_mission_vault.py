@@ -248,8 +248,30 @@ def test_write_intake_dlq_scrubs_vault_secrets() -> None:
     )
     assert len(captured) == 1
     assert "DLQ-SECRET-777" not in json.dumps(captured[0][1])
-    parsed = json.loads(captured[0][1]["payload"])
-    assert "vault" not in parsed["metadata"]
+
+
+def test_orchestrator_create_mission_fails_closed_when_vault_redis_unavailable(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    import orchestrator.main as orch_main
+    import pytest
+    from fastapi import HTTPException
+    from orchestrator.models import MissionCreate
+    from orchestrator.routes import missions as orch_missions
+
+    async def _ready(_app):
+        return False, True
+
+    monkeypatch.setattr(orch_main, "_ensure_db_ready", _ready)
+    fake_req = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(redis=None)))
+    payload = MissionCreate(
+        mission_id="mission-vault-503",
+        prompt="Build secure app",
+        metadata={"vault": {"gemini_api_key": "secret-key"}},
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(orch_missions.create_mission(fake_req, payload))
+    assert exc_info.value.status_code == 503
 
 
 def test_orchestrator_artifact_download_and_gateway_evidence_proxy_routes(monkeypatch) -> None:

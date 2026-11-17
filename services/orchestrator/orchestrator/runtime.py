@@ -708,8 +708,24 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
     new_task = asyncio.create_task(advance_mission_lifecycle(app, mission_id))
     lifecycle_tasks[mission_id] = new_task
 
-    def _cleanup(_: asyncio.Task[Any]) -> None:
+    def _cleanup(done_task: asyncio.Task[Any]) -> None:
         lifecycle_tasks.pop(mission_id, None)
+        is_done = getattr(done_task, "done", None)
+        is_cancelled = getattr(done_task, "cancelled", None)
+        get_exception = getattr(done_task, "exception", None)
+        if (
+            (not callable(is_done) or is_done())
+            and callable(is_cancelled)
+            and not is_cancelled()
+            and callable(get_exception)
+        ):
+            exc = get_exception()
+            if exc is not None:
+                LOGGER.error(
+                    "lifecycle task crashed for mission %s",
+                    mission_id,
+                    exc_info=exc,
+                )
 
     new_task.add_done_callback(_cleanup)
 

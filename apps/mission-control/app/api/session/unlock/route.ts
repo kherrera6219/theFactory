@@ -8,12 +8,9 @@ import {
   isOperatorSessionBypassed,
   verifyOperatorAdminKey,
 } from "../../../lib/server/operator-session";
+import { parseJsonObject } from "../../../lib/server/request-validation";
 
 export const runtime = "nodejs";
-
-type UnlockRequestPayload = {
-  admin_key?: string;
-};
 
 export async function POST(request: Request) {
   // Dev bypass — auto-issue a session without requiring an admin key.
@@ -39,14 +36,13 @@ export async function POST(request: Request) {
     );
   }
 
-  let payload: UnlockRequestPayload;
-  try {
-    payload = (await request.json()) as UnlockRequestPayload;
-  } catch {
+  const payload = await parseJsonObject(request);
+  if (!payload) {
     return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
-  if (!verifyOperatorAdminKey(payload.admin_key)) {
+  const adminKey = typeof payload.admin_key === "string" ? payload.admin_key : undefined;
+  if (!verifyOperatorAdminKey(adminKey)) {
     return NextResponse.json({ detail: "Invalid operator admin key." }, { status: 401 });
   }
 

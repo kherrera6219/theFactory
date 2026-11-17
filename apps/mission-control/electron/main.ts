@@ -845,8 +845,47 @@ app.whenReady().then(async () => {
   // ── IPC: 7F Shell artifact directory ────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.SHELL_OPEN_ARTIFACT_DIR, async (_, dirPath: string) => {
     if (!dirPath || typeof dirPath !== "string") return;
-    const target = path.basename(dirPath).includes(".") ? path.dirname(dirPath) : dirPath;
-    await shell.openPath(target);
+    const trimmed = dirPath.trim();
+    if (!trimmed || trimmed.includes("\0") || trimmed.startsWith("\\\\") || !path.isAbsolute(trimmed)) {
+      return;
+    }
+    const candidate = path.resolve(trimmed);
+    const allowedRoots = [
+      app.getPath("userData"),
+      app.getPath("downloads"),
+      app.getPath("documents"),
+      process.env.MISSION_OUTPUT_ROOT || "",
+      path.resolve(app.getAppPath(), "..", "..", "output"),
+      path.resolve(app.getAppPath(), "..", "..", "workspaces"),
+      path.resolve(process.cwd(), "output"),
+      path.resolve(process.cwd(), "workspaces"),
+    ]
+      .filter(Boolean)
+      .map((root) => path.resolve(root));
+
+    let targetDir = candidate;
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) {
+        targetDir = path.dirname(candidate);
+      } else if (!stat.isDirectory()) {
+        return;
+      }
+      if (!fs.statSync(targetDir).isDirectory()) {
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    const isAllowed = allowedRoots.some((root) => {
+      const rel = path.relative(root, targetDir);
+      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    });
+    if (!isAllowed) {
+      return;
+    }
+    await shell.openPath(targetDir);
   });
 
   // ── IPC: 7E App info ────────────────────────────────────────────────────
