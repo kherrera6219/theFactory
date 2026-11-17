@@ -141,6 +141,10 @@ FunctionEnd
   ${If} ${FileExists} "$PROFILE\Desktop"
     CreateShortCut "$PROFILE\Desktop\${SHORTCUT_NAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
   ${EndIf}
+  ; Clean up orphaned all-users uninstall entry if its executable was removed.
+  ${IfNot} ${FileExists} "$PROGRAMFILES64\${PRODUCT_NAME}\${APP_EXECUTABLE_FILENAME}"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}"
+  ${EndIf}
 !macroend
 
 ; ---------------------------------------------------------------------------
@@ -224,13 +228,6 @@ FunctionEnd
 ; ---------------------------------------------------------------------------
 ; Uninstaller: stop/remove the stack, then clean up app-level state
 ; ---------------------------------------------------------------------------
-!macro customInstall
-  ; Clean up orphaned all-users uninstall entry if its executable was removed.
-  ${IfNot} ${FileExists} "$PROGRAMFILES64\${PRODUCT_NAME}\${APP_EXECUTABLE_FILENAME}"
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}"
-  ${EndIf}
-!macroend
-
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     ; Silent uninstalls (/S) never show the page: they keep data.
