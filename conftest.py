@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# Prevent background OpenTelemetry BatchSpanProcessor threads from attempting
+# network exports to http://jaeger:4318 during unit tests and logging closed-stream
+# errors on interpreter shutdown.
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
 # Ensure the repo root is on sys.path so that:
 #   - shared_runtime.*  is importable as a top-level package

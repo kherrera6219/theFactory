@@ -214,8 +214,8 @@ def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
                 pool_info["pool_size"] = int(stats.get("pool_size", 0))
                 pool_info["pool_available"] = int(stats.get("pool_available", 0))
                 pool_info["requests_waiting"] = int(stats.get("requests_waiting", 0))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("failed to read db pool stats: %s", exc)
 
     table_counts: dict[str, int] = {name: 0 for name in _DIAGNOSTIC_TABLES}
     latest_migration_version = "011"
@@ -225,8 +225,8 @@ def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
         if scripts:
             latest_migration_version = scripts[-1].version
             migration_count = len(scripts)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("failed to load migration scripts for diagnostics: %s", exc)
 
     try:
         with get_connection() as conn:
@@ -255,8 +255,8 @@ def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
                 for row in cur.fetchall() or []:
                     if row and len(row) >= 2:
                         table_counts[str(row[0])] = max(0, int(row[1]))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("failed to load migration scripts for diagnostics: %s", exc)
 
     return {
         "pool": pool_info,

@@ -463,8 +463,8 @@ async def run_activation(
             try:
                 result.modified_files = workspace.modified_files("baseline")
                 result.head_commit = workspace.current_head()
-            except Exception:
-                pass
+            except Exception as exc:
+                LOGGER.debug("failed to snapshot workspace state during flush: %s", exc)
         _persist_into_metadata(mission_metadata, result)
         if persist_fn is not None and isinstance(mission_metadata, dict):
             maybe_coro = persist_fn(mission_metadata)

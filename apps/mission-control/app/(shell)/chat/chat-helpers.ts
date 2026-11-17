@@ -470,3 +470,17 @@ export function initialWelcomeMessage(): ChatMessage {
   };
 }
 
+export function groupChatSessions(sessions: ChatSession[]): Array<[string, ChatSession[]]> {
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  const groups = new Map<string, ChatSession[]>();
+  for (const s of sessions) {
+    const label = new Date(s.savedAt).toDateString();
+    const groupKey = label === today ? "Today" : label === yesterday ? "Yesterday" : label;
+    const bucket = groups.get(groupKey) ?? [];
+    bucket.push(s);
+    groups.set(groupKey, bucket);
+  }
+  return Array.from(groups.entries());
+}
+

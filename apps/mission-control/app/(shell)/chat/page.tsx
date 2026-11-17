@@ -64,6 +64,7 @@ import {
   errorMessage,
   extractDecisionMemory,
   formatFactoryTime,
+  groupChatSessions,
   initialWelcomeMessage,
   isBinaryFile,
   makeId,
@@ -921,19 +922,7 @@ export default function ChatPage() {
   }
 
   // Group sessions by "Today" / "Yesterday" / date label.
-  const groupedSessions = useMemo(() => {
-    const today = new Date().toDateString();
-    const yesterday = new Date(Date.now() - 86400000).toDateString();
-    const groups = new Map<string, ChatSession[]>();
-    for (const s of sessions) {
-      const label = new Date(s.savedAt).toDateString();
-      const groupKey = label === today ? "Today" : label === yesterday ? "Yesterday" : label;
-      const bucket = groups.get(groupKey) ?? [];
-      bucket.push(s);
-      groups.set(groupKey, bucket);
-    }
-    return Array.from(groups.entries());
-  }, [sessions]);
+  const groupedSessions = useMemo(() => groupChatSessions(sessions), [sessions]);
 
   return (
     <div className="page shell-page">
