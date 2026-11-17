@@ -6,6 +6,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Architecture Modularization, Observability & Dev-Tooling Hardening (2026-11-16)
+
+#### Changed
+- **Backend & UI Modularization**: Extracted [`api_gateway/schemas.py`](services/api-gateway/api_gateway/schemas.py) and [`api_gateway/security_scans.py`](services/api-gateway/api_gateway/security_scans.py) from `api_gateway/main.py`; extracted [`rqca_classification.py`](services/orchestrator/orchestrator/rqca_classification.py) from `rqca_agent.py`; extracted [`routes/internal_helpers.py`](services/orchestrator/orchestrator/routes/internal_helpers.py) from `routes/internal.py`; extracted [`pod_worker/logicnode_helpers.py`](services/pod-worker/pod_worker/logicnode_helpers.py) from `pod_worker/main.py`; extracted [`model-options.ts`](apps/mission-control/app/(shell)/settings/model-options.ts) from `settings/page.tsx`; and moved `groupChatSessions` into [`chat-helpers.ts`](apps/mission-control/app/(shell)/chat/chat-helpers.ts).
+- **Documentation & Test Tooling (`AGENTS.md`, `conftest.py`, `requirements-dev.txt`, `scripts/check_env.py`)**: Reconciled `AGENTS.md` §5/§6 (`GATEWAY_ADMIN_BYPASS=false` default and `UPG-22` envelope priority resolution), disabled background OpenTelemetry OTLP export during unit tests in `conftest.py`, added `pytest-xdist==3.8.0` to `requirements-dev.txt`, and added `--check-deps` to `scripts/check_env.py`.
+
+#### Fixed
+- **Silent Exception Logging & Compose Hardening**: Replaced silent `except Exception: pass` blocks in `storage_core.py`, `agent_harness.py`, `heartbeat_service.py`, `llm_delegation/config.py`, and `api_gateway/main.py` with structured `debug` logging, and added `cap_drop: [ALL]` + `security_opt: [no-new-privileges:true]` to `promtail` in `deploy/docker-compose.monitoring.yaml`.
+
 ### Full-Stack Code Review, Security Hardening & Bug Remediation (2026-11-16)
 
 #### Fixed

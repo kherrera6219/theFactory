@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-11-13. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), `F1`–`F11` engineering/security remediation, and all 7 phases of `GEMINI_NEXT_PHASE_PLAN_2026-11-13.md` ("Make Brownfield Work Real": benchmark corpus + live gates + fallback policy + activations, Git-backed `MissionWorkspace`, role-scoped `AgentHarness`, offline `dependency-provisioner`, AST `workspace_indexer` + `LANGUAGE_MATURITY.md`, `baseline_verification` + PORT dual-run equivalence, and `sliced_execution` + `MIGRATION_NOTES.md` + opt-in vaulted `github_pr_exporter`). See `docs/CURRENT_TODO.md` (2026-11-13).
+> Last validated: 2026-11-16. Completed the 8-Phase Master Review & Upgrade Plan, Next-Gen Model Fleet upgrade (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5` with `claude-ops-5.5` / `claude-opus-5.5` compatibility aliases), `F1`–`F11` engineering/security remediation, all 7 phases of `GEMINI_NEXT_PHASE_PLAN_2026-11-13.md`, and the 2026-11-16 full-stack code review & modularization pass (`api_gateway/{schemas,security_scans}.py`, `rqca_classification.py`, `routes/internal_helpers.py`, `pod_worker/logicnode_helpers.py`, `settings/model-options.ts`, `chat-helpers.ts`, silent-exception logging, `conftest.py` OTel test guard, `pytest-xdist`, and `check_env.py --check-deps`). See `docs/CURRENT_TODO.md`.
 
 ---
 
@@ -137,7 +137,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 - **Systems (Pod B)**: Enforce MISRA C:2012, buffer-safety, and RAII rules.
 - **Web (Pod A)**: Enforce PEP 8/604, ECMAScript 2024, and OWASP safety.
 - **Enterprise (Pod C)**: Enforce SOLID patterns, JVM hygiene, and .NET async correctness.
-- **Admin Mode**: Authentication is now implicitly tied to the host OS; full administrative capabilities are enabled by default for zero-friction local usage.
+- **Auth & Admin Mode**: `AUTH_MODE=api_key` and `GATEWAY_ADMIN_BYPASS=false` are the defaults (`.env.example`, `api_gateway/main.py`). Local dev may opt into `GATEWAY_ADMIN_BYPASS=true` or `MISSION_CONTROL_BYPASS_AUTH=true` explicitly, while `production` rejects `GATEWAY_ADMIN_BYPASS=true` at startup.
 - **Multimodal Assets**: The PM Agent chat intake accepts all document formats (e.g., PDF) and image types (e.g., diagrams), converting them to Base64 Data URLs that are parsed by the provider layer (`providers.py`) and sent natively to multimodal LLMs (`inlineData` for Gemini, `image_url` for OpenAI).
 
 ## 6. Known Open Gaps
@@ -150,7 +150,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 | Cert path mismatch (.env.example vs docker-compose) | ✅ Fixed — `.env.example` now explains both paths with inline comments |
 | GO/HASKELL/OCAML fall back to BaseAgent | ✅ Fixed — concrete SpecialistAgent subclasses implemented (#187) |
 | MCP replay detection not wired; except/pass on Redis errors | ✅ Fixed — 409 on replay, 503 on Redis failure, all channels checked (#188) |
-| Divergent envelope schemas | ⚠️ **Partially fixed.** The Redis *state-event* envelope is unified and `jsonschema.validate()`d in the orchestrator (#189). But two envelope formats remain in production and disagree: `schemas/event.envelope.schema.json` allows `priority` ∈ `NORMAL\|HIGH`, while the bus `/send` body allows `low\|normal\|high\|critical`. Latent (nothing routes on priority yet). Tracked as UPG-22 (upgrade plan Phase 2). |
+| Divergent envelope schemas | ✅ Fixed (`UPG-22`) — `schemas/event.envelope.schema.json` accepts both canonical uppercase (`NORMAL`, `HIGH`) and Protocol Bus `/send` lowercase (`low`, `normal`, `high`, `critical`) priority values. |
 | Semantic bus routing misleadingly named | ✅ Fixed — renamed to protocol-bus-mcp throughout (#190) |
 | Generated artifacts committed to VCS | ✅ Fixed — removed + `.gitignore`d (#191) |
 | runtime.py coverage floor 60% | ✅ Fixed — raised to 80%, actual coverage 100% line (#192) |

@@ -99,8 +99,8 @@ def get_process_rss_bytes() -> int:
             psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
             if psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
                 return int(counters.WorkingSetSize)
-        except Exception:
-            pass
+        except Exception as exc:
+            LOGGER.debug("failed to query Windows process memory info: %s", exc)
 
     return 0
 

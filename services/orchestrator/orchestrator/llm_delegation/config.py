@@ -74,8 +74,8 @@ def _record_usage_event(  # noqa: PLR0913
             provider=provider, model=model,
             input_tokens=int(inp or 0), output_tokens=int(out or 0),
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        LOGGER.debug("failed to record prometheus llm usage metric: %s", exc)
 
     if not mission_id:
         return
@@ -94,8 +94,8 @@ def _record_usage_event(  # noqa: PLR0913
             loop.create_task(coro)
         except RuntimeError:
             pass
-    except Exception:
-        pass
+    except Exception as exc:
+        LOGGER.debug("failed to record prometheus llm usage metric: %s", exc)
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()

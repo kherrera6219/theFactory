@@ -178,5 +178,33 @@ def check_env() -> int:
     return 0
 
 
+def _check_dev_dependencies(repo_root: Path) -> list[str]:
+    """Verify pinned packages in requirements-dev.txt are installed."""
+    import importlib.metadata
+
+    req_file = repo_root / "requirements-dev.txt"
+    if not req_file.exists():
+        return []
+    missing: list[str] = []
+    for raw in req_file.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        pkg = re.split(r"[=<>!~]", line, maxsplit=1)[0].strip()
+        if not pkg:
+            continue
+        try:
+            importlib.metadata.version(pkg)
+        except importlib.metadata.PackageNotFoundError:
+            missing.append(pkg)
+    return missing
+
+
 if __name__ == "__main__":
+    if "--check-deps" in sys.argv[1:]:
+        missing_pkgs = _check_dev_dependencies(Path(__file__).resolve().parent.parent)
+        if missing_pkgs:
+            print(f"ERROR: missing dev dependencies: {', '.join(missing_pkgs)}")
+            sys.exit(1)
+        print("dev dependencies OK")
     sys.exit(check_env())
