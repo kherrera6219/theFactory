@@ -2,6 +2,7 @@ export { MissionSignalsPanel } from './operational/MissionSignalsPanel';
 export { MissionProgressPanel } from './operational/MissionProgressPanel';
 export { LogicNodeProgressPanel } from './operational/LogicNodeProgressPanel';
 export { GeneratedOutputPanel } from './operational/GeneratedOutputPanel';
+export { AgentHarnessPanel } from './operational/AgentHarnessPanel';
 export { DeliveryPanel } from './operational/DeliveryPanel';
 export { ChainOfCommandTracePanel } from './operational/ChainOfCommandTracePanel';
 export { RouteProvenancePanel } from './operational/RouteProvenancePanel';

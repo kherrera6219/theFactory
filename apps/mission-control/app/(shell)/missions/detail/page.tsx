@@ -47,6 +47,7 @@ import {
   MissionProgressPanel,
   LogicNodeProgressPanel,
   GeneratedOutputPanel,
+  AgentHarnessPanel,
   DeliveryPanel,
   ChainOfCommandTracePanel,
   RouteProvenancePanel,
@@ -875,6 +876,15 @@ function MissionDetailPageContent() {
             buildArtifacts={buildArtifacts}
             missionMetadata={(mission?.metadata as Record<string, unknown> | undefined) ?? null}
             plannedSlices={missionCharter?.slices ?? featureContract?.slices ?? null}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <AgentHarnessPanel
+            activations={
+              Array.isArray((mission?.metadata as Record<string, unknown> | undefined)?.agent_activations)
+                ? ((mission?.metadata as Record<string, unknown>).agent_activations as Array<Record<string, unknown>>)
+                : []
+            }
           />
         </ErrorBoundary>
         <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} deltaAuditGate={(mission?.metadata as Record<string, unknown> | undefined)?.delta_audit_gate ?? null} /></ErrorBoundary>

@@ -73,8 +73,9 @@ describe("language helpers", () => {
 
   it("maps target languages to maturity tiers", () => {
     expect(languageMaturityTier("python")?.tier).toBe("Tier 1");
-    expect(languageMaturityTier("rust")?.tier).toBe("Tier 2");
-    expect(languageMaturityTier("zig")?.tier).toBe("Tier 3");
+    expect(languageMaturityTier("rust")?.tier).toBe("Tier 1");
+    expect(languageMaturityTier("haskell")?.tier).toBe("Tier 2");
+    expect(languageMaturityTier("matlab")?.tier).toBe("Tier 3");
     expect(languageMaturityTier("")).toBeNull();
   });
 });

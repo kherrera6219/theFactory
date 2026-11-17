@@ -122,8 +122,20 @@ export type LanguageMaturityInfo = {
   label: string;
 };
 
-const TIER_1_LANGUAGES = new Set(["python", "javascript", "typescript", "java", "go"]);
-const TIER_2_LANGUAGES = new Set(["rust", "csharp", "kotlin", "scala", "php", "ruby", "haskell", "ocaml", "julia"]);
+const TIER_1_LANGUAGES = new Set([
+  "python",
+  "javascript",
+  "typescript",
+  "go",
+  "rust",
+  "java",
+  "csharp",
+  "kotlin",
+  "scala",
+  "php",
+  "ruby",
+]);
+const TIER_2_LANGUAGES = new Set(["c", "cpp", "r", "julia", "haskell", "ocaml", "zig"]);
 
 export function languageMaturityTier(language: string | null | undefined): LanguageMaturityInfo | null {
   const normalized = String(language ?? "").trim().toLowerCase();
