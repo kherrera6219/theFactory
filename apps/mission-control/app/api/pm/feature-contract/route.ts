@@ -1,23 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import { parseJsonObject, readTrimmedString } from "../../../lib/server/request-validation";
 import { getActiveLlmRoute, getVaultSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
 
 const API_BASE_URL =
   (process.env.MISSION_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100").trim();
-
-type FeatureContractPayload = {
-  prompt?: string;
-  request?: string;
-  mission_type?: string;
-  depth_mode?: string;
-  output_mode?: string;
-  requested_target_language?: string | null;
-  conversation_context?: Record<string, unknown>;
-  user_intent?: string;
-};
 
 export async function POST(request: Request) {
   const unauthorized = requireOperatorRequestSession(request);
@@ -26,8 +16,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const payload = (await request.json()) as FeatureContractPayload;
-    const prompt = (payload.prompt ?? payload.request ?? "").trim();
+    const payload = await parseJsonObject(request);
+    if (!payload) {
+      return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
+    }
+    const prompt = readTrimmedString(payload, "prompt") || readTrimmedString(payload, "request");
     if (prompt.length < 3) {
       return NextResponse.json(
         { detail: "prompt must be at least 3 characters." },

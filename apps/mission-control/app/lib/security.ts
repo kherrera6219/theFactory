@@ -29,3 +29,16 @@ export function sanitizeUserText(raw: string): string {
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
     .trim();
 }
+
+export function sanitizeErrorForDisplay(raw: string | undefined, fallback: string): string {
+  const cleaned = sanitizeUserText(raw ?? "");
+  if (!cleaned) {
+    return fallback;
+  }
+  const redacted = cleaned
+    .replace(/\b[A-Za-z]:\\[^\s"'`]+/g, "[path]")
+    .replace(/\/(?:Users|home|app|var|etc|tmp|opt)\/[^\s"'`]+/g, "[path]")
+    .replace(/https?:\/\/[^\s"'`]+/gi, "[url]")
+    .slice(0, 240);
+  return redacted || fallback;
+}

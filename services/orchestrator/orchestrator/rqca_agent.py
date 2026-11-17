@@ -20,7 +20,9 @@ from .sandbox_exec import (
     MAX_TIMEOUT_SECONDS as _SHARED_MAX_TIMEOUT_SECONDS,
 )
 from .sandbox_exec import (
+    run_compose_in_sandbox,
     run_in_sandbox,
+    sandbox_executor_url,
     workspace_root,
 )
 
@@ -1527,15 +1529,20 @@ def _build_rqca_compose_yml(
 
         lines.append(f"  {name}:")
         lines.append(f"    image: {_q(image)}")
+        lines.append('    user: "65534:65534"')
         lines.append(f"    mem_limit: {memory_mb}m")
+        lines.append(f"    memswap_limit: {memory_mb}m")
         lines.append(f"    cpus: {cpus}")
+        lines.append("    pids_limit: 64")
         lines.append("    read_only: true")
         lines.append("    tmpfs:")
-        lines.append("      - /tmp")
+        lines.append("      - /tmp:size=64m,mode=1777")
         lines.append("    cap_drop:")
         lines.append("      - ALL")
         lines.append("    security_opt:")
         lines.append("      - no-new-privileges:true")
+        lines.append("    networks:")
+        lines.append("      - rqca_internal")
         if i == 0:
             # test-runner mounts the workspace read-only and is the exit-code source
             lines.append("    working_dir: /workspace")
@@ -1557,6 +1564,9 @@ def _build_rqca_compose_yml(
             for dep in dep_names:
                 lines.append(f"      {dep}:")
                 lines.append("        condition: service_started")
+    lines.append("networks:")
+    lines.append("  rqca_internal:")
+    lines.append("    internal: true")
     return "\n".join(lines) + "\n"
 
 
@@ -1669,27 +1679,25 @@ async def _execute_in_sandbox(
             if not fixture.exists():
                 fixture.write_text(_fixture_content(testdata_manifest), encoding="utf-8")
 
-        if multi_container and testdata_manifest.get("services") and not _compose_available():
+        if multi_container and testdata_manifest.get("services") and (
+            sandbox_executor_url() or not _compose_available()
+        ):
             # The compose plugin is not shipped in the orchestrator image (see
-            # services/orchestrator/Dockerfile for why). Say so plainly rather
-            # than failing deep in a subprocess with "docker: 'compose' is not a
-            # docker command", which reads like a defect in the artifact.
+            # services/orchestrator/Dockerfile for why) and compose execution
+            # must never bypass SANDBOX_EXECUTOR_URL.
             return _dry_run_report(
                 mission_id=mission_id,
                 language=language,
                 filename=filename,
                 testdata_manifest=testdata_manifest,
                 reason=(
-                    "Multi-container runtime QC needs the docker compose plugin, "
-                    "which is not installed in the orchestrator image."
+                    "Multi-container runtime QC needs the docker compose plugin "
+                    "and cannot run when SANDBOX_EXECUTOR_URL isolates docker.sock."
                 ),
             )
 
         if multi_container and testdata_manifest.get("services"):
-            # ── Multi-container path: build compose file, run with docker compose ──
-            # Inject the resolved run/test command into the test-runner service
-            # when the manifest didn't specify one, so the same command-selection
-            # logic (test framework over bare execution) applies to compose too.
+            # ── Multi-container path: build hardened compose file, delegate to sandbox_exec ──
             raw_services = testdata_manifest.get("services") or []
             services_with_command: list[Any] = []
             for idx, svc in enumerate(raw_services):
@@ -1713,43 +1721,32 @@ async def _execute_in_sandbox(
                 )
                 if services else "svc0"
             )
-            docker_args = [
-                docker_bin, "compose",
-                "-f", str(compose_file),
-                "up",
-                "--abort-on-container-exit",
-                f"--exit-code-from={runner_name}",
-                "--timeout", str(timeout),
-            ]
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    *docker_args,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+            sandbox_result = await run_compose_in_sandbox(
+                docker_bin=docker_bin,
+                compose_file=compose_file,
+                runner_service=runner_name,
+                timeout_seconds=timeout,
+                memory_mb=memory_mb,
+            )
+            if sandbox_result.infrastructure_error:
+                return _dry_run_report(
+                    mission_id=mission_id,
+                    language=language,
+                    filename=filename,
+                    testdata_manifest=testdata_manifest,
+                    reason=f"sandbox infrastructure error: {sandbox_result.infrastructure_error}",
                 )
-                try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                        proc.communicate(), timeout=float(timeout) + 15.0
-                    )
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    with suppress(Exception):
-                        await asyncio.wait_for(proc.communicate(), timeout=5.0)
-                    return _timeout_report(
-                        mission_id=mission_id, language=language, filename=filename,
-                        timeout_seconds=timeout, started_at=started_at,
-                    )
-            finally:
-                # Always tear down the compose stack
-                teardown = await asyncio.create_subprocess_exec(
-                    docker_bin, "compose", "-f", str(compose_file), "down", "--remove-orphans",
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
+            if sandbox_result.timed_out:
+                return _timeout_report(
+                    mission_id=mission_id,
+                    language=language,
+                    filename=filename,
+                    timeout_seconds=timeout,
+                    started_at=started_at,
                 )
-                try:
-                    await asyncio.wait_for(teardown.wait(), timeout=30.0)
-                except Exception:
-                    pass
+            stdout_bytes = sandbox_result.stdout.encode("utf-8", errors="replace")
+            stderr_bytes = sandbox_result.stderr.encode("utf-8", errors="replace")
+            single_container_exit_code = sandbox_result.exit_code
         else:
             # ── Single-container path (default) ─────────────────────────────────
             install_script = "#!/bin/sh\nset -e\n" + "\n".join(install_commands)
@@ -1809,11 +1806,7 @@ async def _execute_in_sandbox(
             stdout_bytes = sandbox_result.stdout.encode("utf-8", errors="replace")
             stderr_bytes = sandbox_result.stderr.encode("utf-8", errors="replace")
             single_container_exit_code = sandbox_result.exit_code
-    exit_code = (
-        single_container_exit_code
-        if single_container_exit_code is not None
-        else int(proc.returncode or 0)
-    )
+    exit_code = int(single_container_exit_code or 0)
     expected_exit_code = int(testdata_manifest.get("expected_exit_code") or 0)
     exit_matched = exit_code == expected_exit_code
     exercised = bool(testdata_manifest.get("invocation_args")) or tests_selected

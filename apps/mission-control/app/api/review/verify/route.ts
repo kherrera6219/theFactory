@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import { parseJsonObject, readTrimmedString } from "../../../lib/server/request-validation";
 import { isApprovalHmacValid } from "../../../lib/server/review-approvals";
 
 export const runtime = "nodejs";
@@ -8,13 +9,6 @@ export const runtime = "nodejs";
 const ORCHESTRATOR_INTERNAL_BASE_URL =
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL?.trim() || "http://localhost:8101";
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
-
-type ReviewApprovalVerificationRequest = {
-  scope?: "builder" | "repo" | "delivery";
-  approval_id?: string;
-  fingerprint?: string;
-  receipt_digest?: string;
-};
 
 type ReviewApprovalRecord = {
   approval_id?: string;
@@ -46,16 +40,14 @@ export async function POST(request: Request) {
     );
   }
 
-  let payload: ReviewApprovalVerificationRequest;
-  try {
-    payload = (await request.json()) as ReviewApprovalVerificationRequest;
-  } catch {
+  const payload = await parseJsonObject(request);
+  if (!payload) {
     return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
-  const approvalId = sanitizeText(payload.approval_id, 120);
-  const fingerprint = sanitizeText(payload.fingerprint, 200);
-  const receiptDigest = sanitizeText(payload.receipt_digest, 200);
+  const approvalId = sanitizeText(readTrimmedString(payload, "approval_id"), 120);
+  const fingerprint = sanitizeText(readTrimmedString(payload, "fingerprint"), 200);
+  const receiptDigest = sanitizeText(readTrimmedString(payload, "receipt_digest"), 200);
   if (!approvalId || !fingerprint || !receiptDigest) {
     return NextResponse.json(
       { detail: "approval_id, fingerprint, and receipt_digest are required." },

@@ -38,7 +38,8 @@ def test_python_and_node_and_go_invoke_expected_argv(monkeypatch) -> None:
     def _which(name: str) -> str | None:
         return f"/usr/bin/{name}" if name in {"python3", "python", "node", "go"} else None
 
-    def _run(argv, capture_output=True, text=True, check=False):
+    def _run(argv, capture_output=True, text=True, check=False, timeout=None):
+        assert timeout is not None and timeout > 0
         captured.append(list(argv))
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 
@@ -83,3 +84,24 @@ def test_compiled_language_checks_use_syntax_only_flags(monkeypatch) -> None:
     assert any(cmd[0] == "javac" for cmd in seen)
     assert any("-fno-code" in cmd for cmd in seen)
     assert any(cmd[:2] == ["ocamlc", "-c"] for cmd in seen)
+
+
+def test_toolchain_check_rejects_path_traversal_and_handles_timeout(monkeypatch) -> None:
+    import subprocess
+
+    import pytest
+
+    monkeypatch.setattr(toolchains, "TOOLCHAINS_ENABLED", True)
+    for bad_name in ("../../etc/passwd", "/etc/passwd", "C:\\Windows\\evil.py", "a\x00b.py"):
+        with pytest.raises(ValueError, match="invalid toolchain filename"):
+            toolchains.run_toolchain_check("python", "print(1)\n", filename=bad_name)
+
+    def _timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="python3", timeout=15)
+
+    monkeypatch.setattr(toolchains.shutil, "which", lambda name: f"/usr/bin/{name}" if name == "python3" else None)
+    monkeypatch.setattr(toolchains.subprocess, "run", _timeout)
+    res = toolchains.run_toolchain_check("python", "print(1)\n", filename="subdir/app.py")
+    assert res.passed is False
+    assert res.compiler_found is True
+    assert "timed out" in res.output

@@ -607,7 +607,14 @@ async def _prepare_specialist_plan(
             code_text = str(
                 last_slice_output.get("code") or last_slice_output.get("generated_code") or ""
             )
-            parsed = parse_file_bundle(code_text) if code_text else {}
+            parsed_entries = parse_file_bundle(code_text) if code_text else []
+            parsed: dict[str, str] = {}
+            if isinstance(parsed_entries, dict):
+                parsed = {str(k): str(v) for k, v in parsed_entries.items()}
+            elif isinstance(parsed_entries, list):
+                for entry in parsed_entries:
+                    if isinstance(entry, dict) and entry.get("path") and entry.get("content") is not None:
+                        parsed[str(entry["path"])] = str(entry["content"])
             if not parsed and code_text:
                 fallback_name = str(
                     last_slice_output.get("filename")
@@ -682,7 +689,11 @@ async def _prepare_specialist_plan(
         from ..context_pack import build_specialist_context_pack
         from ..workspace import workspace_from_mission_metadata
 
-        bound_ws = workspace_from_mission_metadata(metadata, settings=settings)
+        bound_ws = await asyncio.to_thread(
+            workspace_from_mission_metadata,
+            metadata,
+            settings=settings,
+        )
         active_slice = (
             metadata.get("active_slice")
             if isinstance(metadata.get("active_slice"), dict)

@@ -1,8 +1,8 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.11.13
-Last updated: 2026-11-13
-Status: Implemented and validated end to end on Windows (WQ #9); rebuilt with Gemini 4 Argon / GPT 6.1 Terrea / Claude Ops 5.5 & auto-refreshing `backend.env` (2026-11-13)
+Document version: 2026.11.16
+Last updated: 2026-11-16
+Status: Implemented and validated end to end on Windows (WQ #9); hardened IPC containment, vault file permissions, CSP headers, direct `Code.exe` launch, and rebuilt service/desktop bundle (2026-11-16)
 Audience: Maintainers, release managers, operators
 
 `theFactory-MissionControl-Setup-<version>.exe` installs Mission Control as a
@@ -147,6 +147,7 @@ generates its own.
 | 6 | Logs / data in `%APPDATA%\mission-control`, not where docs and the uninstaller look | Electron named userData after package `name` | userData pinned to `%APPDATA%\theFactory Mission Control` |
 | 7 | Startup progress window and first-run wizard inline IPC scripts blocked by CSP | HTML CSP meta tag omitted `'unsafe-inline'` in `script-src` on `starting.html` and `setup-wizard.html` | Updated `script-src 'self' 'unsafe-inline'` in both windows (`e9faa4f`) |
 | 8 | Existing `backend.env` kept outdated `GEMINI_MODEL` / `OPENAI_MODEL` / `ANTHROPIC_MODEL` / `GEMINI_TIMEOUT_SECONDS` after app upgrades | `ensureBackendConfigured()` only generated a new `backend.env` when missing, leaving prior release model/timeout defaults pinned | Added `releaseModelDefaults(templatePath)` in `env-generator.ts` and hoisted `templatePath` in `ensureBackendConfigured()` (`c24dc27`, updated for `GEMINI_TIMEOUT_SECONDS`) |
+| 9 | Unbounded `SHELL_OPEN_ARTIFACT_DIR` IPC path handling and Next.js `16.4.3` security advisory (`GHSA-mfr8-8qww-v76h`) | Renderer IPC accepted arbitrary paths without containment checks; `next@16.4.3` carried a moderate advisory | Restricted `SHELL_OPEN_ARTIFACT_DIR` in `electron/main.ts` to verified existing directories inside allowed roots (blocking UNC/arbitrary files), hardened `next.config.mjs`/`layout.tsx` CSP headers, and upgraded `next` to `16.4.6` |
 
 The install-mode page pre-selecting *all users* is electron-builder's upgrade
 behaviour: it keeps the mode of an existing machine-wide install it finds under

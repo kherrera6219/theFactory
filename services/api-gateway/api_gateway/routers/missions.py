@@ -37,7 +37,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}")
 
     @router.get("/v1/missions")
     async def list_missions(
@@ -56,7 +57,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/events", params={"limit": limit})
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/events", params={"limit": limit})
 
     @router.get("/v1/missions/{mission_id}/pod-assignment")
     async def get_mission_pod_assignment(
@@ -65,7 +67,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/internal/missions/{mission_id}/pod-assignment")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/internal/missions/{safe_mission_id}/pod-assignment")
 
     @router.get("/v1/missions/{mission_id}/chain-trace")
     async def get_mission_chain_trace(
@@ -74,7 +77,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/internal/missions/{mission_id}/chain-trace")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/internal/missions/{safe_mission_id}/chain-trace")
 
     @router.post("/v1/sows", status_code=201)
     async def create_sow(
@@ -82,7 +86,7 @@ def build_missions_router() -> APIRouter:
         x_api_key: str | None = Header(default=None),
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
-        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        gateway_main._require_mutation_access(x_api_key=x_api_key, authorization=authorization)
         return await gateway_main._proxy_post_internal("/internal/sows", json_body=payload, timeout=15.0)
 
     @router.get("/v1/sows/{sow_id}")
@@ -92,7 +96,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/internal/sows/{sow_id}")
+        safe_sow_id = gateway_main._validate_path_identifier(sow_id, "sow_id")
+        return await gateway_main._proxy_get_internal(f"/internal/sows/{safe_sow_id}")
 
     @router.post("/v1/pm/feature-contract")
     async def create_pm_feature_contract(
@@ -100,7 +105,7 @@ def build_missions_router() -> APIRouter:
         x_api_key: str | None = Header(default=None),
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
-        gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        gateway_main._require_mutation_access(x_api_key=x_api_key, authorization=authorization)
         prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
         if len(prompt) < 3:
             raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
@@ -122,8 +127,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/logicnodes", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/logicnodes", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/knowledge")
@@ -134,8 +140,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/knowledge", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/knowledge", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/knowledge-graph")
@@ -146,8 +153,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/knowledge-graph", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/knowledge-graph", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/audit-reports")
@@ -158,8 +166,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/audit-reports", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/audit-reports", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/audit-artifacts")
@@ -170,8 +179,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/audit-artifacts", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/audit-artifacts", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/audit-events")
@@ -182,8 +192,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/audit-events", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/audit-events", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/build-artifacts")
@@ -194,8 +205,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/build-artifacts", params={"limit": limit}
+            f"/internal/missions/{safe_mission_id}/build-artifacts", params={"limit": limit}
         )
 
     @router.get("/v1/missions/{mission_id}/build-artifacts/{artifact_id}")
@@ -206,8 +218,10 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        safe_artifact_id = gateway_main._validate_path_identifier(artifact_id, "artifact_id")
         return await gateway_main._proxy_get_internal(
-            f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}"
+            f"/internal/missions/{safe_mission_id}/build-artifacts/{safe_artifact_id}"
         )
 
     @router.get("/v1/missions/{mission_id}/artifact")
@@ -220,12 +234,13 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> Any:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         params: dict[str, Any] = {"format": format}
         if artifact_id:
             params["artifact_id"] = artifact_id
         if artifact_type:
             params["artifact_type"] = artifact_type
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/artifact", params=params)
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/artifact", params=params)
 
     @router.get("/v1/missions/{mission_id}/token-usage")
     async def get_mission_token_usage(
@@ -234,7 +249,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_operator_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/token-usage")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/token-usage")
 
     @router.get("/v1/missions/{mission_id}/export/patch")
     async def export_mission_patch(
@@ -244,8 +260,9 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> Any:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         return await gateway_main._proxy_get_internal(
-            f"/missions/{mission_id}/export/patch", params={"format": format}
+            f"/missions/{safe_mission_id}/export/patch", params={"format": format}
         )
 
     @router.get("/v1/missions/{mission_id}/export/sbom")
@@ -255,7 +272,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/export/sbom")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/export/sbom")
 
     @router.get("/v1/missions/{mission_id}/workspace/tree")
     async def get_mission_workspace_tree(
@@ -264,7 +282,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/workspace/tree")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/workspace/tree")
 
     @router.get("/v1/missions/{mission_id}/workspace/file")
     async def get_mission_workspace_file(
@@ -274,9 +293,10 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
         safe_path = _validate_workspace_file_path(path)
         return await gateway_main._proxy_get_internal(
-            f"/missions/{mission_id}/workspace/file", params={"path": safe_path}
+            f"/missions/{safe_mission_id}/workspace/file", params={"path": safe_path}
         )
 
     @router.get("/v1/missions/{mission_id}/workspace/diff")
@@ -286,7 +306,8 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/workspace/diff")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/workspace/diff")
 
     @router.get("/v1/missions/{mission_id}/activations")
     async def get_mission_activations(
@@ -295,6 +316,7 @@ def build_missions_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
         gateway_main._require_reader_access(x_api_key=x_api_key, authorization=authorization)
-        return await gateway_main._proxy_get_internal(f"/missions/{mission_id}/activations")
+        safe_mission_id = gateway_main._validate_path_identifier(mission_id, "mission_id")
+        return await gateway_main._proxy_get_internal(f"/missions/{safe_mission_id}/activations")
 
     return router

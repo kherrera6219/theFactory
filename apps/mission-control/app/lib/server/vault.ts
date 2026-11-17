@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -166,12 +166,20 @@ function maskSecret(secret: string): string {
   return `${trimmed.slice(0, 4)}${"*".repeat(Math.max(4, trimmed.length - 4))}`;
 }
 
+let memoryFallbackWarned = false;
+
 function getVaultBackend(): VaultBackend {
   if (VAULT_ADDR && (VAULT_TOKEN || (VAULT_ROLE_ID && VAULT_SECRET_ID))) {
     return "hashicorp-vault";
   }
   if (isValidEncryptionKey(VAULT_ENCRYPTION_KEY)) {
     return "local-encrypted";
+  }
+  if (!memoryFallbackWarned && process.env.NODE_ENV !== "test" && !process.env.VITEST) {
+    memoryFallbackWarned = true;
+    console.warn(
+      "Mission Control vault running in volatile in-memory mode because MISSION_CONTROL_ADMIN_KEY is not a 64-hex-character key.",
+    );
   }
   return "memory";
 }
@@ -281,13 +289,20 @@ function writeLocalVaultFile(memory: Map<string, VaultEntry>): void {
   }
   const dir = dirname(/* turbopackIgnore: true */ VAULT_DATA_FILE);
   if (!existsSync(/* turbopackIgnore: true */ dir)) {
-    mkdirSync(/* turbopackIgnore: true */ dir, { recursive: true });
+    mkdirSync(/* turbopackIgnore: true */ dir, { recursive: true, mode: 0o700 });
   }
   writeFileSync(
     /* turbopackIgnore: true */ VAULT_DATA_FILE,
     JSON.stringify({ version: 1, entries }, null, 2),
-    "utf8",
+    { encoding: "utf8", mode: 0o600 },
   );
+  if (process.platform !== "win32") {
+    try {
+      chmodSync(/* turbopackIgnore: true */ VAULT_DATA_FILE, 0o600);
+    } catch {
+      // Best-effort permission tightening on non-POSIX filesystems.
+    }
+  }
 }
 
 function getLocalVaultMemory(): Map<string, VaultEntry> {
@@ -805,10 +820,13 @@ export async function preflightProviderCall(
       const geminiModel = resolvedModel || CURRENT_GEMINI_MODEL;
 
       const response = await fetchWithTimeout(
-        `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent?key=${encodeURIComponent(candidate)}`,
+        `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": candidate,
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: "ping" }] }],
             generationConfig: { maxOutputTokens: 1 },
@@ -830,10 +848,18 @@ export async function preflightProviderCall(
     const formatResult = testSecret(provider, secret);
     return { ...formatResult, live_checked: false };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "network error";
+    const rawMessage = error instanceof Error ? error.message : "network error";
+    const trimmedSecret = secret.trim();
+    const redactedMessage = (
+      trimmedSecret
+        ? rawMessage
+            .replaceAll(trimmedSecret, "[REDACTED]")
+            .replaceAll(encodeURIComponent(trimmedSecret), "[REDACTED]")
+        : rawMessage
+    ).replace(/([?&]key=)[^&\s]+/gi, "$1[REDACTED]");
     return {
       valid: false,
-      reason: `Unable to reach ${normalizedProvider} to verify the key: ${message}.`,
+      reason: `Unable to reach ${normalizedProvider} to verify the key: ${redactedMessage}.`,
       live_checked: false,
     };
   }

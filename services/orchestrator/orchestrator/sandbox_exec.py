@@ -230,6 +230,16 @@ def clamp_memory_mb(value: int | None, default: int = 256) -> int:
     return max(MIN_MEMORY_MB, min(candidate, MAX_MEMORY_MB))
 
 
+def validate_docker_bin(docker_bin: str) -> str:
+    """Restrict container runtime executable to an allow-listed binary name."""
+    bin_key = Path(str(docker_bin)).name.lower()
+    safe_bin_map = {"docker": "docker", "docker.exe": "docker.exe", "podman": "podman"}
+    safe_bin = safe_bin_map.get(bin_key)
+    if safe_bin is None:
+        raise ValueError(f"Disallowed container runtime binary: {docker_bin!r}")
+    return safe_bin
+
+
 def build_sandbox_args(
     *,
     docker_bin: str,
@@ -249,8 +259,9 @@ def build_sandbox_args(
     that silently dropped ``--network=none`` would otherwise only be caught by
     someone reading the diff.
     """
+    safe_bin = validate_docker_bin(docker_bin)
     args = [
-        str(docker_bin),
+        safe_bin,
         "run",
         "--rm",
         *SANDBOX_SECURITY_FLAGS,
@@ -453,11 +464,7 @@ _IMAGE_PULL_TIMEOUT_SECONDS = float(os.getenv("SANDBOX_IMAGE_PULL_TIMEOUT_SECOND
 
 
 async def _docker_quiet(docker_bin: str, *args: str, timeout: float) -> tuple[int, str]:
-    bin_key = Path(str(docker_bin)).name.lower()
-    safe_bin_map = {"docker": "docker", "docker.exe": "docker.exe", "podman": "podman"}
-    safe_bin = safe_bin_map.get(bin_key)
-    if safe_bin is None:
-        raise ValueError(f"Disallowed container runtime binary: {docker_bin!r}")
+    safe_bin = validate_docker_bin(docker_bin)
     safe_args: list[str] = []
     for arg in args:
         text = str(arg)
@@ -655,6 +662,102 @@ async def run_in_sandbox(
     )
 
 
+async def run_compose_in_sandbox(
+    *,
+    docker_bin: str,
+    compose_file: str | Path,
+    runner_service: str,
+    timeout_seconds: int = 30,
+    memory_mb: int = 256,
+) -> SandboxResult:
+    """Execute a hardened local ``docker compose`` run when not running via remote runner.
+
+    Refuses execution when ``SANDBOX_EXECUTOR_URL`` is configured so the
+    orchestrator never invokes Docker directly in compose topologies.
+    """
+    timeout = clamp_timeout(timeout_seconds)
+    memory = clamp_memory_mb(memory_mb)
+    if sandbox_executor_url():
+        return SandboxResult(
+            exit_code=-1,
+            stdout="",
+            stderr="Multi-container runtime QC cannot bypass SANDBOX_EXECUTOR_URL.",
+            timed_out=False,
+            timeout_seconds=timeout,
+            memory_limit_mb=memory,
+            base_image="compose",
+            infrastructure_error=(
+                "Multi-container runtime QC requires local compose support and cannot "
+                "run directly from an orchestrator configured with SANDBOX_EXECUTOR_URL."
+            ),
+        )
+    safe_bin = validate_docker_bin(docker_bin)
+    compose_path = str(Path(compose_file).resolve())
+    docker_args = [
+        safe_bin,
+        "compose",
+        "-f",
+        compose_path,
+        "up",
+        "--abort-on-container-exit",
+        f"--exit-code-from={runner_service}",
+        "--timeout",
+        str(timeout),
+    ]
+    t0 = asyncio.get_event_loop().time()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *docker_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=float(timeout) + _PROCESS_GRACE_SECONDS
+            )
+        except TimeoutError:
+            proc.kill()
+            try:
+                await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            except Exception:  # noqa: BLE001 - best effort cleanup only
+                pass
+            return SandboxResult(
+                exit_code=-1,
+                stdout="",
+                stderr=f"execution exceeded {timeout}s timeout",
+                timed_out=True,
+                timeout_seconds=timeout,
+                memory_limit_mb=memory,
+                base_image="compose",
+            )
+    finally:
+        teardown = await asyncio.create_subprocess_exec(
+            safe_bin,
+            "compose",
+            "-f",
+            compose_path,
+            "down",
+            "--remove-orphans",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            await asyncio.wait_for(teardown.wait(), timeout=30.0)
+        except Exception:  # noqa: BLE001 - best effort cleanup only
+            pass
+    dt_ms = round((asyncio.get_event_loop().time() - t0) * 1000, 2)
+    return SandboxResult(
+        exit_code=int(proc.returncode or 0),
+        stdout=stdout_bytes.decode("utf-8", errors="replace"),
+        stderr=stderr_bytes.decode("utf-8", errors="replace"),
+        timed_out=False,
+        timeout_seconds=timeout,
+        memory_limit_mb=memory,
+        base_image="compose",
+        duration_ms=dt_ms,
+    )
+
+
 async def check_docker_available(docker_bin: str = "docker") -> bool:
     """Return whether a usable Docker daemon is reachable.
 
@@ -678,8 +781,9 @@ async def check_docker_available(docker_bin: str = "docker") -> bool:
 
         return await asyncio.to_thread(_probe)
     try:
+        safe_bin = validate_docker_bin(docker_bin)
         proc = await asyncio.create_subprocess_exec(
-            str(docker_bin),
+            safe_bin,
             "version",
             "--format",
             "{{.Server.Version}}",

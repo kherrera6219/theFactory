@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import { parseJsonObject, readTrimmedString } from "../../../lib/server/request-validation";
 
 export const runtime = "nodejs";
 
@@ -28,15 +29,6 @@ type RepoIndexFile = {
   overlay_action?: "include" | "reference";
 };
 
-type RepoIndexRequest = {
-  mission_id?: string;
-  import_id?: string;
-  archive_sha256?: string;
-  display_name?: string;
-  source_ref?: string;
-  files?: RepoIndexFile[];
-};
-
 function pathHash(path: string): string {
   return createHash("sha256").update(path).digest("hex").slice(0, 16);
 }
@@ -47,19 +39,19 @@ export async function POST(request: Request) {
     return unauthorized;
   }
 
-  let payload: RepoIndexRequest;
-  try {
-    payload = (await request.json()) as RepoIndexRequest;
-  } catch {
+  const payload = await parseJsonObject(request);
+  if (!payload) {
     return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
-  const missionId = String(payload.mission_id ?? "").trim();
-  const importId = String(payload.import_id ?? "").trim();
-  const archiveSha256 = String(payload.archive_sha256 ?? "").trim();
-  const displayName = String(payload.display_name ?? "repository").trim() || "repository";
-  const sourceRef = String(payload.source_ref ?? "").trim();
-  const files = Array.isArray(payload.files) ? payload.files : [];
+  const missionId = readTrimmedString(payload, "mission_id");
+  const importId = readTrimmedString(payload, "import_id");
+  const archiveSha256 = readTrimmedString(payload, "archive_sha256");
+  const displayName = readTrimmedString(payload, "display_name") || "repository";
+  const sourceRef = readTrimmedString(payload, "source_ref");
+  const files: RepoIndexFile[] = Array.isArray(payload.files)
+    ? (payload.files as RepoIndexFile[])
+    : [];
 
   if (!missionId) {
     return NextResponse.json({ detail: "mission_id is required." }, { status: 400 });

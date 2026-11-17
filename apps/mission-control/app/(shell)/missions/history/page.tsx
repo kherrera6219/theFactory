@@ -124,7 +124,7 @@ export default function MissionHistoryPage() {
               disabled={filtered.length === 0}
               onClick={() =>
                 downloadCsv(
-                  missionsToCsvRows(filtered as unknown as Record<string, unknown>[]),
+                  missionsToCsvRows(filtered),
                   `missions-${new Date().toISOString().slice(0, 10)}`,
                 )
               }

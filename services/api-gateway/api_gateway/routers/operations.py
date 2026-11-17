@@ -116,6 +116,7 @@ def build_operations_router() -> APIRouter:
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> list[dict[str, Any]]:
         gateway_main._require_operator_access(x_api_key=x_api_key, authorization=authorization)
+        safe_project_id = gateway_main._validate_path_identifier(project_id, "project_id")
         params: dict[str, Any] = {"limit": limit}
         if mission_id:
             params["mission_id"] = mission_id
@@ -124,7 +125,7 @@ def build_operations_router() -> APIRouter:
         if tool_name:
             params["tool_name"] = tool_name
         return await gateway_main._proxy_get_internal(
-            f"/internal/operations/projects/{project_id}/audit-events",
+            f"/internal/operations/projects/{safe_project_id}/audit-events",
             params=params,
         )
 
@@ -144,9 +145,10 @@ def build_operations_router() -> APIRouter:
         x_api_key: str | None = Header(default=None),
         authorization: str | None = Header(default=None, alias="Authorization"),
     ) -> dict[str, Any]:
-        gateway_main._require_operator_access(x_api_key=x_api_key, authorization=authorization)
+        gateway_main._require_mutation_access(x_api_key=x_api_key, authorization=authorization)
+        safe_alert_id = gateway_main._validate_path_identifier(alert_id, "alert_id")
         return await gateway_main._proxy_post_internal(
-            f"/internal/operations/alerts/{alert_id}/state",
+            f"/internal/operations/alerts/{safe_alert_id}/state",
             json_body=payload.model_dump(),
         )
 

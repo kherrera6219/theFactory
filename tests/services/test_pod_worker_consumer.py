@@ -404,3 +404,48 @@ def test_pod_manager_assignment_skips_on_assignment_conflict(monkeypatch) -> Non
             {"mission_id": "m-1", "requested_target_language": "python"},
         )
     )
+
+
+def test_reclaim_pending_entries_recovers_and_acks(monkeypatch) -> None:
+    fields = {
+        "envelope": json.dumps({"topic": "cluster.assigned.podA"}),
+        "payload": json.dumps({"event_type": "MISSION_RUNNING", "mission_id": "mission-pel"}),
+    }
+
+    class _ClaimRedis(FakeWorkerRedis):
+        def __init__(self) -> None:
+            super().__init__(entries=[])
+            self.claimed = False
+
+        async def xautoclaim(self, **_kwargs):
+            if not self.claimed:
+                self.claimed = True
+                return ("0-0", [("99-0", fields)], [])
+            return ("0-0", [], [])
+
+    async def _handle(_redis_obj, payload):
+        assert payload["mission_id"] == "mission-pel"
+
+    monkeypatch.setattr(pod_worker_main, "_validate_envelope", lambda envelope: None)
+    monkeypatch.setattr(pod_worker_main, "_handle_running_mission", _handle)
+
+    redis_client = _ClaimRedis()
+    app = _build_app(redis_client)
+    asyncio.run(pod_worker_main._reclaim_pending_entries(redis_client, app))
+    assert app.state.processed == 1
+    assert redis_client.acked == ["99-0"]
+
+
+def test_reclaim_pending_entries_handles_missing_and_error() -> None:
+    class _NoClaimRedis(FakeWorkerRedis):
+        pass
+
+    class _ErrClaimRedis(FakeWorkerRedis):
+        async def xautoclaim(self, **_kwargs):
+            raise RuntimeError("NOGROUP")
+
+    app_no = _build_app(_NoClaimRedis(entries=[]))
+    asyncio.run(pod_worker_main._reclaim_pending_entries(app_no.state.redis, app_no))
+
+    app_err = _build_app(_ErrClaimRedis(entries=[]))
+    asyncio.run(pod_worker_main._reclaim_pending_entries(app_err.state.redis, app_err))

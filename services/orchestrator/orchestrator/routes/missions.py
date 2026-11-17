@@ -47,8 +47,12 @@ async def create_mission(
     redis_ready, _ = await _main._ensure_db_ready(app)
     redis_client = getattr(app.state, "redis", None)
     clean_metadata, vault_secrets = split_vault(payload.metadata)
-    if vault_secrets and redis_client is not None:
-        await store_vault(redis_client, payload.mission_id, vault_secrets)
+    if vault_secrets:
+        if redis_client is None or not await store_vault(redis_client, payload.mission_id, vault_secrets):
+            raise HTTPException(
+                status_code=503,
+                detail="mission vault storage unavailable",
+            )
     metadata = with_project_identity(clean_metadata, mission_id=payload.mission_id)
     metadata["lifecycle_engine"] = get_lifecycle_engine_name(app.state.settings)
     await asyncio.to_thread(

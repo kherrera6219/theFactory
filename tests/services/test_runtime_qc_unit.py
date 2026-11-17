@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
@@ -394,6 +396,10 @@ def test_rqca_compose_yaml_is_hardened_and_sanitized() -> None:
     assert "read_only: true" in yml
     assert yml.count("read_only: true") == 2
     assert "cpus:" in yml
+    assert 'user: "65534:65534"' in yml
+    assert "pids_limit: 64" in yml
+    assert "memswap_limit:" in yml
+    assert "internal: true" in yml
     # Service name sanitized to a valid compose key (no spaces / punctuation).
     assert "test-runner-" in yml
     assert "test runner!" not in yml
@@ -1624,3 +1630,94 @@ def test_prepare_runtime_qc_attempts_bounded_self_repair_on_fail(monkeypatch: An
     )
     assert "Runtime QC Self-Repair Context" in prompt_str
     assert "SyntaxError" in prompt_str
+
+
+def test_sandbox_exec_validates_docker_bin_and_blocks_compose_when_remote(monkeypatch) -> None:
+    from orchestrator import sandbox_exec
+
+    with pytest.raises(ValueError, match="Disallowed container runtime binary"):
+        sandbox_exec.build_sandbox_args(
+            docker_bin="/tmp/evil-bin",
+            workspace_dir="/tmp/ws",
+            base_image="python:3.11-slim",
+            command="true",
+            timeout_seconds=10,
+            memory_mb=128,
+        )
+
+    monkeypatch.setenv("SANDBOX_EXECUTOR_URL", "http://sandbox-runner:8020")
+    monkeypatch.delenv("SANDBOX_RUNNER_MODE", raising=False)
+    res = asyncio.run(
+        sandbox_exec.run_compose_in_sandbox(
+            docker_bin="docker",
+            compose_file="/tmp/docker-compose.rqca.yml",
+            runner_service="svc0",
+        )
+    )
+    assert res.infrastructure_error is not None
+    assert "SANDBOX_EXECUTOR_URL" in res.infrastructure_error
+
+
+def test_sandbox_exec_run_compose_in_sandbox_success_and_timeout(monkeypatch, tmp_path) -> None:
+    from orchestrator import sandbox_exec
+
+    monkeypatch.delenv("SANDBOX_EXECUTOR_URL", raising=False)
+    monkeypatch.setenv("SANDBOX_RUNNER_MODE", "false")
+    compose_path = tmp_path / "docker-compose.rqca.yml"
+    compose_path.write_text("services:\n  svc0:\n    image: alpine:latest\n", encoding="utf-8")
+
+    commands: list[tuple[str, ...]] = []
+
+    class _FakeProc:
+        def __init__(self, *, hang: bool = False) -> None:
+            self.returncode = 0
+            self._hang = hang
+            self.killed = False
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            if self._hang and not self.killed:
+                await asyncio.sleep(1.0)
+            return b"compose ok\n", b""
+
+        async def wait(self) -> int:
+            return 0
+
+        def kill(self) -> None:
+            self.killed = True
+
+    hang_mode = {"hang": False}
+
+    async def _fake_exec(*args, **_kwargs):
+        commands.append(args)
+        is_up = "up" in args
+        return _FakeProc(hang=is_up and hang_mode["hang"])
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _fake_exec)
+
+    ok_res = asyncio.run(
+        sandbox_exec.run_compose_in_sandbox(
+            docker_bin="docker",
+            compose_file=str(compose_path),
+            runner_service="svc0",
+            timeout_seconds=10,
+            memory_mb=128,
+        )
+    )
+    assert ok_res.exit_code == 0
+    assert ok_res.timed_out is False
+    assert "compose ok" in ok_res.stdout
+    assert any("down" in cmd for cmd in commands)
+
+    hang_mode["hang"] = True
+    monkeypatch.setattr(sandbox_exec, "_PROCESS_GRACE_SECONDS", 0.0)
+    to_res = asyncio.run(
+        sandbox_exec.run_compose_in_sandbox(
+            docker_bin="docker",
+            compose_file=str(compose_path),
+            runner_service="svc0",
+            timeout_seconds=0.02,
+            memory_mb=128,
+        )
+    )
+    assert to_res.timed_out is True
+    assert to_res.exit_code == -1

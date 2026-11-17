@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.11.13
-Last updated: 2026-11-13
+Document version: 2026.11.16
+Last updated: 2026-11-16
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,13 @@ as current work.
 ---
 
 ## Current Status
+
+**COMPLETE — 2026-11-16: Full-Stack Code Review, Security Hardening, Bug Remediation & Regression Verification.**
+- **API Gateway (`services/api-gateway/api_gateway/main.py`, `routers/{missions,operations}.py`):** Enforced OIDC on `/v1/stream/state` regardless of operator flag override, upgraded `/v1/sows`, `/v1/pm/feature-contract`, and `/v1/operations/alerts/{alert_id}/state` to `_require_mutation_access`, added `_validate_path_identifier`, moved `_gemini_builder_preview` API key to `x-goog-api-key` header with type-only exception logs, propagated upstream `4xx` responses, cleaned up failed non-idempotent vaults, hardened idempotency replay vault preservation and `processing` TTL, and wired mTLS context into internal state forwarding.
+- **Shared Runtime, Pod Worker & Protocol Bus (`shared_runtime/atomic_io.py`, `pod_worker/{main,refined_ir,toolchains}.py`, `protocol_bus/mcp_server.py`):** Added cross-process `file_lock`, catalog index locking + git timeout, `toolchains.py` path-traversal/timeout guards, pod-worker `xautoclaim` recovery + production service-key guards, and Protocol Bus `_require_mcp_api_key` (`401`/`403`) on `/send`, `/dlq`, and `/lane-stats` + bounded `REPLAY_TTL_SECONDS` + Redis pipelining.
+- **Orchestrator (`orchestrator/{sandbox_exec,rqca_agent,sliced_execution,workspace,workspace_indexer,context_pack,runtime,main}.py`, `routes/{missions,operations}.py`, `mission_flow_v2/phases_{build,runtime}.py`):** Enforced `validate_docker_bin`, routed RQCA compose via `run_compose_in_sandbox` (blocking bypass when `SANDBOX_EXECUTOR_URL` is set) with hardened compose constraints (`65534:65534`, `pids_limit: 64`, `memswap_limit`, internal network), fixed async/await and bundle-shape bugs across `sliced_execution.py`, `phases_build.py`, and `phases_runtime.py`, made `create_mission` fail closed (`503`) on vault unavailability, logged unhandled lifecycle task exceptions safely in `runtime.py`, batched Knowledge Lake syncs, and added `_rmtree_force` + incomplete `.git` handling on Windows in `workspace.py`.
+- **Mission Control & Electron (`apps/mission-control/`):** Fixed `"x-internal-api-key"` -> `"x-api-key"` mismatch on workspace import/review calls, guarded proxy SSRF/traversal/JSON failures, hardened `branchLooksValid` & ZIP sync bounds, standardized `parseJsonObject`/`readTrimmedString`, moved Gemini preflight key to `x-goog-api-key` with secret redaction and `0o600` vault persistence, resolved `Code.exe` directly (`shell: false`), restricted `SHELL_OPEN_ARTIFACT_DIR` to allowed existing directories, tightened CSP & HTTP security headers, lazy-loaded `CommandPalette`, sanitized error pages, capped chat attachments & session storage blobs, eliminated unsafe `unknown` casts, and upgraded `next` from `16.4.3` to `16.4.6` (`GHSA-mfr8-8qww-v76h`, `npm audit --audit-level=moderate`: `0 vulnerabilities`). Rebuilt modified service images (`orchestrator`, `api-gateway`, `pod-worker`, `protocol-bus-mcp`, `mission-control` at `:v0.1.0` / `:latest`) and cleanly uninstalled, rebuilt, and reinstalled `theFactory-MissionControl-Setup-0.1.0.exe`.
+- **Verification:** `python -m pytest -q -rs` (`2484` passed, `5` skipped opt-in/Windows-POSIX, `0` failed), Mission Control `npm run lint` + `npx tsc --noEmit` + Vitest (`39/39` files, `227/227` tests), `python -m ruff check`, `python -m bandit -r services shared_runtime scripts -ll -ii -q`, `validate_schemas.py`, `export_openapi.py --check`, `validate_documentation.py`, and `production_review_audit.py` (`23/23`).
 
 **COMPLETE — 2026-11-15: GitHub Security, Dependabot & CodeQL Remediation (`basic-ftp`, Bandit `B310`/`B314`, CodeQL `py/command-line-injection` & `py/path-injection`) + Desktop Installer Rebuild.**
 - **Dependabot #260 (`apps/mission-control/package.json`, `package-lock.json`):** Updated `basic-ftp` override from `6.2.3` to `6.2.4`; `npm audit --audit-level=moderate` reports `0 vulnerabilities`.

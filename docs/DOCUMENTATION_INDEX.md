@@ -1,13 +1,13 @@
 # theFactory Documentation Index
 
-Document version: 2026.11.07
-Last updated: 2026-11-07
+Document version: 2026.11.16
+Last updated: 2026.11.16
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.11.07
+**Version:** 2026.11.16
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-11-07
+**Last reviewed:** 2026-11-16
 
 This index maps the active theFactory documentation set. Historical source
 material, superseded phase plans, run-specific evidence, and archived review
@@ -38,8 +38,8 @@ are not listed as current implementation truth unless called out explicitly.
 | [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
 | [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps (refreshed 2026-10-26) | All |
-| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-10-26) | Maintainers, Operators |
-| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-10-26) | Maintainers, AI coding agents |
+| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-11-16) | Maintainers, Operators |
+| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-11-16) | Maintainers, AI coding agents |
 | [reviews/theFactory_Deep_Code_Review_2026-08-18.md](reviews/theFactory_Deep_Code_Review_2026-08-18.md) | Pass-2 deep review at `c1b044f`. N1–N4 actioned in `af88a79`. Electron deferred. | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
 | [PM_SOW_FACTORY_PLAN_2026-08-17.md](archive/plans/PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |

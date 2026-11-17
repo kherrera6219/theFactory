@@ -453,3 +453,35 @@ def test_workspace_bind_sync_and_bundle_excerpt(tmp_path):
     assert sync_generated_output_to_workspace("m", {}, None, settings=settings) is None
 
 
+@pytest.mark.asyncio
+async def test_sliced_execution_awaits_async_preservation_gate_and_handles_list_files(
+    tmp_path, monkeypatch
+):
+    import orchestrator.sliced_execution as sliced_exec
+
+    ws = _make_workspace(tmp_path)
+    called: list[str] = []
+
+    async def _fake_gate(_ws, **_kwargs):
+        called.append("awaited")
+        return {"verdict": "PRESERVED"}
+
+    monkeypatch.setattr(sliced_exec, "evaluate_preservation_gate", _fake_gate)
+
+    metadata: dict[str, object] = {
+        "slices": [{"id": "s1", "title": "List files", "files": ["app.py"]}],
+        "baseline": {"suite": "pytest", "passed": 1, "failed": 0},
+    }
+    res = await execute_mission_slices(
+        mission_id="m-async-preserv",
+        metadata=metadata,
+        ws=ws,
+        codegen_fn=lambda **_kw: {
+            "files": [{"path": "app.py", "content": "def greet():\n    return 'list-ok'\n"}],
+        },
+    )
+    assert called == ["awaited"]
+    assert res["regressed"] is False
+    assert ws.read_file("app.py").strip().endswith("'list-ok'")
+
+

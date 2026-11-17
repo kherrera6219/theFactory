@@ -64,10 +64,22 @@ STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
 CONSUMER_GROUP = os.getenv("POD_WORKER_GROUP", "pod-workers")
 CONSUMER_NAME = os.getenv("POD_WORKER_NAME", f"pod-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
 AGENT_SERVICE_API_KEYS = os.getenv("AGENT_SERVICE_API_KEYS", "")
 AGENT_SERVICE_KEY_MODE = os.getenv("AGENT_SERVICE_KEY_MODE", "shared").strip().lower() or "shared"
+POD_WORKER_PEL_IDLE_MS = max(1000, int(os.getenv("POD_WORKER_PEL_IDLE_MS", "300000")))
+if ENVIRONMENT == "production":
+    if AGENT_SERVICE_KEY_MODE != "strict":
+        LOGGER.warning(
+            "SECURITY: pod-worker running with AGENT_SERVICE_KEY_MODE=%s in production; "
+            "set AGENT_SERVICE_KEY_MODE=strict with per-agent keys to prevent identity spoofing",
+            AGENT_SERVICE_KEY_MODE,
+        )
+        if SERVICE_API_KEY in {"", "worker-key"}:
+            raise RuntimeError(
+                "SERVICE_API_KEY must be explicitly set in production when AGENT_SERVICE_KEY_MODE=shared"
+            )
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 POD_NAME = os.getenv("POD_NAME", "podA")
@@ -2066,9 +2078,89 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
     )
 
 
+async def _process_state_entry(
+    redis_client: redis.Redis,
+    app: FastAPI,
+    entry_id: str,
+    fields: dict[str, Any],
+) -> None:
+    acknowledge = False
+    started = time.perf_counter()
+    agent_id = "UNKNOWN"
+    try:
+        envelope_raw = fields.get("envelope")
+        payload_raw = fields.get("payload")
+        if not envelope_raw or not payload_raw:
+            raise ProtocolValidationError("missing envelope or payload")
+
+        envelope = json.loads(envelope_raw)
+        _validate_envelope(envelope)
+        payload = json.loads(payload_raw)
+        agent_id = _agent_id_from_payload(payload) or "UNKNOWN"
+        event_type = str(payload.get("event_type", ""))
+        if event_type == "MISSION_POD_MANAGER_ASSIGNED":
+            await _handle_pod_manager_assignment(redis_client, payload)
+            app.state.processed += 1
+            TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
+        elif event_type == "MISSION_RUNNING":
+            await _handle_running_mission(redis_client, payload)
+            app.state.processed += 1
+            TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
+        elif event_type == "MISSION_PARTITION_READY":
+            await _handle_partition_ready(redis_client, payload)
+            app.state.processed += 1
+            TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
+        acknowledge = True
+    except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        app.state.errors += 1
+        TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
+        LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
+        acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
+    except Exception as exc:
+        app.state.errors += 1
+        TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
+        LOGGER.warning("failed to process state event %s: %s", entry_id, exc)
+        acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
+    finally:
+        TASK_LATENCY_SECONDS.labels(
+            pod_name=POD_NAME,
+            agent_id=agent_id,
+        ).observe(
+            time.perf_counter() - started
+        )
+        if acknowledge:
+            await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
+
+
+async def _reclaim_pending_entries(redis_client: Any, app: FastAPI) -> None:
+    """Reclaim stale PEL entries via XAUTOCLAIM so failed DLQ writes do not strand messages."""
+    if not callable(getattr(redis_client, "xautoclaim", None)):
+        return
+    try:
+        reclaimed = await redis_client.xautoclaim(
+            name=STATE_STREAM,
+            groupname=CONSUMER_GROUP,
+            consumername=CONSUMER_NAME,
+            min_idle_time=POD_WORKER_PEL_IDLE_MS,
+            start_id="0-0",
+            count=10,
+        )
+    except Exception as exc:
+        LOGGER.debug("pod-worker xautoclaim skipped: %s", exc)
+        return
+    entries = reclaimed[1] if isinstance(reclaimed, (list, tuple)) and len(reclaimed) >= 2 else []
+    for entry_id, fields in entries or []:
+        await _process_state_entry(redis_client, app, entry_id, fields)
+
+
 async def _consumer_loop(app: FastAPI) -> None:
     redis_client: redis.Redis = app.state.redis
+    last_reclaim_at = 0.0
     while True:
+        now = time.monotonic()
+        if (now - last_reclaim_at) >= 30.0:
+            last_reclaim_at = now
+            await _reclaim_pending_entries(redis_client, app)
         try:
             records = await redis_client.xreadgroup(
                 groupname=CONSUMER_GROUP,
@@ -2094,60 +2186,7 @@ async def _consumer_loop(app: FastAPI) -> None:
 
         for _, entries in records:
             for entry_id, fields in entries:
-                acknowledge = False
-                started = time.perf_counter()
-                agent_id = "UNKNOWN"
-                try:
-                    envelope_raw = fields.get("envelope")
-                    payload_raw = fields.get("payload")
-                    if not envelope_raw or not payload_raw:
-                        raise ProtocolValidationError("missing envelope or payload")
-
-                    envelope = json.loads(envelope_raw)
-                    _validate_envelope(envelope)
-                    payload = json.loads(payload_raw)
-                    agent_id = _agent_id_from_payload(payload) or "UNKNOWN"
-                    event_type = str(payload.get("event_type", ""))
-                    if event_type == "MISSION_POD_MANAGER_ASSIGNED":
-                        await _handle_pod_manager_assignment(redis_client, payload)
-                        app.state.processed += 1
-                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
-                    elif event_type == "MISSION_RUNNING":
-                        await _handle_running_mission(redis_client, payload)
-                        app.state.processed += 1
-                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
-                    elif event_type == "MISSION_PARTITION_READY":
-                        await _handle_partition_ready(redis_client, payload)
-                        app.state.processed += 1
-                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
-                    acknowledge = True
-                except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
-                    app.state.errors += 1
-                    TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
-                    LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
-                    acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
-                except Exception as exc:
-                    app.state.errors += 1
-                    TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
-                    LOGGER.warning("failed to process state event %s: %s", entry_id, exc)
-                    # Unlike the branch above, this catch-all never used to
-                    # acknowledge or DLQ the entry -- since nothing in this
-                    # loop ever XCLAIMs/XAUTOCLAIMs pending entries, an
-                    # unexpected exception (e.g. an httpx error deep in
-                    # _handle_running_mission) permanently orphaned the
-                    # message in the consumer group's PEL: never processed
-                    # again, never visible in the DLQ, no operator signal at
-                    # all beyond a single warning log line.
-                    acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
-                finally:
-                    TASK_LATENCY_SECONDS.labels(
-                        pod_name=POD_NAME,
-                        agent_id=agent_id,
-                    ).observe(
-                        time.perf_counter() - started
-                    )
-                    if acknowledge:
-                        await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
+                await _process_state_entry(redis_client, app, entry_id, fields)
 
 
 async def _agent_heartbeat_loop(app: FastAPI) -> None:

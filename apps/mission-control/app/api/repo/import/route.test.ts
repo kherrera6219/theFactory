@@ -212,6 +212,45 @@ describe("repo ZIP import route", () => {
       detail: expect.stringContaining("INTERNAL_SERVICE_API_KEY"),
     });
   });
+
+  it("rejects option-injection branch names and sends x-api-key header to orchestrator", async () => {
+    process.env.INTERNAL_SERVICE_API_KEY = "internal-test-key";
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          repository: { workspace_id: "ws-1", base_commit: "abc123", display_name: "demo" },
+          files: [],
+          stats: { total_files: 0, total_bytes: 0, truncated: false, skipped_files: 0 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const badBranch = await POST(
+      new Request("http://localhost/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_path: "C:/projects/demo", branch: "--upload-pack=evil" }),
+      }),
+    );
+    expect(badBranch.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const okRes = await POST(
+      new Request("http://localhost/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_path: "C:/projects/demo", branch: "main" }),
+      }),
+    );
+    expect(okRes.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("x-api-key")).toBe("internal-test-key");
+    expect(headers.get("x-internal-api-key")).toBeNull();
+  });
 });
 
 function restoreEnv(key: string, value: string | undefined): void {

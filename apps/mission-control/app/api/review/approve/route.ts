@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import { parseJsonObject, readTrimmedString } from "../../../lib/server/request-validation";
 import {
   computeApprovalHmacDigest,
   getApprovalHmacSecret,
@@ -12,13 +13,6 @@ export const runtime = "nodejs";
 const ORCHESTRATOR_INTERNAL_BASE_URL =
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL?.trim() || "http://localhost:8101";
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
-
-type ReviewApprovalRequest = {
-  scope?: "builder" | "repo" | "delivery";
-  fingerprint?: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-};
 
 function sanitizeText(value: string | undefined, maxLength: number): string {
   return String(value ?? "")
@@ -32,10 +26,8 @@ export async function POST(request: Request) {
   if (unauthorized) {
     return unauthorized;
   }
-  let payload: ReviewApprovalRequest;
-  try {
-    payload = (await request.json()) as ReviewApprovalRequest;
-  } catch {
+  const payload = await parseJsonObject(request);
+  if (!payload) {
     return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
@@ -44,12 +36,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail: "scope must be builder, repo, or delivery." }, { status: 400 });
   }
 
-  const fingerprint = sanitizeText(payload.fingerprint, 200);
+  const fingerprint = sanitizeText(readTrimmedString(payload, "fingerprint"), 200);
   if (fingerprint.length < 12) {
     return NextResponse.json({ detail: "fingerprint must be at least 12 characters." }, { status: 400 });
   }
 
-  const summary = sanitizeText(payload.summary, 400);
+  const summary = sanitizeText(readTrimmedString(payload, "summary"), 400);
   if (summary.length < 3) {
     return NextResponse.json({ detail: "summary must be at least 3 characters." }, { status: 400 });
   }

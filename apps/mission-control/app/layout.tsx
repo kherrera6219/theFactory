@@ -29,14 +29,26 @@ type RootLayoutProps = {
 import { DialogProvider } from "./components/dialog-provider";
 
 export default function RootLayout({ children }: RootLayoutProps) {
+  const isProd = process.env.NODE_ENV === "production";
+  const scriptSrc = isProd ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+  const cspContent = [
+    "default-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ") + ";";
+
   return (
     <html lang="en">
       <head>
-        {/* CSP for the Electron static build. next.config headers() are ignored
-            under `output: export`, so the policy ships as a meta tag instead. */}
+        {/* CSP for standalone/Electron builds. */}
         <meta
           httpEquiv="Content-Security-Policy"
-          content="default-src 'self' http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://localhost:* ws://localhost:*;"
+          content={cspContent}
         />
 
       </head>

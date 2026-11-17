@@ -680,10 +680,13 @@ def test_gateway_builder_preview_gemini(monkeypatch) -> None:
         async def post(
             self,
             url: str,
-            params: dict[str, str],
             json: dict[str, Any],
             headers: dict[str, str],
+            params: dict[str, str] | None = None,
         ) -> DummyResponse:
+            assert params is None
+            assert headers.get("x-goog-api-key") == "test-key"
+            assert "key=" not in url
             return DummyResponse(
                 200,
                 {

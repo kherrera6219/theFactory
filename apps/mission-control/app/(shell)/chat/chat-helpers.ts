@@ -424,6 +424,23 @@ export function continuationPromptText(context: ContinuationContext): string {
     .join("\n");
 }
 
+function sanitizeContractForStorage(
+  contract: DisplayFeatureContract | null,
+): DisplayFeatureContract | null {
+  if (!contract) {
+    return null;
+  }
+  const compactPrompt = contract.launchPrompt
+    .replace(/data:[^;\s]+;base64,[A-Za-z0-9+/=]{256,}/g, "[omitted-inline-binary-data-url]")
+    .slice(0, 32_000);
+  const compacted: DisplayFeatureContract = {
+    ...contract,
+    launchPrompt: compactPrompt,
+  };
+  delete compacted.rawContract;
+  return compacted;
+}
+
 /** Build a persisted session snapshot from the current message list. */
 export function buildSession(
   messages: ChatMessage[],
@@ -437,7 +454,7 @@ export function buildSession(
     messageCount: messages.length,
     lastPreview: derivePreview(messages),
     messages,
-    contract,
+    contract: sanitizeContractForStorage(contract),
   };
 }
 

@@ -1,14 +1,23 @@
 # Current Handoff
 
-Document version: 2026.11.13
-Last updated: 2026-11-13
+Document version: 2026.11.16
+Last updated: 2026.11.16
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
 
-## Latest session (2026-11-15) — read first
+## Latest session (2026-11-16) — read first
+
+**COMPLETE — 2026-11-16: Full-Stack Code Review, Security Hardening, Bug Remediation & Regression Suite.**
+- **API Gateway (`services/api-gateway/api_gateway/main.py`, `routers/{missions,operations}.py`):** Enforced OIDC on `/v1/stream/state`, upgraded `/v1/sows`, `/v1/pm/feature-contract`, and `/v1/operations/alerts/{alert_id}/state` to `_require_mutation_access`, added `_validate_path_identifier`, moved Gemini preview auth to `x-goog-api-key` headers, preserved upstream `4xx` responses, cleaned up failed non-idempotent vaults, hardened idempotency vault preservation and `processing` TTL, and wired internal mTLS context consistently.
+- **Shared Runtime, Pod Worker & Protocol Bus (`shared_runtime/atomic_io.py`, `pod_worker/{main,refined_ir,toolchains}.py`, `protocol_bus/mcp_server.py`):** Added cross-process advisory `file_lock`, catalog index locking + git timeout, `toolchains.py` path containment + execution timeout, pod-worker `xautoclaim` pending recovery + production key warnings/guards, and Protocol Bus `_require_mcp_api_key` (`401`/`403`) across `/send`, `/dlq`, and `/lane-stats` + bounded `REPLAY_TTL_SECONDS` + Redis pipelining.
+- **Orchestrator (`orchestrator/{sandbox_exec,rqca_agent,sliced_execution,workspace,workspace_indexer,context_pack,runtime,main}.py`, `routes/{missions,operations}.py`, `mission_flow_v2/phases_{build,runtime}.py`):** Enforced `validate_docker_bin`, routed RQCA compose via `run_compose_in_sandbox` (blocking bypass under `SANDBOX_EXECUTOR_URL`) with hardened compose defaults (`65534:65534`, `pids_limit: 64`, `memswap_limit`, internal network), fixed async/await and bundle shape mismatches in `sliced_execution.py` / `phases_build.py` / `phases_runtime.py`, made `create_mission` fail closed (`503`) on vault unavailability, logged unhandled lifecycle task exceptions safely in `runtime.py`, offloaded blocking probes/workspace calls to threads, batched Knowledge Lake indexing syncs, and added `_rmtree_force` + incomplete `.git` checks in `workspace.py`.
+- **Mission Control & Electron (`apps/mission-control/`):** Fixed `"x-internal-api-key"` -> `"x-api-key"` auth header mismatch on workspace import/review calls, guarded proxy SSRF/traversal/JSON failures, hardened branch validation & base64 ZIP sync caps, standardized JSON validation (`app/lib/server/request-validation.ts`), moved Gemini preflight key to `x-goog-api-key` header + `0o600` vault file permissions, resolved `Code.exe` directly (`shell: false`) in `open-vscode`, restricted `SHELL_OPEN_ARTIFACT_DIR` IPC containment in `electron/main.ts`, tightened CSP & security headers, lazy-loaded `CommandPalette`, sanitized error boundaries, capped chat attachments & session storage blobs, eliminated unsafe `as unknown as Record<string, unknown>` casts, and upgraded `next` from `16.4.3` to `16.4.6` (`GHSA-mfr8-8qww-v76h`, `npm audit`: `0 vulnerabilities`). Rebuilt modified Docker service images and cleanly uninstalled, rebuilt, and reinstalled `theFactory-MissionControl-Setup-0.1.0.exe`.
+- **Verification:** `python -m pytest -q -rs` (`2484` passed, `5` skipped opt-in/Windows-POSIX, `0` failed), Mission Control `npm run lint` + `npx tsc --noEmit` + Vitest (`39/39` files, `227/227` tests), `python -m ruff check`, `python -m bandit -r services shared_runtime scripts -ll -ii -q`, `validate_schemas.py`, `export_openapi.py --check`, `validate_documentation.py`, and `production_review_audit.py` (`23/23`).
+
+## Previous session (2026-11-15)
 
 **COMPLETE — 2026-11-15: GitHub Dependabot (#260), Bandit (`B310`/`B314`), CodeQL Hardening & Desktop Installer Refresh.**
 - **Dependabot & NPM Audit (`apps/mission-control/package.json`, `package-lock.json`):** Bumped `basic-ftp` override to `6.2.4` (`0 vulnerabilities` under `npm audit --audit-level=moderate`).

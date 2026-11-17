@@ -1,7 +1,7 @@
 # Security alert remediation (2026-08-21)
 
-Document version: 2026.10.26
-Last updated: 2026-10-26
+Document version: 2026.11.16
+Last updated: 2026-11-16
 Status: Implemented
 Audience: Maintainers and security reviewers
 
@@ -47,4 +47,12 @@ open GitHub code-scanning findings that were still live after that merge.
 | Python (`orchestrator`) | `langgraph-checkpoint-postgres` | Upgraded `3.1.1` → `3.1.3` (`CVE-2026-115883`) |
 | Node (`apps/mission-control`, `deploy/sandbox-images/node`) | `next`, `sharp`, `vitest`, `vite`, `source-map-js` | Upgraded `next` (`16.4.3`), `sharp` (`0.35.5`), `vitest` (`4.1.12`), `vite` (`8.3.5`), `source-map-js` (`1.2.2`) |
 | Node (`apps/mission-control`) | `node-forge` (`GHSA-86w9-cpqp-85rv`, unfixed upstream) | Bundled `electron/tls-certs.ts` at build time via `esbuild` in `scripts/build-electron.mjs` and moved `node-forge` to `devDependencies` (`npm audit --omit=dev`: 0 vulnerabilities) |
+
+## 2026-11-16 Full-Stack Code Review & Security Hardening Pass
+
+- **Header-Only API Key Transit:** Replaced `?key=` query parameters with `x-goog-api-key` headers across `services/api-gateway` (`_gemini_builder_preview`) and Mission Control (`apps/mission-control/app/lib/server/vault.ts` preflight) with exception secret redaction; fixed `x-api-key` header propagation on `/api/repo/import` and `/api/repo/review`.
+- **Gateway, Protocol Bus & Vault Fail-Closed Guards:** Enforced OIDC on `/v1/stream/state`, `_require_mutation_access` on SOW/PM/alert state mutations, `_validate_path_identifier` on gateway params, `_require_mcp_api_key` (`401`/`403`) across `protocol-bus-mcp` HTTP routes (`/send`, `/dlq`, `/lane-stats`), and `503` fail-closed handling on `orchestrator` `create_mission` when Redis vault persistence is unavailable.
+- **Sandbox Compose Isolation & Process Launch Hardening:** Routed RQCA compose runs through `sandbox_exec.run_compose_in_sandbox` (refusing execution when `SANDBOX_EXECUTOR_URL` is set), added non-root UID/PID/memory/network isolation in `_build_rqca_compose_yml`, validated temp filenames and timeouts in `toolchains.py`, replaced `cmd.exe /c code` shell interpolation with direct `Code.exe` spawn (`shell: false`) in `open-vscode`, and enforced existing-directory containment in Electron `SHELL_OPEN_ARTIFACT_DIR`.
+- **Client/Server Defense-in-Depth:** Enforced SSRF/traversal/origin guards in `/api/gateway/[...path]`, standardized `parseJsonObject` input validation across API routes, restricted local encrypted vault permissions (`0o600` file, `0o700` dir), tightened CSP and security response headers (`layout.tsx`, `next.config.mjs`), and sanitized error-boundary output.
+- **Next.js Security Upgrade (`apps/mission-control/package.json`, `package-lock.json`):** Upgraded `next` from `16.4.3` to `16.4.6` to resolve `GHSA-mfr8-8qww-v76h` (`npm audit --audit-level=moderate`: `0 vulnerabilities`).
 

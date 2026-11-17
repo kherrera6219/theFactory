@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import { parseJsonObject, readTrimmedString } from "../../../lib/server/request-validation";
 import { getVaultSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
@@ -8,21 +9,19 @@ export const runtime = "nodejs";
 const API_BASE_URL =
   (process.env.MISSION_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100").trim();
 
-type MissionStatePayload = {
-  mission_id?: string;
-  new_state?: string;
-  expected_state?: string;
-};
-
 export async function POST(request: Request) {
   const unauthorized = requireOperatorRequestSession(request);
   if (unauthorized) {
     return unauthorized;
   }
   try {
-    const payload = (await request.json()) as MissionStatePayload;
-    const missionId = payload.mission_id?.trim() ?? "";
-    const newState = payload.new_state?.trim() ?? "";
+    const payload = await parseJsonObject(request);
+    if (!payload) {
+      return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
+    }
+    const missionId = readTrimmedString(payload, "mission_id");
+    const newState = readTrimmedString(payload, "new_state");
+    const expectedState = readTrimmedString(payload, "expected_state");
     if (!missionId || !newState) {
       return NextResponse.json(
         { detail: "mission_id and new_state are required." },
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         new_state: newState,
-        expected_state: payload.expected_state ?? undefined,
+        expected_state: expectedState || undefined,
       }),
       cache: "no-store",
     });

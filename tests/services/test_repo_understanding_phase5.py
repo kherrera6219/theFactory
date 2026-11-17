@@ -33,7 +33,7 @@ from orchestrator.llm_delegation.prompts import (
     _build_pm_feature_contract_prompt,
 )
 from orchestrator.mission_flow_v2.base import build_mission_charter, validate_mission_charter_schema
-from orchestrator.workspace import MissionWorkspace
+from orchestrator.workspace import MissionWorkspace, WorkspaceError
 from orchestrator.workspace_api import import_workspace_from_payload
 from orchestrator.workspace_indexer import (
     chunk_workspace_file,
@@ -458,3 +458,19 @@ def test_context_pack_aim_and_maturity_edge_cases(tmp_path: Path) -> None:
     assert "| `python` |" in markdown
     written_doc = write_language_maturity_doc(tmp_path / "MATURITY.md")
     assert written_doc.exists()
+
+    # Context pack gracefully handles WorkspaceError from invalid read_file paths.
+    class _BrokenWs:
+        def list_files(self):
+            return [{"path": "app.py"}]
+
+        def read_file(self, _rel: str) -> str:
+            raise WorkspaceError("disallowed traversal")
+
+    pack_err = build_specialist_context_pack(
+        ws=_BrokenWs(),
+        source_code="## FILE app.py\nprint('fallback')\n",
+        slice_spec={"id": "s1", "files": ["app.py"]},
+        index_data={},
+    )
+    assert pack_err["target_files"][0]["content"] == "print('fallback')\n"

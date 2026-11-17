@@ -44,13 +44,24 @@ export function downloadCsv(rows: Record<string, unknown>[], filename: string): 
   triggerDownload(blob, filename.endsWith(".csv") ? filename : `${filename}.csv`);
 }
 
+export interface CsvMissionRowInput {
+  mission_id: string;
+  metadata?: Record<string, unknown> | null;
+  state: string;
+  mission_type?: string | null;
+  depth_mode?: string | null;
+  output_mode?: string | null;
+  data_classification?: string | null;
+  created_at: string;
+}
+
 /** Flatten a MissionRecord-shaped object to the columns most useful in a CSV export. */
 export function missionsToCsvRows(
-  missions: Array<Record<string, unknown>>,
+  missions: ReadonlyArray<CsvMissionRowInput>,
 ): Record<string, unknown>[] {
   return missions.map((m) => ({
     mission_id: m.mission_id,
-    name: (m.metadata as Record<string, unknown> | undefined)?.name ?? "",
+    name: m.metadata?.name ?? "",
     state: m.state,
     mission_type: m.mission_type ?? "",
     depth_mode: m.depth_mode ?? "",

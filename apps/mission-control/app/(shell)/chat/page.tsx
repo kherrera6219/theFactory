@@ -380,10 +380,32 @@ export default function ChatPage() {
     if (incoming.length === 0) {
       return;
     }
+    const maxFileBytes = 5 * 1024 * 1024;
+    const maxTotalBytes = 20 * 1024 * 1024;
     const zip = incoming.find((file) => isProjectZipFile(file));
     const rest = incoming.filter((file) => !isProjectZipFile(file));
     if (rest.length > 0) {
-      setFiles((current) => [...current, ...rest].slice(0, 20));
+      const accepted: File[] = [];
+      const rejected: string[] = [];
+      let runningTotal = files.reduce((sum, item) => sum + item.size, 0);
+      for (const candidate of rest) {
+        if (candidate.size > maxFileBytes) {
+          rejected.push(`${safeFileName(candidate)} (> 5 MB)`);
+          continue;
+        }
+        if (runningTotal + candidate.size > maxTotalBytes) {
+          rejected.push(`${safeFileName(candidate)} (20 MB total limit)`);
+          continue;
+        }
+        runningTotal += candidate.size;
+        accepted.push(candidate);
+      }
+      if (rejected.length > 0) {
+        setError(`Skipped oversized attachment(s): ${rejected.join(", ")}.`);
+      }
+      if (accepted.length > 0) {
+        setFiles((current) => [...current, ...accepted].slice(0, 20));
+      }
     }
     if (zip) {
       void importAttachedZip(zip);
@@ -636,7 +658,7 @@ export default function ChatPage() {
             ?? featureContract.timeline?.estimated_minutes_low,
           minutesHigh: featureContract.cost_estimate?.estimated_minutes_high
             ?? featureContract.timeline?.estimated_minutes_high,
-          rawContract: featureContract as unknown as Record<string, unknown>,
+          rawContract: Object.fromEntries(Object.entries(featureContract)),
           launchPrompt,
           source: pmPreview.source,
           degraded: featureContract.degraded === true || pmPreview.source === "fallback",
@@ -737,6 +759,7 @@ export default function ChatPage() {
     if (fileList.length === 0) {
       return "";
     }
+    const maxAttachmentBytes = 5 * 1024 * 1024;
     const readable = fileList.filter((file) => !isProjectZipFile(file));
     if (readable.length === 0) {
       return repoImportRef.current?.source_code ?? "";
@@ -745,8 +768,12 @@ export default function ChatPage() {
       readable.map(
         (file) =>
           new Promise<string>((resolve) => {
-            const reader = new FileReader();
             const name = safeFileName(file);
+            if (file.size > maxAttachmentBytes) {
+              resolve(`// --- ${name} --- (skipped: exceeds 5 MB attachment cap)`);
+              return;
+            }
+            const reader = new FileReader();
             if (isBinaryFile(file)) {
               reader.onload = () =>
                 resolve(`// --- ${name} (binary) ---\n${reader.result as string}`);

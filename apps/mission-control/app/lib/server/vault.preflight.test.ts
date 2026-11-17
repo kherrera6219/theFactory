@@ -92,8 +92,9 @@ describe("preflightProviderCall", () => {
     expect(result.live_checked).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent?key=AIzaTestKey-test-123456",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent",
     );
+    expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe("AIzaTestKey-test-123456");
     const body = JSON.parse(init.body as string);
     expect(body.generationConfig.maxOutputTokens).toBe(1);
   });
@@ -133,5 +134,19 @@ describe("preflightProviderCall", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.valid).toBe(true);
     expect(result.live_checked).toBe(false);
+  });
+
+  it("redacts API keys if an error message echoes URL or secret", async () => {
+    const preflightProviderCall = await loadPreflight();
+    const secret = "AIzaSecretValue-987654";
+    global.fetch = vi.fn().mockRejectedValue(
+      new Error(`request to https://example.test?key=${secret} failed with ${secret}`),
+    ) as unknown as typeof fetch;
+
+    const result = await preflightProviderCall("gemini", secret, "gemini-4-argon");
+
+    expect(result.valid).toBe(false);
+    expect(result.reason).not.toContain(secret);
+    expect(result.reason).toContain("[REDACTED]");
   });
 });

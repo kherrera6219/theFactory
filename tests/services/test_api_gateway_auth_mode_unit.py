@@ -612,3 +612,200 @@ def test_validate_startup_auth_config_rejects_disabled_oidc_operator_routes_in_p
         with pytest.raises(RuntimeError, match="OIDC_ENFORCE_OPERATOR_ROUTES"):
             api_gateway_main._validate_startup_auth_config()
 
+
+def test_sows_feature_contract_alerts_and_stream_enforce_hardened_auth_and_path_checks(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(
+        api_gateway_main,
+        "_gateway_api_key_roles",
+        lambda: {"read-key": {"read"}, "mutate-key": {"read", "mutate"}},
+    )
+
+    async def _fake_post(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {"ok": True}
+
+    async def _fake_get(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {"ok": True}
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _fake_post)
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fake_get)
+
+    with TestClient(api_app) as client:
+        assert client.post("/v1/sows", json={"title": "t"}, headers={"x-api-key": "read-key"}).status_code == 403
+        assert (
+            client.post(
+                "/v1/pm/feature-contract",
+                json={"prompt": "Build an app"},
+                headers={"x-api-key": "read-key"},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                "/v1/operations/alerts/a-1/state",
+                json={"state": "acknowledged"},
+                headers={"x-api-key": "read-key"},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post(
+                "/v1/missions/mission-1/state",
+                json={"new_state": "FAILED"},
+                headers={"x-api-key": "read-key"},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.get(
+                "/v1/missions/..bad/pod-assignment",
+                headers={"x-api-key": "read-key"},
+            ).status_code
+            == 400
+        )
+
+        # /v1/stream/state must still require auth in hybrid mode even when operator flag is false
+        monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+        monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", False)
+        assert client.get("/v1/stream/state").status_code == 401
+
+
+def test_gemini_preview_uses_header_not_query_param_and_redacts_errors(monkeypatch, caplog) -> None:
+    import logging
+
+    captured: dict[str, Any] = {}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args: Any):
+            return False
+
+        async def post(self, url: str, *, params=None, json=None, headers=None):
+            captured["url"] = url
+            captured["params"] = params
+            captured["headers"] = headers
+            return _DummyResponse(200, {"candidates": [{"content": {"parts": [{"text": "Step 1."}]}}]})
+
+    monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "secret-gemini-999")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda **_kw: _Client())
+    payload = api_gateway_main.BuilderPreviewRequest(request="Add health metrics")
+    import asyncio
+
+    res = asyncio.run(
+        api_gateway_main._gemini_builder_preview(
+            payload, model="gemini-4-argon", thinking_budget=-1, thinking_level="high"
+        )
+    )
+    assert res is not None
+    assert captured["params"] is None
+    assert captured["headers"]["x-goog-api-key"] == "secret-gemini-999"
+    assert "secret-gemini-999" not in captured["url"]
+
+    class _FailClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args: Any):
+            return False
+
+        async def post(self, *_args: Any, **_kwargs: Any):
+            raise RuntimeError("boom with secret-gemini-999")
+
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda **_kw: _FailClient())
+    with caplog.at_level(logging.WARNING, logger="api_gateway.main"):
+        failed = asyncio.run(
+            api_gateway_main._gemini_builder_preview(
+                payload, model="gemini-4-argon", thinking_budget=-1, thinking_level="high"
+            )
+        )
+    assert failed is None
+    assert "secret-gemini-999" not in caplog.text
+
+
+def test_proxy_propagates_4xx_and_cleans_up_orphaned_vault_and_short_processing_ttl(
+    monkeypatch,
+) -> None:
+    import asyncio
+
+    class _Client422:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args: Any):
+            return False
+
+        async def get(self, *_args: Any, **_kwargs: Any):
+            return _DummyResponse(422, {"detail": "invalid limit"})
+
+        async def post(self, *_args: Any, **_kwargs: Any):
+            return _DummyResponse(409, {"detail": "conflict state"})
+
+    monkeypatch.setattr(api_gateway_main, "_require_internal_service_api_key", lambda: "internal")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda **_kw: _Client422())
+
+    with pytest.raises(HTTPException) as get_exc:
+        asyncio.run(api_gateway_main._proxy_get_internal("/missions"))
+    assert get_exc.value.status_code == 422
+
+    with pytest.raises(HTTPException) as post_exc:
+        asyncio.run(api_gateway_main._proxy_post_internal("/internal/sows", json_body={}))
+    assert post_exc.value.status_code == 409
+
+    # Processing idempotency record uses short TTL, and failed non-idempotent persist deletes vault
+    class _Redis:
+        def __init__(self) -> None:
+            self.set_calls: list[tuple[str, int | None]] = []
+            self.deleted: list[str] = []
+            self.data: dict[str, str] = {}
+
+        async def ping(self) -> bool:
+            return True
+
+        async def get(self, key: str):
+            return self.data.get(key)
+
+        async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False):
+            self.set_calls.append((key, ex))
+            if nx and key in self.data:
+                return False
+            self.data[key] = value
+            return True
+
+        async def expire(self, *_args: Any) -> None:
+            return None
+
+        async def delete(self, *keys: str) -> int:
+            self.deleted.extend(keys)
+            return len(keys)
+
+    redis_client = _Redis()
+    monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
+    monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+
+    async def _fail_persist(*_args: Any, **_kwargs: Any):
+        raise HTTPException(status_code=502, detail="upstream down")
+
+    monkeypatch.setattr(api_gateway_main, "_persist_mission_upstream", _fail_persist)
+    payload = api_gateway_main.MissionCreate(
+        prompt="Build telemetry service",
+        metadata={"vault": {"gemini_api_key": "k-123"}},
+    )
+    with pytest.raises(HTTPException):
+        asyncio.run(api_gateway_main.create_mission(payload, idempotency_key=None))
+    assert any(k.startswith("mission-vault:") for k in redis_client.deleted)
+
+    # Idempotency processing lock uses short TTL
+    asyncio.run(
+        api_gateway_main._handle_mission_idempotency(
+            redis_client, "idem-short-ttl", payload, "mission-tmp"
+        )
+    )
+    idem_calls = [ex for key, ex in redis_client.set_calls if key.startswith("idempotency:")]
+    assert idem_calls == [api_gateway_main.IDEMPOTENCY_PROCESSING_TTL_SECONDS]
+
