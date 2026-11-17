@@ -22,7 +22,7 @@ TOOLCHAINS_ENABLED: bool = (
 )
 TOOLCHAIN_TIMEOUT_SECONDS: float = max(
     1.0,
-    float(os.getenv("POD_WORKER_TOOLCHAIN_TIMEOUT_SECONDS", "15")),
+    float(os.getenv("POD_WORKER_TOOLCHAIN_TIMEOUT_SECONDS", "30")),
 )
 
 
