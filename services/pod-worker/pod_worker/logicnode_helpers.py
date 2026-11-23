@@ -26,7 +26,21 @@ def build_schema_node(
     types_out: Sequence[str] | None = None,
     purity: str | None = None,
 ) -> dict[str, Any]:
-    """Build a node dict conforming to schemas/logicnode.schema.json."""
+    """Build a node dict conforming to schemas/logicnode.schema.json.
+
+    This is the **only** place a schema node is constructed — both
+    ``_coerce_schema_node`` and ``_logicnodes_from_extraction`` route through
+    it, so enriching here enriches every node in the system.
+
+    Since UPG-30 the descriptive fields are *also* promoted to first-class
+    optional top-level properties. ``payload`` still carries every value it
+    carried before, so nothing that reads ``payload.domain`` breaks — the new
+    fields are duplicates, not moves.
+
+    ``types_in``/``types_out`` are populated only when an AST extractor
+    genuinely recovered a signature (UPG-31). They stay empty for regex-only
+    languages, and that emptiness is now meaningful rather than universal.
+    """
     snippet_hash = hashlib.sha256((snippet or "").encode()).hexdigest()
     payload: dict[str, Any] = {
         "origin": "pod-worker",
@@ -43,6 +57,7 @@ def build_schema_node(
 
     node: dict[str, Any] = {
         "node_id": node_id,
+        # The concept identifier doubles as the command identifier for the node.
         "cmd": concept_id,
         "payload": payload,
         "priority": "NORMAL",
@@ -59,6 +74,11 @@ def build_schema_node(
         },
     }
 
+    # UPG-30: promote descriptive fields out of the free-form payload. Only
+    # fields the extractor actually produced are emitted — an absent field
+    # means "not determined", never a default. `paradigm`, `purity`,
+    # `complexity`, `source_license`, and `tags` are reserved in the schema and
+    # deliberately left unpopulated until Phase 4 can derive them honestly.
     if domain:
         node["domain"] = domain
     if concept:
@@ -71,6 +91,10 @@ def build_schema_node(
     extraction_method = payload.get("extraction_method")
     if extraction_method in ("regex", "ast"):
         node["extraction_method"] = extraction_method
+    # UPG-41 fills the `purity` slot UPG-30 reserved. Only emitted when
+    # side-effect analysis actually ran and produced a verdict — "UNKNOWN" is a
+    # real answer meaning "not determined", distinct from the field being absent
+    # because nothing analysed it.
     if purity in ("PURE", "IMPURE", "UNKNOWN"):
         node["purity"] = purity
 
@@ -86,7 +110,12 @@ def coerce_schema_node(
     target_language: str,
     agent_id: str,
 ) -> dict[str, Any]:
-    """Return a schema-conformant ``node`` dict for *logicnode*."""
+    """Return a schema-conformant ``node`` dict for *logicnode*.
+
+    Logicnodes produced by the extractor already carry a schema-valid ``node``;
+    those returned by agent pipelines may not, so build one from the available
+    descriptive fields here so the orchestrator write boundary accepts them.
+    """
     existing = logicnode.get("node")
     if isinstance(existing, dict) and "provenance" in existing and "cmd" in existing:
         return existing
@@ -94,6 +123,8 @@ def coerce_schema_node(
     domain = str(logicnode.get("domain", "generic") or "generic")
     extra_payload: dict[str, Any] = {}
     if isinstance(existing, dict):
+        # Preserve any descriptive fields the agent attached under the legacy
+        # shape by folding them into the schema-free payload object.
         legacy_payload = existing.get("payload")
         if isinstance(legacy_payload, dict):
             extra_payload.update(legacy_payload)
@@ -154,7 +185,21 @@ def routing_stub_logicnode(
 def enclosing_function_for_line(
     functions: Sequence[Any], source_line: Any
 ) -> Any | None:
-    """Return the function whose definition most closely precedes *source_line*."""
+    """Return the function whose definition most closely precedes *source_line*.
+
+    Concepts are extracted per-match and carry a line number; signatures are
+    extracted per-function and carry a definition line. They arrive as sibling
+    lists with no explicit link, so the two are correlated by position: the
+    innermost enclosing function is the one with the greatest definition line at
+    or before the concept's line.
+
+    This is a heuristic, and it is kept deliberately narrow (UPG-31):
+
+    * a concept above the first function returns ``None`` rather than guessing;
+    * a non-integer or missing line returns ``None``;
+    * the match is only *used* when the function actually carries type data, so
+      a wrong correlation cannot invent types that were never declared.
+    """
     if not functions:
         return None
     try:
@@ -187,6 +232,9 @@ def logicnodes_from_extraction(
     agent_id: str = "",
     functions: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
+    # Discriminate node_id by source file + line so that multiple occurrences of
+    # the same concept across files/lines do not collapse to one row under the
+    # ON CONFLICT(node_id) upsert (last-write-wins) and silently lose data.
     file_hash = hashlib.sha256((source_file or extraction_language).encode()).hexdigest()[:8]
     logicnodes: list[dict[str, Any]] = []
     for concept in concepts:
@@ -198,6 +246,10 @@ def logicnodes_from_extraction(
         intent = str(getattr(concept, "intent", "") or "")
         node_id = f"{pod_name}.{concept_id}.{mission_id}.{file_hash}.{line_token}"
 
+        # UPG-31: attach real I/O types when an AST extractor recovered a
+        # signature for the function enclosing this concept. Only Python, Java,
+        # and Haskell currently produce structured type data; every other
+        # language leaves these empty, which is now informative.
         types_in: tuple[str, ...] = ()
         types_out: list[str] = []
         types_source: str | None = None
@@ -212,6 +264,7 @@ def logicnodes_from_extraction(
                 types_in = arg_types
                 types_out = [return_type] if return_type else []
                 types_source = f"ast_signature:{getattr(enclosing, 'name', '') or '?'}"
+            # UPG-41: side-effect analysis result for the enclosing function.
             candidate_purity = getattr(enclosing, "purity", None)
             if candidate_purity in ("PURE", "IMPURE", "UNKNOWN"):
                 node_purity = candidate_purity
@@ -239,8 +292,16 @@ def logicnodes_from_extraction(
                 "evidence": getattr(concept, "evidence", ""),
                 "extraction_method": getattr(concept, "extraction_method", "regex"),
                 "source_range": getattr(concept, "source_range", None),
+                # Machine-readable provenance for the declared types: a consumer
+                # can tell a real AST-derived signature from an absent one
+                # without reading documentation (plan principle 5).
                 **({"types_source": types_source} if types_source else {}),
+                # The specific effects behind an IMPURE verdict, so a consumer
+                # can see *why* rather than only *that* (UPG-41).
                 **({"side_effects": list(side_effects)} if side_effects else {}),
+                # Real statement sequence for the enclosing function, which the
+                # RIR projects into its op stream instead of one synthetic
+                # EXTRACT_CONCEPT (UPG-41).
                 **({"op_stream": op_stream} if op_stream else {}),
             },
             types_in=types_in,

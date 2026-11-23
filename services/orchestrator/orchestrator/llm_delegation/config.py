@@ -93,9 +93,11 @@ def _record_usage_event(  # noqa: PLR0913
             loop = _asyncio.get_running_loop()
             loop.create_task(coro)
         except RuntimeError:
-            pass
+            # No running loop: close the coroutine so it is not left un-awaited.
+            coro.close()
+            LOGGER.debug("no running event loop; skipped cost-ledger write for %s", mission_id)
     except Exception as exc:
-        LOGGER.debug("failed to record prometheus llm usage metric: %s", exc)
+        LOGGER.debug("failed to schedule llm cost-ledger write: %s", exc)
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
