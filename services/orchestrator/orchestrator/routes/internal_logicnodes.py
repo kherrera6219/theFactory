@@ -40,6 +40,9 @@ async def upsert_logicnode(
         else (payload.created_at or datetime.now(UTC).isoformat())
     )
 
+    # Enforce schemas/logicnode.schema.json at the write boundary. Validation is
+    # non-fatal: an invalid node is logged and persisted with the errors recorded
+    # so a single malformed extraction does not abort the whole mission.
     validation_errors: list[str] = []
     try:
         validation_errors = validate_logicnode(

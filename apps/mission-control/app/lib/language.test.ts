@@ -77,5 +77,16 @@ describe("language helpers", () => {
     expect(languageMaturityTier("haskell")?.tier).toBe("Tier 2");
     expect(languageMaturityTier("matlab")?.tier).toBe("Tier 3");
     expect(languageMaturityTier("")).toBeNull();
+    expect(languageMaturityTier("cobol")).toBeNull();
+  });
+
+  it("describes extraction from the generated matrix, never overstating AST support", () => {
+    expect(languageMaturityTier("python")?.label).toContain("ast");
+    for (const regexBacked of ["rust", "kotlin", "scala", "php", "ruby", "csharp"]) {
+      const label = languageMaturityTier(regexBacked)?.label ?? "";
+      expect(label.startsWith("ast")).toBe(false);
+      expect(label).toContain("regex");
+    }
+    expect(languageMaturityTier("haskell")?.label).toContain("no dep cache");
   });
 });

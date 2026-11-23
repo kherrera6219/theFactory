@@ -256,7 +256,7 @@ def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
                     if row and len(row) >= 2:
                         table_counts[str(row[0])] = max(0, int(row[1]))
     except Exception as exc:
-        logger.debug("failed to load migration scripts for diagnostics: %s", exc)
+        logger.debug("failed to query table row counts for diagnostics: %s", exc)
 
     return {
         "pool": pool_info,

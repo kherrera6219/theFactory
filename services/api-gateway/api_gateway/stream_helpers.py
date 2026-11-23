@@ -135,6 +135,7 @@ async def state_stream_sse_generator(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            # resilience: any unhandled error inside the SSE loop would kill the stream — keep broadcasting
             LOGGER.warning("state stream sse read failure: %s", exc)
             live_stream_errors.labels(reason="read_failure").inc()
             yield sse_event_block(event_name="stream_error", data={"detail": "stream read failure"})

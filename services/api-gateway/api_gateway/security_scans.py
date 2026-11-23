@@ -100,6 +100,7 @@ def metadata_prompt_fields(
 
 def build_prompt_input_scan(payload: MissionCreate) -> dict[str, Any]:
     """Return prompt-injection scan metadata without copying matched text."""
+
     findings: dict[tuple[str, str], dict[str, Any]] = {}
 
     def _record(field: str, text: str | None) -> None:

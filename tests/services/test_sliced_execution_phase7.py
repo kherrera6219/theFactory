@@ -485,3 +485,95 @@ async def test_sliced_execution_awaits_async_preservation_gate_and_handles_list_
     assert ws.read_file("app.py").strip().endswith("'list-ok'")
 
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target_lang", "expected_file"),
+    [("go", "main.go"), ("java", "Main.java"), ("rust", "main.rs"), ("python", "main.py")],
+)
+async def test_sliced_codegen_unbundled_output_uses_language_entry_file_and_grounding(
+    monkeypatch, target_lang, expected_file
+):
+    """Un-bundled slice output is named for the target language, and slice
+    prompts get the same Knowledge Lake + AIM grounding as single-shot codegen."""
+    import orchestrator.mission_flow_v2 as mf2
+    import orchestrator.sliced_execution as sliced_mod
+    import orchestrator.workspace as workspace_mod
+    from orchestrator.mission_flow_v2 import phases_build
+
+    seen_contexts: list[dict] = []
+
+    async def _fake_codegen(*, mission_context, **_kwargs):
+        seen_contexts.append(mission_context)
+        return {"code": "plain source without a FILE header", "source": "llm"}
+
+    captured: dict = {}
+
+    async def _fake_execute_mission_slices(*, codegen_fn, metadata, **_kwargs):
+        captured["result"] = await codegen_fn(
+            slice_spec={"id": "s1", "title": "No files listed"},
+            context_pack={"files": []},
+            ws=None,
+            metadata=metadata,
+        )
+        return {"slices_completed": ["s1"]}
+
+    lake_calls: list[dict] = []
+
+    def _fake_language_context(**kwargs):
+        lake_calls.append(kwargs)
+        return "KB docs"
+
+    monkeypatch.setattr(mf2, "generate_code_from_contract", _fake_codegen)
+    monkeypatch.setattr(sliced_mod, "execute_mission_slices", _fake_execute_mission_slices)
+    monkeypatch.setattr(workspace_mod, "workspace_from_mission_metadata", lambda *_a, **_k: None)
+    monkeypatch.setattr(phases_build.knowledge_lake, "get_language_context", _fake_language_context)
+
+    metadata = {
+        "application_intelligence_map": {"primary_language": target_lang, "secret_field": "x"},
+    }
+    from datetime import UTC, datetime
+
+    from orchestrator.models import DataClassification, MissionRecord
+
+    mission = MissionRecord(
+        mission_id="m-slice-lang",
+        prompt="Slice it",
+        requested_target_language=target_lang,
+        data_classification=DataClassification.tier_1_internal,
+        state=MissionState.specialist_assigned,
+        metadata={},
+        created_at=datetime.now(UTC),
+    )
+    generated, paused = await phases_build._execute_sliced_specialist_codegen(
+        mission=mission,
+        mission_id="m-slice-lang",
+        metadata=metadata,
+        settings=SimpleNamespace(),
+        mission_contract={"title": "t"},
+        normalized_plan={},
+        specialist_agent_id="AGENT-X",
+        target_lang=target_lang,
+        port_source_logicnodes=None,
+    )
+
+    assert paused is False
+    assert generated is not None
+    assert list(captured["result"]["files"]) == [expected_file]
+    assert len(lake_calls) == 1  # looked up once, not per slice
+    ctx = seen_contexts[0]
+    assert ctx["knowledge_context"] == "KB docs"
+    assert ctx["application_intelligence_map"] == {"primary_language": target_lang}
+    assert "imported_source_code" not in ctx  # slices scope source via context_pack
+
+
+def test_default_entry_filename_covers_every_routed_language():
+    from orchestrator.mission_flow import POD_MANAGER_BY_LANGUAGE
+    from orchestrator.mission_flow_v2 import phases_build
+
+    routed = {lang for lang in POD_MANAGER_BY_LANGUAGE if lang.isalpha()}
+    missing = sorted(
+        lang for lang in routed if phases_build._default_entry_filename(lang) == "main.txt"
+    )
+    assert missing == []

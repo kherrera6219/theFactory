@@ -463,6 +463,84 @@ async def _prepare_specialist_assignment(
     )
 
 
+_AIM_PROMPT_KEYS: tuple[str, ...] = (
+    "workspace_id",
+    "languages",
+    "detected_languages",
+    "primary_language",
+    "frameworks",
+    "entrypoints",
+    "test_discovery",
+    "file_count",
+    "summary",
+    "repository_summary",
+)
+
+# Conventional single-file entry point per routed language, used only when the
+# model returns un-bundled code and the slice names no files. Defaulting every
+# language to ``main.py`` made a Go/Rust/Java slice commit Python-named source,
+# so the sandbox build found no sources and the slice was reported REGRESSED.
+_DEFAULT_ENTRY_FILENAME: dict[str, str] = {
+    "python": "main.py",
+    "javascript": "index.js",
+    "typescript": "index.ts",
+    "go": "main.go",
+    "rust": "main.rs",
+    "java": "Main.java",
+    "kotlin": "Main.kt",
+    "scala": "Main.scala",
+    "csharp": "Program.cs",
+    "c": "main.c",
+    "cpp": "main.cpp",
+    "php": "index.php",
+    "ruby": "main.rb",
+    "r": "main.R",
+    "julia": "main.jl",
+    "haskell": "Main.hs",
+    "ocaml": "main.ml",
+    "zig": "main.zig",
+    "matlab": "main.m",
+    "mathematica": "main.wl",
+}
+
+
+def _default_entry_filename(language: str) -> str:
+    """Return the conventional entry file for *language* (``main.txt`` if unknown)."""
+    return _DEFAULT_ENTRY_FILENAME.get(str(language or "").strip().lower(), "main.txt")
+
+
+def _aim_prompt_summary(metadata: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the prompt-safe subset of the Application Intelligence Map, if any."""
+    aim = metadata.get("application_intelligence_map")
+    if not isinstance(aim, dict) or not aim:
+        return None
+    return {key: aim.get(key) for key in _AIM_PROMPT_KEYS if key in aim}
+
+
+async def _knowledge_context_for(
+    *,
+    settings: Any,
+    mission: Any,
+    mission_id: str,
+    target_lang: str,
+) -> str | None:
+    """Fetch Knowledge Lake documentation the IS-Agent stocked during FETCH."""
+    knowledge_context = await asyncio.to_thread(
+        knowledge_lake.get_language_context,
+        settings=settings,
+        language=target_lang,
+        query=str(getattr(mission, "title", "") or ""),
+    )
+    if knowledge_context:
+        LOGGER.info(
+            "Injected Knowledge Lake context for mission %s language=%s (%d chars)",
+            mission_id,
+            target_lang,
+            len(knowledge_context),
+        )
+    return knowledge_context or None
+
+
 async def _execute_sliced_specialist_codegen(
     *,
     mission: Any,
@@ -486,6 +564,18 @@ async def _execute_sliced_specialist_codegen(
         settings=settings,
     )
     last_slice_output: dict[str, Any] = {}
+    # Grounding shared with single-shot codegen. Looked up once, not per slice.
+    # The whole imported source bundle is deliberately *not* added here: each
+    # slice's context_pack already carries its target files untruncated plus
+    # 1-hop signatures, and repeating the full repo in every slice prompt would
+    # undo the point of slicing a large repository.
+    aim_summary = _aim_prompt_summary(metadata)
+    knowledge_context = await _knowledge_context_for(
+        settings=settings,
+        mission=mission,
+        mission_id=mission_id,
+        target_lang=target_lang,
+    )
 
     async def _slice_codegen(
         *,
@@ -503,6 +593,10 @@ async def _execute_sliced_specialist_codegen(
             "active_slice": slice_spec,
             "context_pack": context_pack,
         }
+        if aim_summary:
+            _slice_ctx["application_intelligence_map"] = aim_summary
+        if knowledge_context:
+            _slice_ctx["knowledge_context"] = knowledge_context
         if port_source_logicnodes:
             _slice_ctx["port_source_logicnodes"] = port_source_logicnodes
             _slice_ctx["port_source_language"] = metadata.get("port_source_language", "")
@@ -526,10 +620,15 @@ async def _execute_sliced_specialist_codegen(
             for entry in parsed_entries:
                 if isinstance(entry, dict) and entry.get("path") and entry.get("content") is not None:
                     parsed[str(entry["path"])] = str(entry["content"])
+        # parse_file_bundle wraps header-less text as a single placeholder
+        # "inline_source.txt" entry; committing that would put the slice's code
+        # in a .txt file no toolchain builds. Treat it as un-bundled instead.
+        if list(parsed) == ["inline_source.txt"]:
+            parsed = {}
         if not parsed and code_text:
             fallback_name = str(
                 last_slice_output.get("filename")
-                or (slice_spec.get("files") or ["main.py"])[0]
+                or (slice_spec.get("files") or [_default_entry_filename(target_lang)])[0]
             )
             parsed = {fallback_name: code_text}
         return {"files": parsed, "output": last_slice_output}
@@ -593,23 +692,9 @@ async def _execute_single_shot_specialist_codegen(
     if isinstance(source_bundle, str) and source_bundle.strip():
         _codegen_context["imported_source_code"] = source_bundle
     aim = metadata.get("application_intelligence_map")
-    if isinstance(aim, dict) and aim:
-        _codegen_context["application_intelligence_map"] = {
-            key: aim.get(key)
-            for key in (
-                "workspace_id",
-                "languages",
-                "detected_languages",
-                "primary_language",
-                "frameworks",
-                "entrypoints",
-                "test_discovery",
-                "file_count",
-                "summary",
-                "repository_summary",
-            )
-            if key in aim
-        }
+    aim_summary = _aim_prompt_summary(metadata)
+    if aim_summary:
+        _codegen_context["application_intelligence_map"] = aim_summary
 
     bound_ws = await asyncio.to_thread(
         workspace_from_mission_metadata,
@@ -631,21 +716,14 @@ async def _execute_single_shot_specialist_codegen(
             query=str(getattr(mission, "prompt", "") or getattr(mission, "title", "") or ""),
         )
 
-    _query_hint = str(getattr(mission, "title", "") or "")
-    knowledge_context = await asyncio.to_thread(
-        knowledge_lake.get_language_context,
+    knowledge_context = await _knowledge_context_for(
         settings=settings,
-        language=target_lang,
-        query=_query_hint,
+        mission=mission,
+        mission_id=mission_id,
+        target_lang=target_lang,
     )
     if knowledge_context:
         _codegen_context["knowledge_context"] = knowledge_context
-        LOGGER.info(
-            "Injected Knowledge Lake context for mission %s language=%s (%d chars)",
-            mission_id,
-            target_lang,
-            len(knowledge_context),
-        )
     generated_output = await _pkg().generate_code_from_contract(
         mission_context=_codegen_context,
         specialist_agent_id=specialist_agent_id,

@@ -200,6 +200,12 @@ _STDLIB_PREFIXES: dict[str, frozenset[str]] = {
     "c": frozenset({"stdio", "stdlib", "string", "math", "time", "ctype", "assert"}),
     "cpp": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
     "c++": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
+    # The three below were each verified inside the pinned sandbox image with
+    # --network=none on 2026-09-27. Before they existed, a Julia artifact whose
+    # tests did `using Test`, a Haskell one importing `base`, and a Ruby one
+    # requiring `minitest` were all reported "cannot be installed offline" and
+    # never executed -- 3 of the 9 dependency dry runs in the 2026-08-27
+    # language coverage run were this detector, not the environment.
     "julia": frozenset({
         "base", "core", "test", "linearalgebra", "statistics", "random", "printf",
         "dates", "sparsearrays", "serialization", "sockets", "unicode", "logging",
@@ -212,8 +218,12 @@ _STDLIB_PREFIXES: dict[str, frozenset[str]] = {
         "directory", "exceptions", "filepath", "ghc-prim", "haskeline", "mtl",
         "parsec", "pretty", "process", "stm", "template-haskell", "text", "time",
         "transformers", "unix",
+        # Package names only. Module namespaces ("Data", "Control") are not
+        # listed: "Data.Aeson" would match them and execute against a missing
+        # package, turning an honest dry run into a misattributed FAIL.
     }),
     "ruby": frozenset({
+        # default + bundled gems of ruby:3.3-slim, including both test frameworks
         "minitest", "test-unit", "test", "json", "set", "csv", "date", "time",
         "fileutils", "optparse", "securerandom", "digest", "stringio", "strscan",
         "logger", "pp", "prime", "open3", "tempfile", "tmpdir", "benchmark",
@@ -223,6 +233,7 @@ _STDLIB_PREFIXES: dict[str, frozenset[str]] = {
         "coverage", "monitor", "observer", "abbrev", "base64", "delegate",
     }),
     "r": frozenset({
+        # R's base and recommended-free core packages, present in r-base
         "base", "stats", "utils", "methods", "graphics", "grdevices", "datasets",
         "tools", "parallel", "grid", "splines", "stats4", "compiler", "tcltk",
     }),
@@ -252,7 +263,11 @@ _TEST_FRAMEWORK_TOKENS: dict[str, tuple[str, ...]] = {
 def _split_test_dependencies(
     language: str, dependencies: Any, code: str
 ) -> tuple[list[str], list[str]]:
-    """Return ``(runtime_dependencies, test_only_dependencies)``."""
+    """Return ``(runtime_dependencies, test_only_dependencies)``.
+
+    A test framework the artifact itself imports stays a runtime dependency, so
+    a program that genuinely needs one still dry-runs honestly.
+    """
     names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
     tokens = _TEST_FRAMEWORK_TOKENS.get(str(language or "").strip().lower(), ())
     if not tokens:
@@ -270,6 +285,8 @@ def _split_test_dependencies(
         if token is None:
             runtime.append(name)
             continue
+        # A package name and its import path spell the separator differently
+        # (kotlin-test / kotlin.test), so either counts as a reference.
         spellings = {token, token.replace("-", "."), token.replace("-", "_")}
         referenced = any(
             re.search(rf"(?<![a-z0-9_]){re.escape(spelling)}(?![a-z0-9_])", lowered_code)
@@ -354,7 +371,17 @@ def _unmet_dependencies(
     dependencies: Any,
     provisioning_manifest: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    """Dependencies the offline sandbox cannot provide."""
+    """Dependencies the offline sandbox cannot provide.
+
+    The sandbox runs ``--network=none`` by design, so nothing can be fetched at
+    run time -- that is a property to preserve, not a misconfiguration. An
+    artifact needing a third-party package that is missing from the mission's
+    provisioned cache cannot be executed at all, and saying so is the honest
+    outcome.
+
+    Languages without a known stdlib table treat every non-provisioned
+    dependency as unmet.
+    """
     names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
     if not names:
         return []
@@ -382,6 +409,8 @@ def _unmet_dependencies(
         ]
 
     if normalized == "go":
+        # A Go import path is external exactly when its first segment is a host
+        # name: "github.com/x/y" versus "unicode/utf8".
         return [n for n in names if "." in n.split("/")[0]]
 
     if normalized in {"javascript", "typescript"}:
@@ -400,4 +429,5 @@ def _unmet_dependencies(
                 unmet.append(name)
         return unmet
 
+    # Unknown language with a declared dependency list: do not execute.
     return list(names)

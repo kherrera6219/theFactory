@@ -1,4 +1,8 @@
-"""Generate or verify docs/LANGUAGE_MATURITY.md from live orchestrator runtime tables."""
+"""Generate or verify docs/LANGUAGE_MATURITY.md and the Mission Control maturity JSON.
+
+Both outputs are rendered from the live orchestrator runtime tables. The JSON is
+what the Mission Control maturity badge reads, so the UI and the doc cannot drift.
+"""
 
 from __future__ import annotations
 
@@ -14,9 +18,29 @@ for _p in (str(REPO_ROOT), str(ORCHESTRATOR_PKG_ROOT), str(POD_WORKER_PKG_ROOT))
         sys.path.insert(0, _p)
 
 from orchestrator.language_maturity import (  # noqa: E402
+    format_language_maturity_json,
     format_language_maturity_markdown,
     write_language_maturity_doc,
+    write_language_maturity_json,
 )
+
+DEFAULT_JSON_OUTPUT = (
+    REPO_ROOT / "apps" / "mission-control" / "app" / "lib" / "language-maturity.generated.json"
+)
+
+
+def _check(target: Path, expected: str) -> bool:
+    if not target.is_file():
+        print(f"Missing generated file: {target}", file=sys.stderr)
+        return False
+    if target.read_text(encoding="utf-8") != expected:
+        print(
+            f"Stale language maturity output at {target}; run scripts/generate_language_maturity.py",
+            file=sys.stderr,
+        )
+        return False
+    print(f"Language maturity output up to date: {target}")
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,30 +51,28 @@ def main(argv: list[str] | None = None) -> int:
         help="Destination Markdown file path.",
     )
     parser.add_argument(
+        "--json-output",
+        default=str(DEFAULT_JSON_OUTPUT),
+        help="Destination JSON file path consumed by the Mission Control maturity badge.",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
-        help="Exit non-zero if the generated output does not match the file on disk.",
+        help="Exit non-zero if either generated output does not match the file on disk.",
     )
     args = parser.parse_args(argv)
 
-    target = Path(args.output)
-    expected = format_language_maturity_markdown()
+    md_target = Path(args.output)
+    json_target = Path(args.json_output)
     if args.check:
-        if not target.is_file():
-            print(f"Missing generated file: {target}", file=sys.stderr)
-            return 1
-        actual = target.read_text(encoding="utf-8")
-        if actual != expected:
-            print(
-                f"Stale language maturity matrix at {target}; run scripts/generate_language_maturity.py",
-                file=sys.stderr,
-            )
-            return 1
-        print(f"Language maturity matrix up to date: {target}")
-        return 0
+        md_ok = _check(md_target, format_language_maturity_markdown())
+        json_ok = _check(json_target, format_language_maturity_json())
+        return 0 if (md_ok and json_ok) else 1
 
-    write_language_maturity_doc(target)
-    print(f"Wrote {target}")
+    write_language_maturity_doc(md_target)
+    write_language_maturity_json(json_target)
+    print(f"Wrote {md_target}")
+    print(f"Wrote {json_target}")
     return 0
 
 

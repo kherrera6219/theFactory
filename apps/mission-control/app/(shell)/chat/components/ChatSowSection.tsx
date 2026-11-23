@@ -90,9 +90,9 @@ export function ChatSowSection({
                       <span
                         className="badge"
                         style={{ marginLeft: "0.5rem", fontSize: "0.75rem", opacity: 0.85 }}
-                        title={maturity.label}
+                        title={`${maturity.tier} — ${maturity.label}`}
                       >
-                        {maturity.tier}: {maturity.label}
+                        {maturity.tier}
                       </span>
                     ) : null;
                   })()}

@@ -1,3 +1,5 @@
+import maturityMatrix from "./language-maturity.generated.json";
+
 const EXTENSION_TO_LANGUAGE: Array<[string, string]> = [
   [".py", "python"],
   [".ts", "typescript"],
@@ -118,35 +120,38 @@ export function inferRequestedTargetLanguage(params: {
 }
 
 export type LanguageMaturityInfo = {
-  tier: "Tier 1" | "Tier 2" | "Tier 3";
+  tier: string;
   label: string;
 };
 
-const TIER_1_LANGUAGES = new Set([
-  "python",
-  "javascript",
-  "typescript",
-  "go",
-  "rust",
-  "java",
-  "csharp",
-  "kotlin",
-  "scala",
-  "php",
-  "ruby",
-]);
-const TIER_2_LANGUAGES = new Set(["c", "cpp", "r", "julia", "haskell", "ocaml", "zig"]);
+type GeneratedMaturityRow = {
+  tier: string;
+  tier_label: string;
+  extraction: string;
+  test_runner: string;
+  dependency_cache: string;
+  behavioural_equivalence: string;
+};
+
+// Generated from the orchestrator's live runtime tables by
+// scripts/generate_language_maturity.py (CI runs it with --check), so the badge
+// shows the same extraction / test / dependency facts as docs/LANGUAGE_MATURITY.md
+// instead of a hand-maintained summary that can overstate capability.
+const GENERATED_MATURITY = (maturityMatrix as { languages: Record<string, GeneratedMaturityRow> })
+  .languages;
 
 export function languageMaturityTier(language: string | null | undefined): LanguageMaturityInfo | null {
   const normalized = String(language ?? "").trim().toLowerCase();
   if (!normalized) {
     return null;
   }
-  if (TIER_1_LANGUAGES.has(normalized)) {
-    return { tier: "Tier 1", label: "AST + Offline Sandbox + Dep Cache" };
+  const row = GENERATED_MATURITY[normalized];
+  if (!row) {
+    return null;
   }
-  if (TIER_2_LANGUAGES.has(normalized)) {
-    return { tier: "Tier 2", label: "Structural/Regex + Offline Sandbox" };
-  }
-  return { tier: "Tier 3", label: "Regex + Syntax/Dry-Run Verification" };
+  const deps = row.dependency_cache && row.dependency_cache !== "none" ? row.dependency_cache : "no dep cache";
+  return {
+    tier: row.tier,
+    label: `${row.extraction} · tests: ${row.test_runner} · deps: ${deps}`,
+  };
 }
