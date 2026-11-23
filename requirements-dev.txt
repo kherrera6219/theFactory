@@ -6,6 +6,6 @@ pytest-timeout==2.4.0
 pytest-xdist==3.8.0
 httpx==0.28.1
 jsonschema==4.26.0
-ruff==0.16.0
+ruff==0.17.6
 bandit==1.9.4
 defusedxml==0.7.1
