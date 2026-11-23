@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
+import httpcore
 import httpx
 import jsonschema
 
@@ -308,8 +309,12 @@ class ToolExecutionContext:
 
 
 def _is_non_public_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    # ``not is_global`` is the allow-list form: it also rejects ranges that are
+    # neither "private" nor routable, such as CGNAT 100.64.0.0/10, benchmarking
+    # and documentation blocks, and IPv4-mapped IPv6 addresses.
     return bool(
-        ip_obj.is_private
+        not ip_obj.is_global
+        or ip_obj.is_private
         or ip_obj.is_loopback
         or ip_obj.is_link_local
         or ip_obj.is_reserved
@@ -344,14 +349,76 @@ def _resolve_and_validate_fetch_target(url: str) -> tuple[bool, str, str | None]
                 if resolved_ip is None:
                     resolved_ip = str(ip_resolved)
         except OSError:
-            # DNS resolution may not exist in offline CI tests; allow caller HTTP layer to fail cleanly.
-            pass
+            # Fail closed: if we cannot resolve the host we cannot validate or
+            # pin it, and letting the HTTP layer resolve it unchecked would
+            # bypass every private-range check above.
+            return False, f"Hostname could not be resolved: {host}", None
+    if resolved_ip is None:
+        return False, f"Hostname resolved to no addresses: {host}", None
     return True, "", resolved_ip
 
 
 def _is_safe_fetch_url(url: str) -> tuple[bool, str]:
     safe, reason, _ = _resolve_and_validate_fetch_target(url)
     return safe, reason
+
+
+class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Connect only to the IP address that passed SSRF validation.
+
+    The HTTP layer would otherwise resolve the hostname a second time, so a
+    DNS-rebinding host could pass validation with a public address and then be
+    reached at an internal one. Pinning at the socket layer covers http and
+    https alike: TLS still uses the original hostname for SNI and certificate
+    verification, because httpcore takes ``server_hostname`` from the request
+    origin, not from the address it connected to.
+    """
+
+    def __init__(self, *, hostname: str, pinned_ip: str) -> None:
+        self._hostname = hostname.strip("[]").lower()
+        self._pinned_ip = pinned_ip
+        self._inner = httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Any = None,
+    ) -> httpcore.AsyncNetworkStream:
+        if host.strip("[]").lower() != self._hostname:
+            raise httpcore.ConnectError(f"Refusing unpinned connection to {host}")
+        return await self._inner.connect_tcp(
+            self._pinned_ip,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: Any = None,
+    ) -> httpcore.AsyncNetworkStream:
+        raise httpcore.ConnectError("Unix sockets are not permitted for research.fetch")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._inner.sleep(seconds)
+
+
+class _PinnedTransport(httpx.AsyncHTTPTransport):
+    """httpx transport whose connection pool dials only the pinned IP."""
+
+    def __init__(self, *, hostname: str, pinned_ip: str) -> None:
+        super().__init__(trust_env=False)
+        self.network_backend = _PinnedNetworkBackend(hostname=hostname, pinned_ip=pinned_ip)
+        self._pool = httpcore.AsyncConnectionPool(
+            ssl_context=httpx.create_ssl_context(),
+            network_backend=self.network_backend,
+        )
 
 
 def _resolve_sandbox_runtime(
@@ -807,17 +874,18 @@ async def _tool_research_fetch(
         safe, reason, resolved_ip = _resolve_and_validate_fetch_target(url)
         if not safe:
             return ToolResult(call_id, "research.fetch", reason, is_error=True)
-        request_url = url
-        headers = {"User-Agent": "theFactory-AgentHarness/1.0"}
-        parsed_url = urlparse(url)
-        if parsed_url.scheme.lower() == "http" and resolved_ip and parsed_url.hostname:
-            ip_host = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
-            netloc = f"{ip_host}:{parsed_url.port}" if parsed_url.port else ip_host
-            request_url = parsed_url._replace(netloc=netloc).geturl()
-            headers["Host"] = parsed_url.netloc
+        transport = _PinnedTransport(
+            hostname=str(urlparse(url).hostname or ""),
+            pinned_ip=str(resolved_ip),
+        )
         try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
-                resp = await client.get(request_url, headers=headers)
+            async with httpx.AsyncClient(
+                timeout=10.0,
+                follow_redirects=False,
+                trust_env=False,
+                transport=transport,
+            ) as client:
+                resp = await client.get(url, headers={"User-Agent": "theFactory-AgentHarness/1.0"})
             status = int(resp.status_code)
             ctype = str(resp.headers.get("content-type") or "text/plain")
             text = resp.text[:_MAX_FETCH_BYTES]
