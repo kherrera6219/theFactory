@@ -1,0 +1,165 @@
+{
+  "_generated_by": "scripts/generate_language_maturity.py — do not edit manually",
+  "languages": {
+    "python": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "ast + regex",
+      "test_runner": "vendored (thefactory/sandbox-test-python:1)",
+      "dependency_cache": "pypi",
+      "behavioural_equivalence": "direct-call + process"
+    },
+    "javascript": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "ast/structural + tree-sitter",
+      "test_runner": "vendored (thefactory/sandbox-test-node:1)",
+      "dependency_cache": "npm",
+      "behavioural_equivalence": "direct-call + process"
+    },
+    "typescript": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "ast/structural + tree-sitter",
+      "test_runner": "vendored (thefactory/sandbox-test-node:1)",
+      "dependency_cache": "npm",
+      "behavioural_equivalence": "direct-call + process"
+    },
+    "go": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "ast/structural + tree-sitter",
+      "test_runner": "toolchain built-in (go test)",
+      "dependency_cache": "golang",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "rust": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "toolchain built-in (cargo test)",
+      "dependency_cache": "cargo",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "java": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "ast/structural + tree-sitter",
+      "test_runner": "vendored (thefactory/sandbox-test-java:1)",
+      "dependency_cache": "maven",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "csharp": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "vendored (thefactory/sandbox-csharp:1)",
+      "dependency_cache": "nuget",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "kotlin": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "vendored (thefactory/sandbox-test-kotlin:1)",
+      "dependency_cache": "maven",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "scala": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "vendored (thefactory/sandbox-test-scala:1)",
+      "dependency_cache": "maven",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "c": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard (no dep cache)",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "cpp": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard (no dep cache)",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "php": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "vendored (thefactory/sandbox-test-php:1)",
+      "dependency_cache": "composer",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "ruby": {
+      "tier": "Tier 1",
+      "tier_label": "Tier 1 — Full Production",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "stdlib/runtime built-in",
+      "dependency_cache": "gem",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "r": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard",
+      "extraction": "regex",
+      "test_runner": "vendored (thefactory/sandbox-test-r:1)",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "julia": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard",
+      "extraction": "regex",
+      "test_runner": "stdlib/runtime built-in",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "haskell": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard (no dep cache)",
+      "extraction": "regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "ocaml": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard (no dep cache)",
+      "extraction": "regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "zig": {
+      "tier": "Tier 2",
+      "tier_label": "Tier 2 — Standard (no dep cache)",
+      "extraction": "tree-sitter/structural + regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "matlab": {
+      "tier": "Tier 3",
+      "tier_label": "Tier 3 — Subset / Advisory",
+      "extraction": "regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    },
+    "mathematica": {
+      "tier": "Tier 3",
+      "tier_label": "Tier 3 — Subset / Advisory",
+      "extraction": "regex",
+      "test_runner": "compile/run only",
+      "dependency_cache": "none",
+      "behavioural_equivalence": "process/CLI"
+    }
+  }
+}

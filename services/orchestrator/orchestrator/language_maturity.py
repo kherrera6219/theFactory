@@ -8,6 +8,7 @@ PM PORT recommendations, and scripts share one canonical source of truth.
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -218,6 +219,38 @@ def format_language_maturity_markdown() -> str:
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def format_language_maturity_json() -> str:
+    """Render the matrix as deterministic JSON for the Mission Control maturity badge.
+
+    The UI imports this file instead of keeping its own tier table, so the badge
+    cannot claim a capability (for example "AST") that the live tables do not have.
+    """
+    rows = get_language_maturity_table()
+    payload = {
+        "_generated_by": "scripts/generate_language_maturity.py — do not edit manually",
+        "languages": {
+            row["language"]: {
+                "tier": str(row["maturity_tier"]).split(" —", 1)[0].strip(),
+                "tier_label": row["maturity_tier"],
+                "extraction": row["extraction_mode"],
+                "test_runner": row["test_runner_support"],
+                "dependency_cache": row["dependency_ecosystem"],
+                "behavioural_equivalence": row["behavioural_equivalence"],
+            }
+            for row in rows
+        },
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+
+
+def write_language_maturity_json(output_path: str | Path) -> Path:
+    """Write the Mission Control maturity JSON with LF line endings."""
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(format_language_maturity_json(), encoding="utf-8", newline="\n")
+    return target
 
 
 def write_language_maturity_doc(output_path: str | Path) -> Path:
