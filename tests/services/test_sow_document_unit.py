@@ -129,8 +129,13 @@ def test_intake_uses_approved_snapshot_not_regenerated_contract() -> None:
 def test_codegen_context_includes_repo_bundle_for_import() -> None:
     from orchestrator.mission_flow_v2 import phases_build
 
-    source = inspect.getsource(phases_build._prepare_specialist_plan)
-    assert "imported_source_code" in source
+    # The repo bundle is injected by the single-shot codegen helper that
+    # _prepare_specialist_plan delegates to (split out in 9e3bc9d).
+    plan_source = inspect.getsource(phases_build._prepare_specialist_plan)
+    assert "_execute_single_shot_specialist_codegen(" in plan_source
+    helper_source = inspect.getsource(phases_build._execute_single_shot_specialist_codegen)
+    assert 'metadata.get("source_code")' in helper_source
+    assert "imported_source_code" in helper_source
 
 
 def test_intake_may_add_execution_assumptions_only() -> None:
