@@ -4,6 +4,8 @@ import {
   createOperatorSessionToken,
   getOperatorSessionFromCookieValue,
   hasOperatorSession,
+  getMissionControlAdminKey,
+  getOperatorSessionSecret,
   isOperatorSessionBypassed,
   verifyOperatorAdminKey,
 } from "./operator-session";
@@ -15,6 +17,16 @@ describe("operator session helpers", () => {
     delete process.env.MISSION_CONTROL_SESSION_SECRET;
     delete process.env.MISSION_CONTROL_SESSION_TTL_SECONDS;
     delete process.env.OPERATOR_SESSION_BYPASS;
+    delete process.env.VAULT_ADMIN_KEY;
+  });
+
+  it("falls back to VAULT_ADMIN_KEY when the admin key is blank, as compose passes it", () => {
+    process.env.MISSION_CONTROL_ADMIN_KEY = "";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "  ";
+    process.env.VAULT_ADMIN_KEY = "vault-admin-secret";
+
+    expect(getMissionControlAdminKey()).toBe("vault-admin-secret");
+    expect(getOperatorSessionSecret()).toBe("vault-admin-secret");
   });
 
   it("creates and validates signed operator sessions", () => {
