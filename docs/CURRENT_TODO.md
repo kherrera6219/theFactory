@@ -1206,6 +1206,12 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
+### Next update — live "still working" indicator on the Missions pages (requested 2026-11-23, not started)
+
+- **Problem:** Chat now shows a live PM indicator (elapsed timer, current stage, estimated progress — `chat/components/PmThinkingIndicator.tsx`, `lib/pm-progress.ts`), but while a mission runs the Missions page "Mission Status" panel and the mission detail "Live Progress" panel only show a bar that jumps between fixed per-state values (`PROGRESS_BY_STATE`, e.g. RUNNING 62% → GATING 74%) and a "quiet time" counter. Nothing visibly moves during a long phase, and the recent-missions rows show no in-progress signal, so an operator can think a mission has hung.
+- **Do:** reuse the Chat pattern on `/missions` and `/missions/detail`: a pulsing live indicator, total elapsed time since the mission started, time in the current phase, the current phase/agent from the live stream, and a progress estimate that advances within a phase (capped below the next state's value, labelled as an estimate). Show a small in-progress badge with elapsed time on in-progress rows in Recent Missions and Mission History. Flag a phase that runs well past its typical duration ("taking longer than usual") instead of looking frozen.
+- **Check:** a real mission end to end (stream and poll fallback), a completion-blocked mission (must show Blocked, not a moving bar), and a finished mission (no timer).
+
 ### Next update — Mission Control footer (requested 2026-11-23, not started)
 
 - **Problem:** short pages (e.g. Alerts, Performance, LogicNodes, an empty Chat) end mid-window and the rest of the screen is empty black space, so the page looks unfinished.

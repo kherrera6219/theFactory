@@ -167,7 +167,8 @@ Cheap self-contained hardening follows, then evidence, then features.
 2. First public release: tag `v*`, make GHCR packages public, consider code signing
    (`docs/ELECTRON_INSTALLER.md` → Releasing).
 3. #13 measure behavioural equivalence (≥20 missions), #10 polish, #14 release.
-4. Next Mission Control update: add an app-wide footer so short pages stop ending in empty black space (details in `docs/CURRENT_TODO.md` → Active Work Queue → "Next update — Mission Control footer").
+4. Next Mission Control update: live "still working" indicator on the Missions pages, like Chat's PM indicator (details in `docs/CURRENT_TODO.md` → Active Work Queue → "Next update — live 'still working' indicator on the Missions pages").
+5. Next Mission Control update: add an app-wide footer so short pages stop ending in empty black space (details in `docs/CURRENT_TODO.md` → Active Work Queue → "Next update — Mission Control footer").
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.
