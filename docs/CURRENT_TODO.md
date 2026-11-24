@@ -1206,6 +1206,12 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
+### Next update — Mission Control footer (requested 2026-11-23, not started)
+
+- **Problem:** short pages (e.g. Alerts, Performance, LogicNodes, an empty Chat) end mid-window and the rest of the screen is empty black space, so the page looks unfinished.
+- **Do:** add an app-wide footer to the shell layout (`app/(shell)/layout.tsx`) and make the main column fill the viewport (min-height so the footer sits at the bottom on short pages and after the content on long ones). Suggested content: app version, runtime status (gateway/orchestrator), and links to Settings and docs.
+- **Check:** every sidebar page at 1366 px and the 1024 px window minimum, and that the footer does not cover content or add a second scrollbar.
+
 ### Design Reconciliation & Semantic Engine Upgrade (Phases 1, 3, 4, 5, 7 done; Phase 2 partial; Phase 6 blocked)
 
 Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
