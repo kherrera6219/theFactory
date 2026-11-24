@@ -17,6 +17,11 @@ storage = importlib.import_module("orchestrator.storage")
 
 
 class _Cursor:
+    """Fake cursor: pg_class estimates are stale, exact COUNT(*) answers differ."""
+
+    exact_counts = {"missions": 42, "mission_logicnodes": 7}
+    estimates = [("missions", 3), ("mission_logicnodes", -1), ("agent_action_events", 5_000_000)]
+
     def __init__(self) -> None:
         self.executed: list[tuple[str, Any]] = []
         self._last = ""
@@ -26,10 +31,13 @@ class _Cursor:
         self._last = query
 
     def fetchone(self) -> Any:
+        if "COUNT(*) FROM" in self._last:
+            table = self._last.rsplit("FROM", 1)[1].strip()
+            return (self.exact_counts.get(table, 0),)
         return ("011", 11)
 
     def fetchall(self) -> Any:
-        return [("missions", 42), ("mission_logicnodes", -1)]
+        return list(self.estimates)
 
     def __enter__(self) -> "_Cursor":
         return self
@@ -66,8 +74,12 @@ def test_get_database_diagnostics_reports_counts(monkeypatch: Any) -> None:
     result = storage.get_database_diagnostics(settings)
     assert result["latest_migration_version"] == "011"
     assert result["migration_count"] == 11
+    # Stale/never-analyzed estimates are replaced by exact counts...
     assert result["table_counts"]["missions"] == 42
-    assert result["table_counts"]["mission_logicnodes"] == 0
+    assert result["table_counts"]["mission_logicnodes"] == 7
+    # ...while a genuinely large table keeps its estimate (no full scan).
+    assert result["table_counts"]["agent_action_events"] == 5_000_000
+    assert not any("FROM agent_action_events" in q for q, _ in cur.executed if "COUNT" in q)
     assert result["pool"]["initialized"] is False
 
 

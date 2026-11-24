@@ -4287,6 +4287,78 @@ async def test_runtime_qc_block_records_a_readable_reason() -> None:
     assert "Syntax error" in details.get("stderr_excerpt", "")
 
 
+@pytest.mark.asyncio
+async def test_spend_cap_pause_is_not_reported_as_a_runtime_qc_failure() -> None:
+    """2026-11-23: six live missions passed QC but sat at VERIFIED with
+    "runtime QC did not pass" (verdict PASS beside it). The real stop was the
+    spend cap, which _prepare_runtime_qc also signals as "not ready"."""
+    settings = _make_settings()
+    app = _make_app_state()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        **(mission.metadata or {}),
+        "spend_cap_hit": True,
+        "spend_cap": {"state": "pause", "actual_usd": 0.24, "cap_usd": 0.07, "quoted_usd": 0.04},
+    }
+    inserted_events: list[str] = []
+
+    async def _completion_check(*, settings, mission):
+        _ = settings, mission
+        return True, {}
+
+    qc_report = {"verdict": "PASS", "exit_code": 0, "filename": "qualifier.py"}
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _s, _m, _mission=mission: _mission
+        mock_storage.insert_mission_event = (
+            lambda _s, _m, _p, _n, event_type, _e=inserted_events: _e.append(event_type)
+        )
+        mock_storage.update_mission_metadata = (
+            lambda _s, _m, metadata, _mission=mission: setattr(_mission, "metadata", metadata)
+            or _mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_equivalence_report",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_security_compliance_report",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_dependency_absorption_reports",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_depabs_execution",
+            new=AsyncMock(return_value=mission),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_runtime_qc",
+            new=AsyncMock(return_value=(mission, False, qc_report)),
+        ):
+            result = await orchestrator_mission_flow_v2_lifecycle._advance_verified_to_complete(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+                completion_check_fn=_completion_check,
+            )
+
+    assert result is False
+    assert "MISSION_COMPLETION_BLOCKED" in inserted_events
+    assert "MISSION_RUNTIME_QC_BLOCKED" not in inserted_events
+    chain = (mission.metadata or {}).get("chain_trace") or []
+    blocked = [e for e in chain if e.get("event_type") == "MISSION_COMPLETION_BLOCKED"]
+    details = blocked[-1].get("details") or {}
+    assert details.get("gate") == "spend_cap"
+    assert details.get("actual_usd") == 0.24
+    assert details.get("cap_usd") == 0.07
+    assert "runtime QC" not in details.get("reason", "")
+
+
 def test_runtime_qc_reports_from_an_older_harness_are_stale() -> None:
     """2026-09-27: 30 missions sat at VERIFIED behind FAIL verdicts produced by
     a harness with since-fixed defects; every re-drive re-read the old FAIL."""

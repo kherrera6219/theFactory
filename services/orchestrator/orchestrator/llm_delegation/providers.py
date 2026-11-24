@@ -535,6 +535,17 @@ async def _call_gemini(
         return None
     text = _extract_gemini_text(body)
     parsed = _extract_decision_payload(text)
+    if not isinstance(parsed, dict):
+        # Callers fall back to deterministic output on None; without this line
+        # a fallback left no trace of why.
+        candidate = (body.get("candidates") or [{}])[0] if isinstance(body, dict) else {}
+        LOGGER.warning(
+            "%s gemini reply was not a JSON object (chars=%d finish=%s grounded=%s)",
+            call_context,
+            len(text or ""),
+            candidate.get("finishReason") if isinstance(candidate, dict) else None,
+            grounding_requested,
+        )
     if isinstance(parsed, dict):
         meta = body.get("usageMetadata") or {}
         parsed["__input_tokens__"] = int(meta.get("promptTokenCount", 0) or 0)

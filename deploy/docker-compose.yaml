@@ -610,7 +610,8 @@ services:
       # Canonical output path: deploy/.local/redis-certs and deploy/.local/postgres-certs
       - ./.local/redis-certs:/run/redis-certs:ro
       - ./.local/postgres-certs:/run/postgres-certs:ro
-      - ../output:/app/output
+      # The desktop app points this at %APPDATA%\theFactory Mission Control\output.
+      - ${MISSION_OUTPUT_HOST_ROOT:-../output}:/app/output
       # Workspace only — docker.sock is mounted on sandbox-runner, not here.
       # Must resolve to the same directory as SANDBOX_WORKSPACE_HOST_ROOT.
       - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace

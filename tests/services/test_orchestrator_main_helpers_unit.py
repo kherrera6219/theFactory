@@ -346,9 +346,32 @@ def test_build_non_pod_heartbeat_payloads_routes_support_agents() -> None:
     pm = next(payload for payload in payloads if payload.agent_id == "AGENT-01-PM")
 
     assert "mission-verified" in tester.active_mission_ids
-    assert "mission-complete" in deploy.active_mission_ids
+    # Deployment readiness runs as a mission leaves VERIFIED; finished missions
+    # are not queued work for it.
+    assert "mission-verified" in deploy.active_mission_ids
+    assert "mission-complete" not in deploy.active_mission_ids
     assert "mission-active-go" in hardware.active_mission_ids
     assert "mission-active-python" in pm.active_mission_ids
+
+
+def test_build_non_pod_heartbeat_payloads_ignores_blocked_and_system_missions() -> None:
+    blocked_meta = {"last_chain_event_type": "MISSION_COMPLETION_BLOCKED"}
+    payloads = orchestrator_heartbeat._build_non_pod_heartbeat_payloads(
+        runtime={
+            "redis_ready": True,
+            "db_ready": True,
+            "protocol_ready": True,
+            "consumer_running": True,
+        },
+        missions=[
+            _mission("mission-blocked", state=MissionState.verified, metadata=blocked_meta),
+            _mission("__knowledge_lake__", state=MissionState.complete),
+        ],
+    )
+
+    for payload in payloads:
+        assert payload.active_mission_ids == [], payload.agent_id
+        assert payload.queue_depth == 0, payload.agent_id
 
 
 def test_emit_agent_telemetry_event_publishes_error_priority_payload() -> None:

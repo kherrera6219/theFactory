@@ -14,6 +14,7 @@ from .agent_scaling import (
 from .agent_scaling import (
     record_partition_result as embed_partition_result,
 )
+from .mission_attention import COMPLETION_BLOCKED_EVENT, SYSTEM_MISSION_IDS
 from .mission_vault import strip_vault
 from .models import (
     DataClassification,
@@ -612,19 +613,42 @@ def count_missions(settings: Settings) -> int:
 
 
 def mission_state_counts(settings: Settings) -> dict[str, int]:
-    """Return mission counts grouped by state."""
+    """Return mission counts grouped by state, excluding internal system missions."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT state, COUNT(*)
                 FROM missions
+                WHERE mission_id <> ALL(%s)
                 GROUP BY state
-                """
+                """,
+                (sorted(SYSTEM_MISSION_IDS),),
             )
             rows = cur.fetchall()
 
     return {str(row[0]): int(row[1]) for row in rows}
+
+
+def list_completion_blocked_mission_ids(settings: Settings, limit: int = 200) -> list[str]:
+    """Return non-terminal missions whose last chain event is a completion block."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT mission_id
+                FROM missions
+                WHERE state NOT IN ('COMPLETE', 'FAILED')
+                  AND mission_id <> ALL(%s)
+                  AND metadata_json ->> 'last_chain_event_type' = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (sorted(SYSTEM_MISSION_IDS), COMPLETION_BLOCKED_EVENT, limit),
+            )
+            rows = cur.fetchall()
+
+    return [str(row[0]) for row in rows]
 
 
 def _locked_mission_metadata_update(
