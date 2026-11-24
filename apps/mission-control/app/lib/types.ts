@@ -688,6 +688,7 @@ export type AlertRecord = {
   source: string;
   createdAt: string;
   recommendation: string;
+  missionIds?: string[];
 };
 
 export type ProjectRecord = {
@@ -754,7 +755,13 @@ export type OperationsSummary = {
     protocol_ready: boolean;
     consumer_running: boolean;
   };
+  // Excludes the internal Knowledge Lake bootstrap missions.
   mission_state_counts: Record<string, number>;
+  // Missions parked by a completion gate (still VERIFIED). Absent on older
+  // orchestrators.
+  blocked_mission_ids?: string[];
+  // KNOWLEDGE_EMBEDDING_PROVIDER the orchestrator is running with.
+  knowledge_embedding_provider?: string;
   pod_assignment_counts: Record<string, number>;
   active_lifecycle_tasks: number;
   // PBLA-05: null when protocol-bus-mcp is unreachable — never blocks the
@@ -832,6 +839,8 @@ export type OperationsAlertRecord = {
   source: string;
   created_at: string;
   recommendation: string;
+  // Missions the alert is about (completion-blocked alert), when known.
+  mission_ids?: string[];
 };
 
 export type OperationsAgentState = "IDLE" | "ACTIVE" | "RUNNING" | "VERIFYING" | "ERROR" | "PAUSED";
@@ -923,6 +932,8 @@ export type OperationsAgentsSnapshot = {
   mission_backlog: {
     active: number;
     verified: number;
+    // Completion-blocked missions, excluded from active/verified.
+    blocked?: number;
     complete: number;
     assigned_active: number;
   };

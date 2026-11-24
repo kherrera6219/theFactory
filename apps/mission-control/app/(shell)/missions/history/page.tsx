@@ -10,27 +10,40 @@ import { EmptyState, SystemMessage } from "../../../components/status";
 import { useLastRefreshed } from "../../../lib/use-last-refreshed";
 import { listMissions } from "../../../lib/api-client";
 import { downloadCsv, downloadJson, missionsToCsvRows } from "../../../lib/export";
-import { formatDateTime, humanizeState, isTerminalState } from "../../../lib/format";
+import { formatDateTime, isTerminalState, normalizeState } from "../../../lib/format";
+import {
+  isCompletionBlocked,
+  missionDisplayState,
+  missionSearchText,
+  missionStateTone,
+  missionTitle,
+  shortMissionId,
+  withoutSystemMissions,
+} from "../../../lib/mission-status";
 import type { MissionRecord } from "../../../lib/types";
 
 const HISTORY_LIMIT = 200;
 const PAGE_SIZE = 25;
 
+// "Completed" used to match VERIFIED (so delivered missions never showed under
+// it) and "Active" counted completion-blocked missions as in flight.
 const STATE_GROUPS = [
   { label: "All", value: "ALL" },
-  { label: "Active", value: "ACTIVE" },
-  { label: "Completed", value: "VERIFIED" },
+  { label: "In progress", value: "IN_PROGRESS" },
+  { label: "Blocked", value: "BLOCKED" },
+  { label: "Complete", value: "COMPLETE" },
   { label: "Failed", value: "FAILED" },
-  { label: "Cancelled", value: "CANCELLED" },
 ] as const;
 
 type StateGroupValue = (typeof STATE_GROUPS)[number]["value"];
 
 function matchesGroup(mission: MissionRecord, group: StateGroupValue): boolean {
   if (group === "ALL") return true;
-  const state = mission.state.toUpperCase();
-  if (group === "ACTIVE") return !isTerminalState(state);
-  return state === group || state.startsWith(group);
+  const blocked = isCompletionBlocked(mission);
+  if (group === "BLOCKED") return blocked;
+  const state = normalizeState(mission.state);
+  if (group === "IN_PROGRESS") return !blocked && !isTerminalState(state);
+  return state === group;
 }
 
 export default function MissionHistoryPage() {
@@ -49,7 +62,7 @@ export default function MissionHistoryPage() {
     setError(null);
     try {
       const data = await listMissions(HISTORY_LIMIT);
-      setMissions(data);
+      setMissions(withoutSystemMissions(data));
       setLastFetchAt(new Date().toISOString());
       setPage(0);
     } catch (loadError) {
@@ -70,8 +83,7 @@ export default function MissionHistoryPage() {
     return missions.filter((m) => {
       if (!matchesGroup(m, stateGroup)) return false;
       if (!q) return true;
-      const name = String((m.metadata as Record<string, unknown> | undefined)?.name ?? "").toLowerCase();
-      return m.mission_id.toLowerCase().includes(q) || name.includes(q) || m.state.toLowerCase().includes(q);
+      return missionSearchText(m).includes(q);
     });
   }, [missions, stateGroup, search]);
 
@@ -161,7 +173,7 @@ export default function MissionHistoryPage() {
           <input
             type="search"
             className="table-search"
-            placeholder="Search by ID, name, or state…"
+            placeholder="Search by name, prompt, ID, type, or language…"
             value={search}
             aria-label="Search missions"
             onChange={(e) => handleSearchChange(e.target.value)}
@@ -208,15 +220,18 @@ export default function MissionHistoryPage() {
           <>
             <p className="muted history-count">
               Showing {safePage * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE + PAGE_SIZE, filtered.length)} of {filtered.length}{" "}
-              {stateGroup === "ALL" ? "" : `${stateGroup.toLowerCase()} `}mission{filtered.length !== 1 ? "s" : ""}
+              {stateGroup === "ALL"
+                ? ""
+                : `${STATE_GROUPS.find((g) => g.value === stateGroup)?.label.toLowerCase()} `}
+              mission{filtered.length !== 1 ? "s" : ""}
             </p>
             <div className="table-wrap">
               <table className="data-table">
                 <caption className="sr-only">Mission archive with state, type, depth, and creation date</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Mission ID</th>
-                    <th scope="col">Name</th>
+                    <th scope="col">Mission</th>
+                    <th scope="col">ID</th>
                     <th scope="col">State</th>
                     <th scope="col">Type</th>
                     <th scope="col">Depth</th>
@@ -226,32 +241,30 @@ export default function MissionHistoryPage() {
                 </thead>
                 <tbody>
                   {visibleMissions.map((m) => {
-                    const name = String(
-                      (m.metadata as Record<string, unknown> | undefined)?.name ?? "",
-                    );
-                    const stateClass = m.state.toLowerCase().replace(/_/g, "-");
                     return (
                       <tr key={m.mission_id}>
-                        <td>
-                          <CopyId
-                            id={m.mission_id}
-                            display={m.mission_id.slice(0, 8) + "…"}
-                          />
+                        <td className="mission-title-cell">
+                          <Link href={`/missions/detail?id=${encodeURIComponent(m.mission_id)}`}>
+                            {missionTitle(m)}
+                          </Link>
                         </td>
-                        <td className="muted">{name || "—"}</td>
                         <td>
-                          <span className={`status-dot ${stateClass}`} aria-hidden="true" />
-                          {humanizeState(m.state)}
+                          <CopyId id={m.mission_id} display={shortMissionId(m.mission_id)} />
+                        </td>
+                        <td>
+                          <span className={`state-pill ${missionStateTone(m)}`}>
+                            {missionDisplayState(m)}
+                          </span>
                         </td>
                         <td className="muted">{m.mission_type ?? "—"}</td>
                         <td className="muted">{m.depth_mode ?? "—"}</td>
                         <td className="muted">{formatDateTime(m.created_at)}</td>
                         <td>
                           <Link
-                            href={`/missions/detail?id=${m.mission_id}`}
+                            href={`/missions/detail?id=${encodeURIComponent(m.mission_id)}`}
                             className="secondary-button shell-link-button"
                           >
-                            View Live
+                            Open
                           </Link>
                         </td>
                       </tr>

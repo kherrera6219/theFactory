@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { StatusBadge, SystemMessage } from "../../components/status";
+import { useConfirm } from "../../components/dialog-provider";
 import { getGatewayHealth, getOperationsSummary, pruneAuditTables } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { useLastRefreshed } from "../../lib/use-last-refreshed";
@@ -140,6 +141,7 @@ export default function DatabasesPage() {
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [pruning, setPruning] = useState(false);
+  const confirm = useConfirm();
   const [pruneResult, setPruneResult] = useState<string | null>(null);
   const lastRefreshed = useLastRefreshed(lastFetchAt);
 
@@ -200,6 +202,14 @@ export default function DatabasesPage() {
   };
 
   const handlePrune = async () => {
+    const confirmed = await confirm({
+      title: "Prune expired audit logs?",
+      message:
+        "Audit rows older than the retention window are permanently deleted. This cannot be undone.",
+      confirmText: "Delete expired rows",
+      dangerous: true,
+    });
+    if (!confirmed) return;
     setPruning(true);
     setPruneResult(null);
     try {
@@ -284,7 +294,7 @@ export default function DatabasesPage() {
               </div>
               <p className="muted">{card.engine}</p>
               <p>{card.details}</p>
-              <p className="muted">Last write: {card.lastWrite}</p>
+              <p className="muted">Checked: {card.lastWrite}</p>
               {/* Phase 2G — actionable buttons for non-healthy states */}
               {card.status === "degraded" && (
                 <div className="db-card-actions">
@@ -357,7 +367,7 @@ export default function DatabasesPage() {
               <thead>
                 <tr>
                   <th>Table</th>
-                  <th>Estimated rows</th>
+                  <th>Rows</th>
                 </tr>
               </thead>
               <tbody>

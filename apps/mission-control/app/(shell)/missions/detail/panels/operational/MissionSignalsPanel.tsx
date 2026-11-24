@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Panel } from '../../../../../components/panel';
-import { humanizeState, formatDateTime, formatTime } from '../../../../../lib/format';
+import { formatDateTime, formatTime } from '../../../../../lib/format';
+import { missionDisplayState } from '../../../../../lib/mission-status';
 import type { MissionRecord, MissionChainTrace } from '../../../../../lib/types';
 
 interface MissionSignalsPanelProps {
@@ -36,10 +37,10 @@ export function MissionSignalsPanel({
     <Panel title="Mission Signals">
       {loading && <p className="muted">Loading mission signals...</p>}
       {!loading && mission && (
-        <dl>
+        <dl className="signal-grid">
           <div>
             <dt>Status</dt>
-            <dd>{humanizeState(mission.state)}</dd>
+            <dd>{missionDisplayState(mission)}</dd>
           </div>
           <div>
             <dt>Lifecycle engine</dt>

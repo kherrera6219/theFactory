@@ -241,19 +241,26 @@ a {
   grid-template-columns: 1fr;
 }
 
+/* Missions: two plain columns that scroll with the page. The old layout gave
+   every grid cell a fixed height and its own scrollbar, which squeezed the
+   launch form into a short scroll box, and its pinned grid-column rules
+   created a phantom column at <=1024px that crushed the header to a sliver. */
 .mission-console {
-  /* Phase 2F — each column scrolls independently so the Recent Missions
-     panel stays visible while the operator fills out the form below. */
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   align-items: start;
-  height: calc(100vh - 57px); /* subtract shell-header height */
-  overflow: hidden;
 }
 
-.mission-console > * {
-  height: 100%;
-  overflow-y: auto;
-  padding-bottom: 24px;
+.mission-console > .page-header,
+.mission-console > header {
+  grid-column: 1 / -1;
+}
+
+.mission-console-main,
+.mission-console-side {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  align-content: start;
 }
 
 .panel {
@@ -1735,9 +1742,11 @@ dd {
   align-items: start;
 }
 
-@media (min-width: 1200px) {
+/* The conversation is the main column; the SOW panel only gets a side
+   column when there is room for both (it was squeezing the chat to ~230px). */
+@media (min-width: 1400px) {
   .chat-studio-grid {
-    grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+    grid-template-columns: minmax(0, 1.4fr) minmax(340px, 1fr);
   }
 }
 
@@ -2311,7 +2320,7 @@ dd {
   }
 
   .mission-console {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -3511,3 +3520,283 @@ dd {
 }
 
 
+
+
+/* ------------------------------------------------------------------ */
+/* 2026-11-23 UI review fixes                                          */
+/* ------------------------------------------------------------------ */
+
+.panel-description {
+  margin: -6px 0 14px;
+  font-size: 0.86rem;
+}
+
+/* Mission state pill: Blocked is amber, not a green "Verified". */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.state-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.state-pill.healthy { color: var(--success, #34d399); }
+.state-pill.warning { color: var(--warning, #fbbf24); }
+.state-pill.critical { color: var(--danger, #f87171); }
+.state-pill.info { color: var(--accent, #a78bfa); }
+
+.mission-item-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mission-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-item-action {
+  min-width: 0;
+}
+
+.mission-list-footer {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+}
+
+.mission-title-cell a {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mission-title-cell {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Home: missions that need an operator. */
+.attention-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.attention-list li {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning, #fbbf24);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.attention-list-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.attention-list-main a {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-list-reason {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+  color: var(--ink-muted);
+}
+
+/* Page headers wrap instead of crushing the title: actions used to refuse to
+   shrink, so at the 1024px window minimum the mission title wrapped one word
+   per line and "Cancel Mission" was pushed off-screen. */
+.page-hero,
+.page-header-compact {
+  flex-wrap: wrap;
+}
+
+.page-hero-main,
+.page-header-compact-main {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.page-hero-actions {
+  flex-shrink: 1;
+}
+
+.mission-heading-id {
+  font-size: 0.55em;
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+/* Disabled controls must look disabled (a disabled "Cancel Mission" stayed
+   solid red). */
+button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled,
+.primary-button:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.7);
+  box-shadow: none;
+}
+
+/* Mission Signals: a grid of facts instead of nine full-width rows. */
+dl.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+/* Chat composer: attach controls on one wrapping row, label on its own line. */
+.attach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.attach-actions > * {
+  margin: 0;
+}
+
+.chat-input-label {
+  display: block;
+  margin-top: 14px;
+}
+
+/* Inline field validation. */
+.input-invalid {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 2px var(--danger-bg);
+}
+
+.field-error {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+/* Alerts: links to the affected missions. */
+.alert-mission-links {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alert-mission-links a {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+/* Short mission ids stay on one line in tables and lists. */
+.copy-id-wrap,
+.copy-id-text {
+  white-space: nowrap;
+}
+
+/* PM Agent "still working" indicator (Chat). */
+.pm-thinking {
+  border-color: var(--accent);
+}
+
+.pm-thinking-elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pm-thinking-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pm-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pm-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.pm-thinking-stage {
+  margin: 6px 0 8px;
+}
+
+.pm-thinking-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.pm-thinking-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-dim));
+  transition: width 500ms linear;
+}
+
+.pm-thinking-meter.slow > span {
+  background: var(--warning);
+}
+
+.pm-thinking-note {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-thinking-pulse { animation: none; }
+  .pm-thinking-meter > span { transition: none; }
+}

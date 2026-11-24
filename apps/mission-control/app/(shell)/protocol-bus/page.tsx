@@ -129,7 +129,7 @@ function mapEventToBusRecord(event: MissionEvent, index: number): BusEventRecord
     consumer: "derived (not a bus consumer)",
     message_type: event.event_type,
     topic: `mission.state.${event.new_state.toLowerCase()}`,
-    summary: `${missionId}: ${event.event_type}`,
+    summary: event.mission_id ? `${missionId}: ${event.event_type}` : `system: ${event.event_type}`,
     priority: normalizedState === "FAILED" ? "HIGH" : "NORMAL",
     payload: {
       mission_id: missionId,
@@ -156,7 +156,7 @@ function mapLiveStreamToBusRecord(event: LiveStateStreamEvent): BusEventRecord |
     consumer: "derived (not a bus consumer)",
     message_type: eventType,
     topic: event.topic ?? `mission.state.${state.toLowerCase()}`,
-    summary: `${missionId}: ${eventType}`,
+    summary: event.mission_id ? `${missionId}: ${eventType}` : `system: ${eventType}`,
     priority: state === "FAILED" ? "HIGH" : "NORMAL",
     payload: event.payload,
   };
@@ -183,6 +183,8 @@ export default function ProtocolBusPage() {
     "ALL",
   );
   const [query, setQuery] = useState("");
+  // Synthesized heartbeats arrive every few seconds and buried mission events.
+  const [showHeartbeats, setShowHeartbeats] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<BusEventRecord | null>(null);
   const [eventTableScrollTop, setEventTableScrollTop] = useState(0);
   const [laneActivity, setLaneActivity] = useState<ProtocolBusLaneActivitySnapshot | null>(null);
@@ -323,6 +325,7 @@ export default function ProtocolBusPage() {
   const filteredEvents = useMemo(() => {
     const lower = query.trim().toLowerCase();
     return events
+      .filter((event) => showHeartbeats || event.message_type !== "AGENT_HEARTBEAT")
       .filter((event) => (protocolFilter === "ALL" ? true : event.protocol === protocolFilter))
       .filter((event) => {
         if (lower.length === 0) {
@@ -336,7 +339,7 @@ export default function ProtocolBusPage() {
           (event.message_type?.toLowerCase().includes(lower) ?? false)
         );
       });
-  }, [events, protocolFilter, query]);
+  }, [events, protocolFilter, query, showHeartbeats]);
 
   const virtualizedEvents = useMemo(() => {
     const totalRows = filteredEvents.length;
@@ -426,7 +429,7 @@ export default function ProtocolBusPage() {
             Search
             <input
               type="search"
-              placeholder="Search by topic, producer, consumer, type, or summary"
+              placeholder="Search by mission, topic, producer, type, or summary"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -510,7 +513,16 @@ export default function ProtocolBusPage() {
           </SystemMessage>
         )}
         <p className="muted">
-          Rendering {virtualizedEvents.rows.length} of {filteredEvents.length} rows (windowed).
+          {filteredEvents.length} event{filteredEvents.length === 1 ? "" : "s"}
+          {showHeartbeats ? "" : " (agent heartbeats hidden)"} — scroll the table for older rows.{" "}
+          <label className="inline-toggle">
+            <input
+              type="checkbox"
+              checked={showHeartbeats}
+              onChange={(event) => setShowHeartbeats(event.target.checked)}
+            />{" "}
+            Show agent heartbeats
+          </label>
         </p>
         <div
           className="table-wrap virtualized-table-wrap"

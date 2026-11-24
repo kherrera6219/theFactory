@@ -332,6 +332,8 @@ export function embeddedServerEnv(
     MISSION_CONTROL_SESSION_SECURE: "false",
     VAULT_DATA_PATH: vaultDataPath,
   };
+  // Same host folder the orchestrator delivers into (see configureBackend).
+  if (backend.MISSION_OUTPUT_HOST_ROOT) env.MISSION_OUTPUT_ROOT = backend.MISSION_OUTPUT_HOST_ROOT;
   for (const key of EMBEDDED_SERVER_SECRETS) {
     if (backend[key]) env[key] = backend[key];
   }

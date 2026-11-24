@@ -10,6 +10,7 @@ import {
   isTerminalState,
   normalizeState,
 } from '../../../../../lib/format';
+import { completionBlockReason, missionDisplayState } from '../../../../../lib/mission-status';
 import type { MissionChainEvent, MissionChainTrace, MissionEvent, MissionRecord } from '../../../../../lib/types';
 
 type MissionProgressPanelProps = {
@@ -184,7 +185,8 @@ export function MissionProgressPanel({
   const lastEventDetail = eventDetail(chainEvent?.details);
   const secondsSinceEvent = secondsSince(lastEventAt);
   const secondsSinceRefresh = secondsSince(lastUpdatedAt);
-  const activity = activityState({
+  const blockReason = mission ? completionBlockReason(mission) : null;
+  const baseActivity = activityState({
     missionState,
     transportMode,
     secondsSinceRefresh,
@@ -193,6 +195,20 @@ export function MissionProgressPanel({
     lastEventDetail,
     buildArtifactCount,
   });
+  // A completion-blocked mission is parked, not progressing: say which gate
+  // stopped it (the spend cap was recorded as "runtime QC" before 2026-11-23).
+  const activity = blockReason
+    ? {
+        tone: "stale" as const,
+        label: `Blocked: ${blockReason.gate}`,
+        detail: blockReason.reason,
+        nextAction:
+          blockReason.gate === "Spend cap"
+            ? "Approve more budget with the PM, or relaunch with a higher cap."
+            : "Open the Events tab, fix the gate's finding, then relaunch or continue with PM.",
+      }
+    : baseActivity;
+  const settled = isTerminalState(missionState) || blockReason !== null;
   const transportLabel =
     transportMode === "stream"
       ? `${streamEventsSeen} stream event${streamEventsSeen === 1 ? "" : "s"}`
@@ -208,7 +224,7 @@ export function MissionProgressPanel({
           <div className="mission-progress-header">
             <div>
               <span className={`connection-chip ${activity.tone}`}>{activity.label}</span>
-              <h2>{humanizeState(mission.state)}</h2>
+              <h2>{missionDisplayState(mission)}</h2>
               <p className="muted">{activity.detail}</p>
             </div>
             <div className="mission-progress-percent" aria-label={`Progress ${progress}%`}>
@@ -236,22 +252,28 @@ export function MissionProgressPanel({
               <dt>Last event</dt>
               <dd>{eventLabel(lastEventType)}</dd>
             </div>
-            <div>
-              <dt>Quiet time</dt>
-              <dd>{formatDuration(secondsSinceEvent)}</dd>
-            </div>
+            {!settled ? (
+              <div>
+                <dt>Quiet time</dt>
+                <dd>{formatDuration(secondsSinceEvent)}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Refresh</dt>
               <dd>{lastUpdatedAt ? `${formatTime(lastUpdatedAt)} (${transportLabel})` : transportLabel}</dd>
             </div>
-            <div>
-              <dt>Active agents</dt>
-              <dd>{activeAgentCount}</dd>
-            </div>
-            <div>
-              <dt>Typical step estimate</dt>
-              <dd>{eta}</dd>
-            </div>
+            {!settled ? (
+              <>
+                <div>
+                  <dt>Active agents</dt>
+                  <dd>{activeAgentCount}</dd>
+                </div>
+                <div>
+                  <dt>Typical step estimate</dt>
+                  <dd>{eta}</dd>
+                </div>
+              </>
+            ) : null}
             <div>
               <dt>Next action</dt>
               <dd>{activity.nextAction}</dd>

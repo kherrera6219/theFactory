@@ -39,6 +39,7 @@ export default function BuilderPage() {
   const [constraintsInput, setConstraintsInput] = useState("");
   const [viewMode, setViewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [executionMessage, setExecutionMessage] = useState<string | null>(null);
+  const [requestInvalid, setRequestInvalid] = useState(false);
   const [preview, setPreview] = useState<BuilderPreviewResponse | null>(null);
   const [approval, setApproval] = useState<ReviewApprovalReceipt | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,10 +54,12 @@ export default function BuilderPage() {
   async function queueRequest() {
     const sanitized = sanitizeUserText(request);
     if (sanitized.length < 3) {
-      setExecutionMessage("Add more detail before sending a build request.");
+      setExecutionMessage(null);
+      setRequestInvalid(true);
       setError(null);
       return;
     }
+    setRequestInvalid(false);
 
     const parsedConstraints = parseConstraints(constraintsInput);
     setLoading(true);
@@ -193,8 +196,12 @@ export default function BuilderPage() {
           id="builder-request"
           rows={6}
           value={request}
+          aria-invalid={requestInvalid || undefined}
+          aria-describedby={requestInvalid ? "builder-request-error" : undefined}
+          className={requestInvalid ? "input-invalid" : undefined}
           onChange={(event) => {
             setRequest(event.target.value);
+            if (requestInvalid) setRequestInvalid(false);
             if (approval) {
               resetApproval();
             }
@@ -227,6 +234,11 @@ export default function BuilderPage() {
             Regenerate Plan
           </button>
         </div>
+        {requestInvalid && (
+          <p id="builder-request-error" className="field-error" role="alert">
+            Describe the change in at least a few words before staging it.
+          </p>
+        )}
         {executionMessage && <p className="help-text">{executionMessage}</p>}
         {error && (
           <SystemMessage tone="critical" title="Builder request could not continue">

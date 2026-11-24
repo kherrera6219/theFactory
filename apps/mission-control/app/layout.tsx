@@ -39,7 +39,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
     "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
     "object-src 'none'",
     "base-uri 'self'",
-    "frame-ancestors 'none'",
+    // frame-ancestors is ignored (and logged as an error on every page) in a
+    // <meta> CSP; next.config.mjs sends it as a real header instead.
   ].join("; ") + ";";
 
   return (

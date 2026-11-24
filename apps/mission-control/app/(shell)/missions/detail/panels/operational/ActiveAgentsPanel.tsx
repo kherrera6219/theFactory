@@ -19,7 +19,10 @@ export function ActiveAgentsPanel({ activeAgents }: ActiveAgentsPanelProps) {
               <h3>{agent.agent_id}</h3>
               <p>{agent.name}</p>
               <p className="muted">
-                {agent.pod} - {agent.tier} - {agent.state}
+                {/* Support/executive agents have pod === tier; don't print it twice. */}
+                {(agent.pod === agent.tier ? [agent.tier] : [agent.pod, agent.tier])
+                  .concat(agent.state)
+                  .join(" · ")}
               </p>
               <p className="muted">Workload: {agent.workload_pct}%</p>
             </li>

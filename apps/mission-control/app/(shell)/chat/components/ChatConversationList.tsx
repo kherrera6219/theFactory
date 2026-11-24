@@ -3,6 +3,7 @@
 import { Panel } from "../../../components/panel";
 import { formatDateTime } from "../../../lib/format";
 import type { ChatMessage } from "../chat-types";
+import { PmThinkingIndicator } from "./PmThinkingIndicator";
 
 export interface ChatConversationListProps {
   messages: ChatMessage[];
@@ -22,15 +23,7 @@ export function ChatConversationList({ messages, thinking }: ChatConversationLis
             <p>{message.text}</p>
           </article>
         ))}
-        {thinking && (
-          <article className="chat-item pm" aria-label="PM Agent is preparing a response">
-            <div className="chat-meta">
-              <strong>PM Agent</strong>
-              <span>Thinking...</span>
-            </div>
-            <p>...</p>
-          </article>
-        )}
+        {thinking && <PmThinkingIndicator />}
       </div>
     </Panel>
   );

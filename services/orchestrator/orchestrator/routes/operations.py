@@ -19,6 +19,7 @@ from ..heartbeat_service import (
     _workload_for_agent,
     probe_agent_health,
 )
+from ..mission_attention import is_system_mission, mission_is_blocked
 from ..models import AlertStateUpdate, MissionRecord
 from ..protocol_bus_producer import fetch_lane_activity
 from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
@@ -111,6 +112,8 @@ def _build_operational_alerts(
     blocked_completion_count: int,
     limit: int,
     ack_states: dict[str, str] | None = None,
+    blocked_mission_ids: list[str] | None = None,
+    blocked_since: str | None = None,
 ) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
     now = datetime.now(UTC).isoformat()
@@ -185,7 +188,29 @@ def _build_operational_alerts(
                 ),
             }
         )
-    if blocked_completion_count > 0:
+    if blocked_mission_ids is not None:
+        # Current state, not a count of past events: the alert names the
+        # missions still parked by a completion gate and clears once they move.
+        blocked_ids = list(blocked_mission_ids)
+        if blocked_ids:
+            noun = "mission is" if len(blocked_ids) == 1 else "missions are"
+            alerts.append(
+                {
+                    "alert_id": "missions-completion-blocked",
+                    "severity": "high",
+                    "state": "open",
+                    "title": f"{len(blocked_ids)} {noun} blocked before completion",
+                    "source": "mission-lifecycle",
+                    "created_at": blocked_since or now,
+                    "mission_ids": blocked_ids,
+                    "recommendation": (
+                        "Open each mission's chain trace: the MISSION_COMPLETION_BLOCKED "
+                        "entry names the gate (runtime QC, spend cap, equivalence, "
+                        "security) and why it refused completion."
+                    ),
+                }
+            )
+    elif blocked_completion_count > 0:
         alerts.append(
             {
                 "alert_id": "missions-completion-blocked",
@@ -193,7 +218,7 @@ def _build_operational_alerts(
                 "state": "open",
                 "title": "Mission completion blocked by missing artifacts",
                 "source": "mission-lifecycle",
-                "created_at": now,
+                "created_at": blocked_since or now,
                 "recommendation": (
                     "Review mission chain trace and ensure pod assignment or LogicNode "
                     "evidence exists before completion."
@@ -221,11 +246,23 @@ def _build_operations_agents_snapshot(
 ) -> dict[str, Any]:
     from ..models import MissionState  # local import avoids re-declaring at module level
 
+    # Internal Knowledge Lake rows are not work, and a completion-blocked
+    # mission is parked waiting for an operator, not being worked on.
+    missions = [mission for mission in missions if not is_system_mission(mission.mission_id)]
+    blocked_mission_ids = {
+        mission.mission_id for mission in missions if mission_is_blocked(mission)
+    }
     active_states = {MissionState.queued, MissionState.running, MissionState.verified}
-    active_missions = [mission for mission in missions if mission.state in active_states]
+    active_missions = [
+        mission
+        for mission in missions
+        if mission.state in active_states and mission.mission_id not in blocked_mission_ids
+    ]
     active_mission_ids = {mission.mission_id for mission in active_missions}
     verified_mission_ids = {
-        mission.mission_id for mission in missions if mission.state == MissionState.verified
+        mission.mission_id
+        for mission in missions
+        if mission.state == MissionState.verified and mission.mission_id not in blocked_mission_ids
     }
     complete_mission_ids = {
         mission.mission_id for mission in missions if mission.state == MissionState.complete
@@ -422,6 +459,7 @@ def _build_operations_agents_snapshot(
         "mission_backlog": {
             "active": len(active_mission_ids),
             "verified": len(verified_mission_ids),
+            "blocked": len(blocked_mission_ids),
             "complete": len(complete_mission_ids),
             "assigned_active": sum(pod_active_counts.values()),
         },
@@ -430,6 +468,21 @@ def _build_operations_agents_snapshot(
         "state_counts": dict(sorted(state_counts.items())),
         "agents": agents_payload,
     }
+
+
+async def _blocked_mission_ids(app: Any) -> list[str]:
+    """Completion-blocked mission ids; [] if storage cannot answer.
+
+    The summary and alerts feeds must keep working when this optional lookup
+    fails, so a storage error degrades to "none known" instead of a 500.
+    """
+    try:
+        return await asyncio.to_thread(
+            storage.list_completion_blocked_mission_ids, app.state.settings
+        )
+    except Exception as exc:  # noqa: BLE001 - feed stays up; cause is logged
+        LOGGER.warning("failed to list completion-blocked missions: %s", type(exc).__name__)
+        return []
 
 
 @router.get("/internal/operations/summary")
@@ -443,6 +496,7 @@ async def get_operations_summary(
     _main._initialize_app_state(app)
     redis_ready, db_ready = await _main.ensure_runtime_ready(app)
     state_counts = await asyncio.to_thread(storage.mission_state_counts, app.state.settings)
+    blocked_mission_ids = await _blocked_mission_ids(app) if db_ready else []
     pod_assignments = await asyncio.to_thread(storage.list_pod_assignments, app.state.settings, 500)
 
     pod_counts: dict[str, int] = {}
@@ -501,6 +555,10 @@ async def get_operations_summary(
             **_main._langgraph_runtime_payload(app),
         },
         "mission_state_counts": state_counts,
+        "blocked_mission_ids": blocked_mission_ids,
+        "knowledge_embedding_provider": str(
+            getattr(app.state.settings, "knowledge_embedding_provider", "") or "none"
+        ).lower(),
         "pod_assignment_counts": pod_counts,
         "active_lifecycle_tasks": len(getattr(app.state, "lifecycle_tasks", {})),
         "lane_activity": lane_activity,
@@ -720,11 +778,20 @@ async def get_operations_alerts(
         app.state.settings,
         500,
     )
-    blocked_completion_count = sum(
-        1
+    blocked_events = [
+        event
         for event in recent_events
         if getattr(event, "event_type", "") == "MISSION_COMPLETION_BLOCKED"
-    )
+    ]
+    blocked_completion_count = len(blocked_events)
+    blocked_mission_ids = await _blocked_mission_ids(app) if db_ready else []
+    blocked_set = set(blocked_mission_ids)
+    blocked_times = [
+        event.ts
+        for event in blocked_events
+        if getattr(event, "mission_id", None) in blocked_set and getattr(event, "ts", None)
+    ]
+    blocked_since = min(blocked_times).isoformat() if blocked_times else None
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
@@ -739,6 +806,8 @@ async def get_operations_alerts(
         blocked_completion_count=blocked_completion_count,
         limit=limit,
         ack_states=ack_states,
+        blocked_mission_ids=blocked_mission_ids,
+        blocked_since=blocked_since,
     )
 
 

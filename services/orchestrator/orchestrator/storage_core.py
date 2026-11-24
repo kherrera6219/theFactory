@@ -200,6 +200,9 @@ _DIAGNOSTIC_TABLES: tuple[str, ...] = (
 )
 
 
+_EXACT_COUNT_THRESHOLD = 200_000
+
+
 def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
     """Return non-sensitive PostgreSQL schema, pool, and table row-count diagnostics."""
     pool_info: dict[str, Any] = {
@@ -246,15 +249,31 @@ def get_database_diagnostics(settings: Settings) -> dict[str, Any]:
 
                 cur.execute(
                     """
-                    SELECT relname, GREATEST(reltuples::bigint, 0)
+                    SELECT relname, reltuples::bigint
                     FROM pg_class
                     WHERE relname = ANY(%s)
                     """,
                     (list(_DIAGNOSTIC_TABLES),),
                 )
+                estimates: dict[str, int] = {}
                 for row in cur.fetchall() or []:
                     if row and len(row) >= 2:
-                        table_counts[str(row[0])] = max(0, int(row[1]))
+                        estimates[str(row[0])] = int(row[1])
+                # reltuples is only refreshed by ANALYZE/autovacuum, so a young
+                # install reported 0 artifacts and 0 knowledge rows while holding
+                # dozens. Count exactly unless a table is genuinely large; -1
+                # means "never analyzed", which is treated as small.
+                for name in _DIAGNOSTIC_TABLES:
+                    if name not in estimates:
+                        continue
+                    estimate = estimates[name]
+                    if estimate < _EXACT_COUNT_THRESHOLD:
+                        # Table names come from the fixed _DIAGNOSTIC_TABLES allowlist.
+                        cur.execute(f"SELECT COUNT(*) FROM {name}")  # noqa: S608  # nosec B608
+                        count_row = cur.fetchone()
+                        table_counts[name] = int(count_row[0]) if count_row else 0
+                    else:
+                        table_counts[name] = estimate
     except Exception as exc:
         logger.debug("failed to query table row counts for diagnostics: %s", exc)
 

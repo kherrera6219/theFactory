@@ -19,6 +19,14 @@ import {
   isTerminalState,
   normalizeState,
 } from "../../lib/format";
+import { SUPPORTED_TARGET_LANGUAGES } from "../../lib/language";
+import {
+  missionDisplayState,
+  missionStateTone,
+  missionTitle,
+  shortMissionId,
+  withoutSystemMissions,
+} from "../../lib/mission-status";
 import type {
   DataClassification,
   DepthMode,
@@ -30,8 +38,10 @@ import type {
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import { sanitizeUserText } from "../../lib/security";
 
-const TARGET_LANGUAGES = ["python", "typescript", "go", "rust", "java", "csharp"] as const;
-type TargetLanguage = (typeof TARGET_LANGUAGES)[number];
+// Every routed language (from the generated maturity matrix), not a hand-kept six.
+const TARGET_LANGUAGES = SUPPORTED_TARGET_LANGUAGES;
+type TargetLanguage = string;
+const RECENT_VISIBLE = 8;
 
 const MISSION_TYPES: { value: MissionType; label: string }[] = [
   { value: "BUILD_NEW", label: "Build a new application from scratch" },
@@ -123,8 +133,8 @@ export default function MissionsPage() {
     if (source.mission_type) setMissionType(source.mission_type);
     if (source.depth_mode) setDepthMode(source.depth_mode);
     if (source.output_mode) setOutputMode(source.output_mode);
-    if (source.requested_target_language && TARGET_LANGUAGES.includes(source.requested_target_language as TargetLanguage)) {
-      setTargetLanguage(source.requested_target_language as TargetLanguage);
+    if (source.requested_target_language && TARGET_LANGUAGES.includes(source.requested_target_language)) {
+      setTargetLanguage(source.requested_target_language);
     }
     if (source.data_classification) setDataClassification(source.data_classification);
     // Scroll the form panel into view so the operator can see what was pre-filled.
@@ -152,7 +162,7 @@ export default function MissionsPage() {
     setMissionListError(null);
     try {
       const data = await listMissions(MISSION_LIST_LIMIT);
-      setRecentMissions(data);
+      setRecentMissions(withoutSystemMissions(data));
       setLastFetchAt(new Date().toISOString());
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : "Unable to load recent missions.";
@@ -305,7 +315,8 @@ export default function MissionsPage() {
         description="Submit new refinery missions, monitor transition states, and recover safely from runtime interruptions."
       />
 
-      <Panel className="form-panel" title="Launch Mission">
+      <div className="mission-console-main">
+      <Panel title="Launch Mission">
         <form onSubmit={submitMission}>
           {/* Phase 2C — optional human-readable mission name */}
           <div className="mission-name-field">
@@ -438,8 +449,41 @@ export default function MissionsPage() {
         </form>
       </Panel>
 
+      <Panel title="Transition Timeline">
+        {!mission && (
+          <EmptyState title="No timeline yet" compact>
+            Mission events appear here after submission or after selecting a recent mission.
+          </EmptyState>
+        )}
+        {mission && events.length === 0 && (
+          <EmptyState title="Waiting for state events" compact>
+            The mission is selected, but no transition events have been returned by the runtime yet.
+          </EmptyState>
+        )}
+        {events.length > 0 && (
+          <dl>
+            {events.map((missionEvent, index) => (
+              <div key={`${missionEvent.ts}-${index}`}>
+                <dt>{missionEvent.event_type}</dt>
+                <dd>
+                  {missionEvent.previous_state ? `${humanizeState(missionEvent.previous_state)} -> ` : ""}
+                  {humanizeState(missionEvent.new_state)} at {formatTime(missionEvent.ts)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {pollFailures > 0 && (
+          <p className="help-text">
+            Poll retries: {pollFailures}. If this keeps increasing, check API availability and network health.
+          </p>
+        )}
+      </Panel>
+      </div>
+
+      <div className="mission-console-side">
       <Panel
-        title="My Recent Missions"
+        title="Recent Missions"
         actions={
           <>
             {lastRefreshedLabel && (
@@ -486,7 +530,7 @@ export default function MissionsPage() {
         )}
         {!missionListLoading && recentMissions.length > 0 && (
           <ul className="mission-list">
-            {recentMissions.map((item) => {
+            {recentMissions.slice(0, RECENT_VISIBLE).map((item) => {
               const isActive = item.mission_id === selectedMissionId;
               return (
                 <li key={item.mission_id}>
@@ -497,18 +541,16 @@ export default function MissionsPage() {
                       onClick={() => selectMission(item)}
                       aria-current={isActive ? "true" : undefined}
                     >
-                      {/* Phase 2C — show human name when available */}
-                      {(item.metadata as Record<string, unknown> | undefined)?.name
-                        ? <span className="mission-item-name">{String((item.metadata as Record<string, unknown>).name)}</span>
-                        : null}
-                      <span className="mono-id">{item.mission_id.slice(0, 8)}…</span>
+                      <span className="mission-item-name">{missionTitle(item)}</span>
                       <span className="mission-item-meta">
-                        {humanizeState(item.state)} • {formatDateTime(item.created_at)}
+                        <span className={`state-pill ${missionStateTone(item)}`}>
+                          {missionDisplayState(item)}
+                        </span>
+                        {formatDateTime(item.created_at)}
                       </span>
                     </button>
                     <div className="mission-item-actions">
-                      {/* Phase 2I — copy full mission ID to clipboard */}
-                      <CopyId id={item.mission_id} display={item.mission_id.slice(0, 8) + "…"} />
+                      <CopyId id={item.mission_id} display={shortMissionId(item.mission_id)} />
                       <button
                         type="button"
                         className="secondary-button"
@@ -518,10 +560,10 @@ export default function MissionsPage() {
                         Duplicate
                       </button>
                       <Link
-                        href={`/missions/detail?id=${item.mission_id}`}
+                        href={`/missions/detail?id=${encodeURIComponent(item.mission_id)}`}
                         className="secondary-button shell-link-button mission-live-link"
                       >
-                        View Live
+                        Open
                       </Link>
                     </div>
                   </div>
@@ -530,10 +572,15 @@ export default function MissionsPage() {
             })}
           </ul>
         )}
+        {!missionListLoading && recentMissions.length > 0 ? (
+          <p className="muted mission-list-footer">
+            Showing the latest {Math.min(RECENT_VISIBLE, recentMissions.length)}.{" "}
+            <Link href="/missions/history">All missions in Mission History →</Link>
+          </p>
+        ) : null}
       </Panel>
 
       <Panel
-        className="status-panel"
         title="Mission Status"
         actions={
           <StatusBadge
@@ -664,36 +711,7 @@ export default function MissionsPage() {
         )}
       </Panel>
 
-      <Panel title="Transition Timeline">
-        {!mission && (
-          <EmptyState title="No timeline yet" compact>
-            Mission events appear here after submission or after selecting a recent mission.
-          </EmptyState>
-        )}
-        {mission && events.length === 0 && (
-          <EmptyState title="Waiting for state events" compact>
-            The mission is selected, but no transition events have been returned by the runtime yet.
-          </EmptyState>
-        )}
-        {events.length > 0 && (
-          <dl>
-            {events.map((missionEvent, index) => (
-              <div key={`${missionEvent.ts}-${index}`}>
-                <dt>{missionEvent.event_type}</dt>
-                <dd>
-                  {missionEvent.previous_state ? `${humanizeState(missionEvent.previous_state)} -> ` : ""}
-                  {humanizeState(missionEvent.new_state)} at {formatTime(missionEvent.ts)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {pollFailures > 0 && (
-          <p className="help-text">
-            Poll retries: {pollFailures}. If this keeps increasing, check API availability and network health.
-          </p>
-        )}
-      </Panel>
+      </div>
     </div>
   );
 }

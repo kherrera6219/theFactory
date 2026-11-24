@@ -332,11 +332,29 @@ async def _advance_verified_to_complete(
             mission.metadata,
             mission.requested_target_language,
         )
-        append_chain_event(
-            qc_metadata,
-            event_type="MISSION_COMPLETION_BLOCKED",
-            agent_id=CEO_AGENT_ID,
-            details={
+        # _prepare_runtime_qc also returns "not ready" when the mission's LLM
+        # spend passed its approved cap, even after QC passed. Recording that as
+        # "runtime QC did not pass" (with verdict PASS beside it) sent operators
+        # looking at QC for a budget stop.
+        spend_cap = qc_metadata.get("spend_cap")
+        spend_cap_paused = bool(qc_metadata.get("spend_cap_hit")) or (
+            isinstance(spend_cap, dict) and spend_cap.get("state") == "pause"
+        )
+        if spend_cap_paused:
+            cap = spend_cap if isinstance(spend_cap, dict) else {}
+            block_details: dict[str, Any] = {
+                "gate": "spend_cap",
+                "reason": (
+                    "LLM spend passed the approved cap, so the mission is paused "
+                    "before completion"
+                ),
+                "actual_usd": cap.get("actual_usd"),
+                "cap_usd": cap.get("cap_usd"),
+                "quoted_usd": cap.get("quoted_usd"),
+                "qc_verdict": runtime_qc_report.get("verdict"),
+            }
+        else:
+            block_details = {
                 "gate": "runtime_qc",
                 "reason": "runtime QC did not pass, so the mission may not complete",
                 "verdict": runtime_qc_report.get("verdict"),
@@ -344,7 +362,12 @@ async def _advance_verified_to_complete(
                 "filename": runtime_qc_report.get("filename"),
                 "execution_type": runtime_qc_report.get("execution_type"),
                 "stderr_excerpt": str(runtime_qc_report.get("stderr_preview") or "")[:400],
-            },
+            }
+        append_chain_event(
+            qc_metadata,
+            event_type="MISSION_COMPLETION_BLOCKED",
+            agent_id=CEO_AGENT_ID,
+            details=block_details,
         )
         await asyncio.to_thread(
             _pkg().storage.update_mission_metadata,
@@ -363,17 +386,19 @@ async def _advance_verified_to_complete(
             MissionState.verified,
             "MISSION_COMPLETION_BLOCKED",
         )
-        await asyncio.to_thread(
-            _pkg().storage.insert_mission_event,
-            settings,
-            mission_id,
-            MissionState.verified,
-            MissionState.verified,
-            "MISSION_RUNTIME_QC_BLOCKED",
-        )
+        if not spend_cap_paused:
+            await asyncio.to_thread(
+                _pkg().storage.insert_mission_event,
+                settings,
+                mission_id,
+                MissionState.verified,
+                MissionState.verified,
+                "MISSION_RUNTIME_QC_BLOCKED",
+            )
         LOGGER.info(
-            "v2: mission %s blocked by runtime QC report %s (exit=%s)",
+            "v2: mission %s blocked by %s (qc=%s exit=%s)",
             mission_id,
+            block_details["gate"],
             runtime_qc_report.get("verdict"),
             runtime_qc_report.get("exit_code"),
         )

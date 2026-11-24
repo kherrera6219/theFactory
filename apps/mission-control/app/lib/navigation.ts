@@ -14,13 +14,16 @@ export type NavGroup = {
  * and a hairline divider. The flat NAV_ITEMS export is derived from this for
  * any code that still needs a flat list (e.g., active-path matching).
  */
+// Builder and LogicNodes are intentionally not listed (2026-11-23). Builder
+// duplicated Chat with a weaker plan and no SOW; LogicNodes is an engine view
+// that is empty for most missions and is linked from a mission's detail page
+// when that mission has extracted nodes. Both routes still work for old links.
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Workflow",
     items: [
       { href: "/", label: "Home", description: "Launch pad and system health" },
       { href: "/chat", label: "Chat", description: "PM Agent conversation and mission intake" },
-      { href: "/builder", label: "Builder", description: "Guided mission builder with review preview" },
       { href: "/missions", label: "Missions", description: "Mission lifecycle control center" },
       { href: "/projects", label: "Projects", description: "Operations projects and audit trail" },
       { href: "/missions/history", label: "Mission History", description: "Full archive under mission operations" },
@@ -30,7 +33,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Observability",
     items: [
       { href: "/agents", label: "Agents", description: "Agent and pod monitoring" },
-      { href: "/logicnodes", label: "LogicNodes", description: "Logic graph explorer and details" },
       { href: "/protocol-bus", label: "Protocol Bus", description: "Live protocol stream and filters" },
       { href: "/alerts", label: "Alerts", description: "System alerts and health events" },
       { href: "/performance", label: "Performance", description: "Mission throughput and latency metrics" },

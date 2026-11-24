@@ -660,9 +660,13 @@ export async function createPmFeatureContract(payload: PmFeatureContractRequest)
       : {}),
   };
 
+  // A grounded, high-effort SOW routinely takes 30-60 s and Gemini is allowed
+  // 180 s. This was 30 s: the browser aborted good answers mid-flight and the
+  // chat substituted a Builder preview labelled "local fallback". Keep this
+  // above the Next route (230 s) and gateway (220 s) timeouts.
   return fetchJson<PmFeatureContractResponse>("/api/pm/feature-contract", {
     method: "POST",
-    timeoutMs: 30_000,
+    timeoutMs: 240_000,
     body: JSON.stringify(normalizedPayload),
   });
 }

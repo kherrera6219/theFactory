@@ -24,6 +24,7 @@ from fastapi import FastAPI
 
 from . import storage
 from .agent_registry import AGENT_REGISTRY, normalize_language
+from .mission_attention import is_system_mission, mission_is_blocked
 from .models import AgentHeartbeatUpsert, MissionRecord, MissionState
 from .runtime import ensure_runtime_ready
 
@@ -251,13 +252,19 @@ def _build_non_pod_heartbeat_payloads(
     runtime: dict[str, bool],
     missions: list[MissionRecord],
 ) -> list[AgentHeartbeatUpsert]:
+    # Synthesized agents show work only for missions that are actually moving:
+    # not the internal Knowledge Lake rows, and not missions a completion gate
+    # has parked in VERIFIED (those wait on an operator, nobody is working them).
+    missions = [
+        mission
+        for mission in missions
+        if not is_system_mission(mission.mission_id) and not mission_is_blocked(mission)
+    ]
     active_states = {MissionState.queued, MissionState.running, MissionState.verified}
     active_missions = [mission for mission in missions if mission.state in active_states]
     verified_missions = [mission for mission in missions if mission.state == MissionState.verified]
-    complete_missions = [mission for mission in missions if mission.state == MissionState.complete]
     active_ids = sorted({mission.mission_id for mission in active_missions})
     verified_ids = sorted({mission.mission_id for mission in verified_missions})
-    complete_ids = sorted({mission.mission_id for mission in complete_missions})
 
     systems_languages = {"go", "rust", "c", "cpp", "zig"}
     systems_ids: list[str] = []
@@ -277,7 +284,9 @@ def _build_non_pod_heartbeat_payloads(
         elif agent.short_code == "TESTER":
             related = verified_ids
         elif agent.short_code == "DEPLOY":
-            related = complete_ids
+            # Deployment readiness runs as a mission leaves VERIFIED; finished
+            # missions are not queued work.
+            related = verified_ids
         elif agent.short_code == "HW":
             related = systems_ids
         else:

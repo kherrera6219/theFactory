@@ -67,7 +67,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(modifiedPayload),
       cache: "no-store",
-      signal: AbortSignal.timeout(120_000),
+      // Above the gateway's 220 s upstream timeout, below the browser's 240 s.
+      signal: AbortSignal.timeout(230_000),
     });
 
     const text = await upstream.text();
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     const marker = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : "";
     if (marker.includes("abort") || marker.includes("timeout") || marker.includes("timed out")) {
       return NextResponse.json(
-        { detail: "The PM feature-contract request timed out while the runtime was warming up." },
+        { detail: "The PM Agent did not finish drafting the Statement of Work in time. Your message is kept; send it again to retry." },
         { status: 504 },
       );
     }

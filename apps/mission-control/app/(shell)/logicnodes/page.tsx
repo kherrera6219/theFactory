@@ -162,7 +162,9 @@ function LogicNodesPageContent() {
         {loading && <p className="muted">Loading logicnodes...</p>}
         {!loading && !error && filteredNodes.length === 0 && (
           <EmptyState title="Nothing to graph" compact>
-            Adjust the search or mission filter to select LogicNodes.
+            {nodes.length === 0
+              ? "No mission has extracted LogicNodes yet."
+              : "No LogicNodes match the search or mission filter."}
           </EmptyState>
         )}
         {!loading && !error && filteredNodes.length > 0 && (
@@ -184,7 +186,12 @@ function LogicNodesPageContent() {
                 "source (IMPORT_MODERNIZE, PORT, DEBUG_REPAIR, ANALYZE_ONLY) produce them — " +
                 "a BUILD_NEW mission generates its logic from the mission contract instead, " +
                 "and an empty result here is expected."
-              : "Run a mission that extracts logic artifacts, or clear the search and mission filters."}
+              : nodes.length === 0
+                ? "No mission has extracted LogicNodes yet. They come from missions that read " +
+                  "existing source (IMPORT_MODERNIZE, PORT, DEBUG_REPAIR, ANALYZE_ONLY) with an " +
+                  "extractor for that language; BUILD_NEW missions generate logic from the " +
+                  "contract instead."
+                : "Clear the search to see all LogicNodes."}
           </EmptyState>
         )}
         {!loading && !error && filteredNodes.length > 0 && (

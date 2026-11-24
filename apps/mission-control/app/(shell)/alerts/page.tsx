@@ -9,6 +9,7 @@ import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import { listOperationsAlerts, updateAlertState } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
+import { shortMissionId } from "../../lib/mission-status";
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import type { AlertRecord, OperationsAlertRecord } from "../../lib/types";
 
@@ -21,6 +22,7 @@ function mapAlertRecord(record: OperationsAlertRecord): AlertRecord {
     source: record.source,
     createdAt: record.created_at,
     recommendation: record.recommendation,
+    missionIds: record.mission_ids,
   };
 }
 
@@ -174,6 +176,17 @@ export default function AlertsPage() {
                 </StatusBadge>
               </div>
               <p>{alert.recommendation}</p>
+              {alert.missionIds && alert.missionIds.length > 0 ? (
+                <ul className="alert-mission-links" aria-label="Affected missions">
+                  {alert.missionIds.map((missionId) => (
+                    <li key={missionId}>
+                      <Link href={`/missions/detail?id=${encodeURIComponent(missionId)}`} className="mono-id">
+                        {shortMissionId(missionId)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <dl className="card-meta">
                 <div>
                   <dt>Severity</dt>
@@ -184,7 +197,7 @@ export default function AlertsPage() {
                   <dd>{alert.source}</dd>
                 </div>
                 <div>
-                  <dt>Created</dt>
+                  <dt>{alert.missionIds ? "Blocked since" : "Observed"}</dt>
                   <dd>{formatDateTime(alert.createdAt)}</dd>
                 </div>
               </dl>

@@ -116,7 +116,9 @@ def build_missions_router() -> APIRouter:
         return await gateway_main._proxy_post_internal(
             "/internal/pm/feature-contract",
             json_body=body_to_forward,
-            timeout=120.0,
+            # Gemini may take up to GEMINI_TIMEOUT_SECONDS (180 s) for a
+            # grounded SOW; 120 s cut real answers off.
+            timeout=220.0,
         )
 
     @router.get("/v1/missions/{mission_id}/logicnodes")

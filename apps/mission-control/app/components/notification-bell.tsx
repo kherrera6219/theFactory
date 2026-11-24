@@ -155,9 +155,14 @@ export function NotificationBell() {
                   <p className="notif-alert-meta">
                     {alert.source} · {formatDateTime(alert.created_at)}
                   </p>
-                  {alert.recommendation && (
+                  {alert.mission_ids && alert.mission_ids.length > 0 ? (
+                    <p className="notif-alert-rec">
+                      Missions: {alert.mission_ids.slice(0, 4).map((id) => id.slice(0, 16)).join(", ")}
+                      {alert.mission_ids.length > 4 ? ` +${alert.mission_ids.length - 4} more` : ""}
+                    </p>
+                  ) : alert.recommendation ? (
                     <p className="notif-alert-rec">{alert.recommendation}</p>
-                  )}
+                  ) : null}
                 </li>
               ))}
             </ul>

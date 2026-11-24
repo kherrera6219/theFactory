@@ -1,14 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useArtifactData } from './hooks/useArtifactData';
 import { OutputHeader } from './components/OutputHeader';
 import { FileTreePane } from './components/FileTreePane';
 import { CodeViewerPane } from './components/CodeViewerPane';
 import { ArtifactMetaPane } from './components/ArtifactMetaPane';
-import { SystemMessage } from '../../../components/status';
-import { approveReviewArtifact } from '../../../lib/api-client';
+import { EmptyState, SystemMessage } from '../../../components/status';
+import {
+  approveReviewArtifact,
+  getMissionOutputFolderStatus,
+  type MissionOutputFolderStatus,
+} from '../../../lib/api-client';
 import { copyToClipboard } from '../../../lib/clipboard';
 
 /**
@@ -40,9 +45,27 @@ function OutputPageContent() {
   const [copied, setCopied] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
 
+  const [folderStatus, setFolderStatus] = useState<MissionOutputFolderStatus | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+
+  // The real delivery folder (or none): this card used to print "output/<id>/"
+  // whether or not anything had been written there.
+  useEffect(() => {
+    if (!missionId) return;
+    let cancelled = false;
+    getMissionOutputFolderStatus(missionId)
+      .then((status) => {
+        if (!cancelled) setFolderStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setFolderStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [missionId]);
 
   useEffect(() => {
     if (!missionId) return;
@@ -114,12 +137,31 @@ function OutputPageContent() {
   }, [activeVirtualFile, activeArtifact]);
 
   const handleCopyPath = useCallback(async () => {
-    const success = await copyToClipboard(`output/${missionId}/`);
+    if (!folderStatus?.exists) return;
+    const success = await copyToClipboard(folderStatus.path);
     if (success) {
       setCopiedPath(true);
       setTimeout(() => setCopiedPath(false), 1500);
     }
-  }, [missionId]);
+  }, [folderStatus]);
+
+  if (!missionId) {
+    return (
+      <div className="page shell-page">
+        <EmptyState
+          title="Choose a mission to view its output"
+          action={
+            <Link href="/missions/history" className="secondary-button shell-link-button">
+              Open Mission History
+            </Link>
+          }
+        >
+          This page shows the code a mission generated. Open it from a mission&apos;s detail page,
+          or pick one from Mission History.
+        </EmptyState>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -158,7 +200,8 @@ function OutputPageContent() {
         </div>
       )}
 
-      {/* File System Path Card */}
+      {/* File System Path Card — only when the delivery folder really exists */}
+      {folderStatus?.exists ? (
       <button
         type="button"
         onClick={() => void handleCopyPath()}
@@ -189,12 +232,14 @@ function OutputPageContent() {
         }}
       >
         <span>
-          📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)', textDecoration: 'underline' }}>output/{missionId}/</code>
+          📁 Delivered to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)' }}>{folderStatus.path}</code>
+          {' '}({folderStatus.fileCount} file{folderStatus.fileCount === 1 ? '' : 's'})
         </span>
         <span style={{ fontSize: '0.85em', color: 'var(--color-primary-light, #38bdf8)' }}>
           {copiedPath ? '✓ Copied path' : 'Copy local path'}
         </span>
       </button>
+      ) : null}
 
       <div
         style={{

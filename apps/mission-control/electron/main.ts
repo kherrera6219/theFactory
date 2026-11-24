@@ -130,6 +130,44 @@ function findFreePort(): Promise<number> {
   });
 }
 
+function canListenOn(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.unref();
+    probe.once("error", () => resolve(false));
+    probe.listen(port, "127.0.0.1", () => probe.close(() => resolve(true)));
+  });
+}
+
+const DEFAULT_EMBEDDED_PORT = 47631;
+
+/**
+ * A port that stays the same across launches. The page's origin includes the
+ * port, so a fresh random port each launch wiped everything the UI keeps in
+ * browser storage (chat history, tour dismissal, accepted deliveries). Reuse
+ * the last port, then a fixed default, and only fall back to a random one --
+ * remembering it -- when both are taken.
+ */
+async function stableEmbeddedPort(): Promise<number> {
+  const portFile = path.join(app.getPath("userData"), "embedded-port.json");
+  let stored: number | null = null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(portFile, "utf-8")) as { port?: unknown };
+    if (typeof parsed.port === "number" && parsed.port > 1024 && parsed.port < 65536) stored = parsed.port;
+  } catch {
+    // first launch or unreadable file: use the default
+  }
+  for (const candidate of [stored, DEFAULT_EMBEDDED_PORT]) {
+    if (candidate !== null && (await canListenOn(candidate))) {
+      if (candidate !== stored) fs.writeFileSync(portFile, JSON.stringify({ port: candidate }));
+      return candidate;
+    }
+  }
+  const port = await findFreePort();
+  fs.writeFileSync(portFile, JSON.stringify({ port }));
+  return port;
+}
+
 function standaloneServerPath(): string {
   const candidates = standaloneServerCandidates(app.getAppPath(), process.cwd());
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
@@ -159,7 +197,7 @@ async function startEmbeddedServer(): Promise<string> {
     );
   }
 
-  const port = await findFreePort();
+  const port = await stableEmbeddedPort();
   embeddedServerProcess = spawn(process.execPath, [serverPath], {
     cwd: path.dirname(serverPath),
     env: {
@@ -435,11 +473,25 @@ async function ensureBackendConfigured(): Promise<string | null> {
   ensureTlsCertificates(path.join(deployDir, ".local"));
   const sandboxWorkspace = path.join(app.getPath("userData"), "sandbox-workspace");
   fs.mkdirSync(sandboxWorkspace, { recursive: true });
+  // Delivered mission output lives with the user's data, not in the install
+  // folder: the uninstaller removes that folder (taking the output with it),
+  // and an all-users install under Program Files cannot write there at all.
+  const missionOutput = path.join(app.getPath("userData"), "output");
+  fs.mkdirSync(missionOutput, { recursive: true });
+  const legacyOutput = path.join(deployDir, "..", "output");
+  try {
+    if (fs.existsSync(legacyOutput) && fs.readdirSync(missionOutput).length === 0) {
+      fs.cpSync(legacyOutput, missionOutput, { recursive: true, errorOnExist: false });
+    }
+  } catch (error) {
+    console.warn("Could not copy earlier mission output into the user data folder:", error);
+  }
   upsertEnvValues(envPath, {
     FACTORY_IMAGE_TAG: imageTag(),
     // Runtime QC mounts per-run workspaces from here into the sandbox; it
     // must be a host path Docker Desktop can bind-mount.
     SANDBOX_WORKSPACE_HOST_ROOT: sandboxWorkspace,
+    MISSION_OUTPUT_HOST_ROOT: missionOutput,
     COMPOSE_PROJECT_DIR: deployDir,
     // Model defaults ship with the release; refresh them like the image tag.
     ...(fs.existsSync(templatePath) ? releaseModelDefaults(templatePath) : {}),

@@ -67,6 +67,7 @@ from .storage_missions import (
     count_missions,
     fetch_mission,
     insert_mission_event,
+    list_completion_blocked_mission_ids,
     list_legacy_vaults,
     list_mission_events,
     list_missions,
@@ -127,6 +128,7 @@ __all__ = [
     "list_recent_mission_events",
     "transition_mission_state",
     "count_missions",
+    "list_completion_blocked_mission_ids",
     "mission_state_counts",
     "record_partition_result",
     # pods

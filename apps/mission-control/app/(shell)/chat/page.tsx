@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "../../components/page-header";
 import {
   createApprovedSow,
-  createBuilderPreview,
   createMission,
   createPmFeatureContract,
   createRepoZipReview,
@@ -60,7 +59,6 @@ import {
   deriveTitle,
   detectLanguages,
   detectUserIntent,
-  emptySowFields,
   errorMessage,
   extractDecisionMemory,
   formatFactoryTime,
@@ -670,41 +668,14 @@ export default function ChatPage() {
           userIntent: conversationContext.user_intent,
         };
       } catch (contractError) {
+        // Do not substitute a Builder preview dressed up as a contract: it is a
+        // different system, has no SOW, and hid the real failure (usually a
+        // timeout). Say what happened; the message stays in the box to retry.
         pmPreviewError = contractError;
-        let preview;
-        try {
-          preview = await createBuilderPreview({
-            request: normalized,
-            constraints:
-              files.length > 0
-                ? [`Attached files: ${files.map((item) => item.name).join(", ")}`]
-                : [],
-            viewMode: "desktop",
-          });
-        } catch (fallbackError) {
-          throw new Error(
-            `PM feature contract failed: ${errorMessage(pmPreviewError)}. ` +
-              `Fallback preview failed: ${errorMessage(fallbackError)}.`,
-          );
-        }
-        acknowledgement =
-          preview.plan.length > 0
-            ? preview.plan.map((step) => `${step.title}: ${step.description}`).join(" ")
-            : "Request received. I have prepared a local fallback feature contract.";
-        generatedContract = {
-          title:
-            normalized.split(" ").slice(0, 8).join(" ").replace(/[.?!]$/, "") || "New Mission",
-          languages: detected,
-          scope: summarizeScope(normalized),
-          estimatedDuration: formatFactoryTime({}),
-          ...emptySowFields(),
-          launchPrompt,
-          source: "local-fallback",
-          degraded: true,
-          degradedReason: "pm_feature_contract_unavailable",
-          conversationContext,
-          userIntent: conversationContext.user_intent,
-        };
+        throw new Error(
+          `the PM Agent could not draft a Statement of Work (${errorMessage(pmPreviewError)}). ` +
+            "Your message is still in the box — press Send to try again.",
+        );
       }
 
       setMessages((current) => [
