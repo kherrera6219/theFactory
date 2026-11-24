@@ -124,6 +124,7 @@ export function ChatInputArea({
       >
         Drag and drop files here, or attach a project ZIP to import existing software.
       </div>
+      <div className="attach-actions">
       <label className="file-input-label">
         <span>Choose files</span>
         <input
@@ -139,7 +140,7 @@ export function ChatInputArea({
           }}
         />
       </label>
-      <label className="file-input-label" style={{ marginLeft: "8px" }}>
+      <label className="file-input-label">
         <span>{repoImporting ? "Importing ZIP..." : "Attach project (ZIP)"}</span>
         <input
           type="file"
@@ -159,14 +160,14 @@ export function ChatInputArea({
       {importRepoSourceLocation && (
         <button
           type="button"
-          className="secondary"
-          style={{ marginLeft: "8px" }}
+          className="secondary-button"
           disabled={repoImporting || launching}
           onClick={() => setSourceOpen((open) => !open)}
         >
           {sourceOpen ? "Cancel folder/Git" : "Attach folder or Git URL"}
         </button>
       )}
+      </div>
       {sourceOpen && importRepoSourceLocation && (
         <div className="repo-url-row" style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
           <input
@@ -213,7 +214,7 @@ export function ChatInputArea({
           ))}
         </ul>
       )}
-      <label htmlFor="chat-input">Message</label>
+      <label htmlFor="chat-input" className="chat-input-label">Message</label>
       <textarea
         id="chat-input"
         value={input}
@@ -225,7 +226,7 @@ export function ChatInputArea({
             void sendMessage();
           }
         }}
-        placeholder="Analyze this repository and identify reliability risks before delivery."
+        placeholder="Describe what to build, or what to change in the attached project…"
         autoFocus
       />
       <div className="chat-send-row">

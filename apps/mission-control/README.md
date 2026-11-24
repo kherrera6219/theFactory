@@ -88,12 +88,15 @@ Mission Control expects Gateway routes under:
 ## Key Routes
 
 - `/`: launch overview.
-- `/dashboard`: runtime summary and status.
+- `/dashboard`: redirects to `/` (it used to be a second copy of Home).
 - `/chat`: PM-style intake surface.
 - `/missions`: mission list and controls.
-- `/missions/[id]`: mission cockpit detail.
+- `/missions/detail?id=…`: mission cockpit detail; `/missions/output?id=…`: generated code.
+- `/missions/history`: full archive with Blocked / Complete / Failed filters.
+- `/performance`: throughput, durations, slowest steps, LLM spend.
 - `/agents`: 41-agent runtime grid with persona detail.
-- `/logicnodes`: artifact explorer.
+- `/logicnodes`: LogicNode explorer — not in the sidebar; linked from mission detail when a mission has extracted nodes.
+- `/builder`: legacy review flow — not in the sidebar (Chat replaces it); the route still works.
 - `/protocol-bus`: protocol/event monitor.
 - `/databases`: data-plane status.
 - `/repo`: repo scope and source controls.

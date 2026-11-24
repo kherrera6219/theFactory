@@ -20,13 +20,25 @@ export function repoRoot(): string {
   return path.resolve(process.cwd(), "..", "..");
 }
 
+/**
+ * Host folder the orchestrator delivers mission output into. The desktop app
+ * sets MISSION_OUTPUT_ROOT to the same %APPDATA% folder it bind-mounts into the
+ * orchestrator; a source checkout falls back to <repo>/output. Deriving it from
+ * cwd alone pointed the installed app at a folder inside its own install dir
+ * that nothing writes to.
+ */
+export function missionOutputRoot(): string {
+  const configured = process.env.MISSION_OUTPUT_ROOT?.trim();
+  return configured ? path.resolve(configured) : path.resolve(repoRoot(), "output");
+}
+
 export function resolveMissionOutputFolder(missionId: string): MissionOutputFolder {
   const normalizedMissionId = missionId.trim();
   if (!MISSION_ID_PATTERN.test(normalizedMissionId)) {
     throw new Error("Invalid mission id.");
   }
 
-  const outputRoot = path.resolve(repoRoot(), "output");
+  const outputRoot = missionOutputRoot();
   const targetPath = path.resolve(outputRoot, normalizedMissionId);
   const relative = path.relative(outputRoot, targetPath);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {

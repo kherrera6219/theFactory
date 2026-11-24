@@ -17,9 +17,6 @@ import type { AgentRuntimeClass, OperationsAgentRecord, OperationsAgentsSnapshot
 
 const POLL_INTERVAL_MS = 2000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
-const AGENT_TABLE_HEIGHT_PX = 440;
-const AGENT_TABLE_ROW_HEIGHT_PX = 46;
-const AGENT_TABLE_OVERSCAN_ROWS = 8;
 const AGENT_LOG_HEIGHT_PX = 280;
 const AGENT_LOG_ROW_HEIGHT_PX = 54;
 const AGENT_LOG_OVERSCAN_ROWS = 8;
@@ -73,7 +70,6 @@ export default function AgentsPage() {
   const [streamEventsSeen, setStreamEventsSeen] = useState(0);
   const [streamErrors, setStreamErrors] = useState(0);
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
-  const [agentTableScrollTop, setAgentTableScrollTop] = useState(0);
   const [agentLogScrollTop, setAgentLogScrollTop] = useState(0);
   const lastStreamRefreshRef = useRef(0);
   const lastSnapshotLabel = useLastRefreshed(lastSnapshotAt);
@@ -257,29 +253,6 @@ export default function AgentsPage() {
     [agents, viewMode, tierFilter, podFilter, stateFilter],
   );
 
-  const virtualizedAgents = useMemo(() => {
-    const totalRows = filteredAgents.length;
-    if (totalRows === 0) {
-      return {
-        rows: [] as OperationsAgentRecord[],
-        topSpacerHeight: 0,
-        bottomSpacerHeight: 0,
-      };
-    }
-
-    const visibleRows = Math.ceil(AGENT_TABLE_HEIGHT_PX / AGENT_TABLE_ROW_HEIGHT_PX);
-    const startIndexRaw = Math.max(
-      0,
-      Math.floor(agentTableScrollTop / AGENT_TABLE_ROW_HEIGHT_PX) - AGENT_TABLE_OVERSCAN_ROWS,
-    );
-    const startIndex = Math.min(totalRows - 1, startIndexRaw);
-    const endExclusive = Math.min(totalRows, startIndex + visibleRows + AGENT_TABLE_OVERSCAN_ROWS * 2);
-    return {
-      rows: filteredAgents.slice(startIndex, endExclusive),
-      topSpacerHeight: startIndex * AGENT_TABLE_ROW_HEIGHT_PX,
-      bottomSpacerHeight: Math.max(0, (totalRows - endExclusive) * AGENT_TABLE_ROW_HEIGHT_PX),
-    };
-  }, [filteredAgents, agentTableScrollTop]);
 
   const selectedAgentLogs = useMemo(() => {
     if (!selectedAgent) {
@@ -517,13 +490,19 @@ export default function AgentsPage() {
               <span>{snapshot.total_agents}</span>
             </li>
             <li>
-              <strong>Active missions</strong>
+              <strong>Missions in progress</strong>
               <span>{snapshot.mission_backlog.active}</span>
             </li>
             <li>
-              <strong>Verified missions</strong>
+              <strong>Verified, awaiting delivery</strong>
               <span>{snapshot.mission_backlog.verified}</span>
             </li>
+            {typeof snapshot.mission_backlog.blocked === "number" ? (
+              <li>
+                <strong>Blocked by a completion gate</strong>
+                <span>{snapshot.mission_backlog.blocked}</span>
+              </li>
+            ) : null}
             <li>
               <strong>Completed missions</strong>
               <span>{snapshot.mission_backlog.complete}</span>
@@ -550,16 +529,13 @@ export default function AgentsPage() {
         actions={lastSnapshotLabel ? <span className="last-refreshed">{lastSnapshotLabel}</span> : undefined}
       >
         <p className="muted">
-          Showing {filteredAgents.length} of {agents.length} agents. Windowed rows: {virtualizedAgents.rows.length}.
-          Last snapshot: {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
+          {filteredAgents.length === agents.length
+            ? `${agents.length} agents.`
+            : `${filteredAgents.length} of ${agents.length} agents match the filters.`}{" "}
+          Synthesized agents are registry personas whose state is derived from mission progress,
+          not live processes. Last snapshot: {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
         </p>
-        <div
-          className="table-wrap virtualized-table-wrap"
-          tabIndex={0}
-          aria-label="Scrollable agent roster"
-          style={{ maxHeight: `${AGENT_TABLE_HEIGHT_PX}px` }}
-          onScroll={(event) => setAgentTableScrollTop(event.currentTarget.scrollTop)}
-        >
+        <div className="table-wrap">
           <table className="data-table">
             <caption className="sr-only">
               Full agent roster with state, queue depth, workload, and specialization.
@@ -578,24 +554,13 @@ export default function AgentsPage() {
               </tr>
             </thead>
             <tbody>
-              {virtualizedAgents.topSpacerHeight > 0 && (
-                <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={9} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
-                </tr>
-              )}
-              {virtualizedAgents.rows.map((agent) => (
+              {filteredAgents.map((agent) => (
                 <AgentRow
                   key={agent.agent_id}
                   agent={agent}
                   onSelect={() => setSelectedAgent(agent)}
-                  rowClassName="virtualized-row"
                 />
               ))}
-              {virtualizedAgents.bottomSpacerHeight > 0 && (
-                <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={9} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

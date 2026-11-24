@@ -3,33 +3,80 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { PageHeader } from "../../components/page-header";
-import { Panel } from "../../components/panel";
-import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../../components/status";
-import { humanizeState } from "../../lib/format";
-import { useLastRefreshed } from "../../lib/use-last-refreshed";
+import { PageHeader } from "../components/page-header";
+import { Panel } from "../components/panel";
+import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../components/status";
+import { humanizeState, normalizeState } from "../lib/format";
+import {
+  completionBlockReason,
+  isCompletionBlocked,
+  missionTitle,
+  shortMissionId,
+  withoutSystemMissions,
+} from "../lib/mission-status";
+import { useLastRefreshed } from "../lib/use-last-refreshed";
 import {
   getGatewayHealth,
   getGatewayReadyState,
   getOperationsSummary,
   listMissions,
-} from "../../lib/api-client";
-import type { GatewayHealth, MissionRecord, OperationsSummary } from "../../lib/types";
+} from "../lib/api-client";
+import type { GatewayHealth, MissionRecord, OperationsSummary } from "../lib/types";
 
 const POLL_INTERVAL_MS = 5000;
 
-function summarizeStates(missions: MissionRecord[]) {
-  const summary = new Map<string, number>();
-  for (const mission of missions) {
-    const state = mission.state.toUpperCase();
-    summary.set(state, (summary.get(state) ?? 0) + 1);
+type MissionCounts = {
+  total: number;
+  inProgress: number;
+  complete: number;
+  blocked: number;
+  failed: number;
+  byState: Array<[string, number]>;
+};
+
+/**
+ * Counts from the orchestrator summary when available (it already excludes the
+ * internal Knowledge Lake missions and lists completion-blocked ones), else from
+ * the mission list. "Blocked" is pulled out of VERIFIED: those missions are
+ * parked by a completion gate, not passing validation.
+ */
+function countMissions(summary: OperationsSummary | null, missions: MissionRecord[]): MissionCounts {
+  let byStateMap: Map<string, number>;
+  let blocked: number;
+  if (summary?.mission_state_counts && Object.keys(summary.mission_state_counts).length > 0) {
+    byStateMap = new Map(
+      Object.entries(summary.mission_state_counts).map(([state, count]) => [normalizeState(state), count]),
+    );
+    blocked = summary.blocked_mission_ids?.length ?? missions.filter(isCompletionBlocked).length;
+  } else {
+    byStateMap = new Map();
+    for (const mission of missions) {
+      const state = normalizeState(mission.state);
+      byStateMap.set(state, (byStateMap.get(state) ?? 0) + 1);
+    }
+    blocked = missions.filter(isCompletionBlocked).length;
   }
-  return Array.from(summary.entries())
-    .sort((left, right) => right[1] - left[1])
-    .slice(0, 4);
+  const total = Array.from(byStateMap.values()).reduce((acc, count) => acc + count, 0);
+  const complete = byStateMap.get("COMPLETE") ?? 0;
+  const failed = byStateMap.get("FAILED") ?? 0;
+  if (blocked > 0) {
+    const verified = (byStateMap.get("VERIFIED") ?? 0) - blocked;
+    if (verified > 0) byStateMap.set("VERIFIED", verified);
+    else byStateMap.delete("VERIFIED");
+    byStateMap.set("BLOCKED", blocked);
+  }
+  const byState = Array.from(byStateMap.entries()).sort((left, right) => right[1] - left[1]);
+  return {
+    total,
+    inProgress: Math.max(0, total - complete - failed - blocked),
+    complete,
+    blocked,
+    failed,
+    byState,
+  };
 }
 
-export default function DashboardPage() {
+export default function LaunchPad() {
   const [missions, setMissions] = useState<MissionRecord[]>([]);
   const [summary, setSummary] = useState<OperationsSummary | null>(null);
   const [health, setHealth] = useState<GatewayHealth | null>(null);
@@ -41,42 +88,15 @@ export default function DashboardPage() {
 
   const lastRefreshedLabel = useLastRefreshed(lastFetchAt);
 
-  const stateSummary = useMemo(() => {
-    if (summary?.mission_state_counts && Object.keys(summary.mission_state_counts).length > 0) {
-      return Object.entries(summary.mission_state_counts)
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, 5);
-    }
-    return summarizeStates(missions);
-  }, [summary, missions]);
-
-  const totalMissions = useMemo(() => {
-    if (summary?.mission_state_counts && Object.keys(summary.mission_state_counts).length > 0) {
-      return Object.values(summary.mission_state_counts).reduce((acc, count) => acc + count, 0);
-    }
-    return missions.length;
-  }, [summary, missions]);
-
-  const runningCount = useMemo(() => {
-    if (summary?.mission_state_counts) {
-      return summary.mission_state_counts["RUNNING"] ?? 0;
-    }
-    return missions.filter((item) => item.state.toUpperCase() === "RUNNING").length;
-  }, [summary, missions]);
-
-  const verifiedCount = useMemo(() => {
-    if (summary?.mission_state_counts) {
-      return summary.mission_state_counts["VERIFIED"] ?? 0;
-    }
-    return missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length;
-  }, [summary, missions]);
-
-  const failedCount = useMemo(() => {
-    if (summary?.mission_state_counts) {
-      return summary.mission_state_counts["FAILED"] ?? 0;
-    }
-    return missions.filter((item) => item.state.toUpperCase() === "FAILED").length;
-  }, [summary, missions]);
+  const counts = useMemo(() => countMissions(summary, missions), [summary, missions]);
+  const stateSummary = counts.byState;
+  const attentionMissions = useMemo(
+    () =>
+      missions.filter(
+        (mission) => isCompletionBlocked(mission) || normalizeState(mission.state) === "FAILED",
+      ),
+    [missions],
+  );
 
   const loadData = useCallback(async (isInitial = false) => {
     if (isInitial) {
@@ -92,7 +112,7 @@ export default function DashboardPage() {
         getGatewayHealth().catch(() => null),
         getGatewayReadyState().catch(() => null),
       ]);
-      setMissions(data);
+      setMissions(withoutSystemMissions(data));
       if (summaryData) {
         setSummary(summaryData);
       }
@@ -168,34 +188,69 @@ export default function DashboardPage() {
         <div className="kpi-grid" aria-label="Mission metrics">
           <MetricCard
             label="Total Missions"
-            value={error ? "—" : totalMissions}
+            value={error ? "—" : counts.total}
             loading={loading}
             tone={error ? "neutral" : "info"}
-            detail={error ? "Waiting for runtime" : "Loaded from mission service"}
+            detail={error ? "Waiting for runtime" : "Excludes internal Knowledge Lake records"}
           />
           <MetricCard
-            label="Running"
-            value={error ? "—" : runningCount}
+            label="In Progress"
+            value={error ? "—" : counts.inProgress}
             loading={loading}
             tone="warning"
-            detail="Active execution"
+            detail="Moving through the pipeline now"
           />
           <MetricCard
-            label="Verified"
-            value={error ? "—" : verifiedCount}
+            label="Complete"
+            value={error ? "—" : counts.complete}
             loading={loading}
             tone="healthy"
-            detail="Passed validation"
+            detail="Delivered"
           />
           <MetricCard
-            label="Failed"
-            value={error ? "—" : failedCount}
+            label="Needs Attention"
+            value={error ? "—" : counts.blocked + counts.failed}
             loading={loading}
-            tone="critical"
-            detail="Needs operator attention"
+            tone={counts.blocked + counts.failed > 0 ? "critical" : "neutral"}
+            detail={`${counts.blocked} blocked · ${counts.failed} failed`}
           />
         </div>
       </Panel>
+
+      {attentionMissions.length > 0 ? (
+        <Panel
+          title="Needs Attention"
+          description="Missions a completion gate has parked, or that failed. Open one to see its chain trace."
+        >
+          <ul className="attention-list">
+            {attentionMissions.slice(0, 8).map((mission) => {
+              const reason = completionBlockReason(mission);
+              const failed = normalizeState(mission.state) === "FAILED";
+              return (
+                <li key={mission.mission_id}>
+                  <div className="attention-list-main">
+                    <Link href={`/missions/detail?id=${encodeURIComponent(mission.mission_id)}`}>
+                      {missionTitle(mission)}
+                    </Link>
+                    <span className="muted mono-id">{shortMissionId(mission.mission_id)}</span>
+                  </div>
+                  <p className="attention-list-reason">
+                    <StatusBadge tone={failed ? "critical" : "warning"}>
+                      {failed ? "Failed" : reason?.gate ?? "Blocked"}
+                    </StatusBadge>
+                    <span>{failed ? "The mission failed." : reason?.reason}</span>
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          {attentionMissions.length > 8 ? (
+            <Link href="/missions/history" className="ghost-button shell-link-button">
+              View all {attentionMissions.length} in Mission History
+            </Link>
+          ) : null}
+        </Panel>
+      ) : null}
 
       <Panel title="Runtime Health">
         <ul className="summary-list">

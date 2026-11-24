@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { listMissions, getOperationsAgents, listOperationsLogicNodes } from "../lib/api-client";
-import { humanizeState, formatDateTime } from "../lib/format";
+import { formatDateTime } from "../lib/format";
+import {
+  isSystemMission,
+  missionDisplayState,
+  missionSearchText,
+  missionTitle,
+  shortMissionId,
+} from "../lib/mission-status";
 import { NAV_GROUPS } from "../lib/navigation";
 import type { MissionRecord } from "../lib/types";
 
@@ -17,7 +24,6 @@ const NAV_SHORTCUTS: Record<string, string> = {
   "/chat": "Ctrl+N",
   "/missions": "Ctrl+M",
   "/agents": "Ctrl+A",
-  "/logicnodes": "Ctrl+L",
   "/protocol-bus": "Ctrl+B",
   "/settings": "Ctrl+,",
 };
@@ -198,23 +204,23 @@ export function CommandPalette() {
     const q = debouncedQuery.trim().toLowerCase();
     if (q.length < 2) return [];
 
+    // Pages stay searchable while typing ("settings" used to return nothing).
+    const pageResults: PaletteItem[] = navItems.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) || String(item.sublabel ?? "").toLowerCase().includes(q),
+    );
+
     const missionResults: PaletteItem[] = missions
-      .filter((m) => {
-        const name = String((m.metadata as Record<string, unknown> | undefined)?.name ?? "").toLowerCase();
-        return m.mission_id.toLowerCase().includes(q) || name.includes(q) || m.state.toLowerCase().includes(q);
-      })
+      .filter((m) => !isSystemMission(m.mission_id) && missionSearchText(m).includes(q))
       .slice(0, MAX_RESULTS_PER_GROUP)
-      .map((m) => {
-        const name = String((m.metadata as Record<string, unknown> | undefined)?.name ?? "");
-        return {
-          id: `mission-${m.mission_id}`,
-          group: "Missions",
-          label: name || m.mission_id.slice(0, 12) + "…",
-          sublabel: `${humanizeState(m.state)} · ${formatDateTime(m.created_at)}`,
-          icon: "◎",
-          href: `/missions/detail?id=${m.mission_id}`,
-        };
-      });
+      .map((m) => ({
+        id: `mission-${m.mission_id}`,
+        group: "Missions",
+        label: missionTitle(m),
+        sublabel: `${shortMissionId(m.mission_id)} · ${missionDisplayState(m)} · ${formatDateTime(m.created_at)}`,
+        icon: "◎",
+        href: `/missions/detail?id=${encodeURIComponent(m.mission_id)}`,
+      }));
 
     const agentResults: PaletteItem[] = agents
       .filter(
@@ -245,8 +251,8 @@ export function CommandPalette() {
         href: "/logicnodes",
       }));
 
-    return [...missionResults, ...agentResults, ...nodeResults];
-  }, [debouncedQuery, missions, agents, logicNodes]);
+    return [...pageResults, ...missionResults, ...agentResults, ...nodeResults];
+  }, [debouncedQuery, missions, agents, logicNodes, navItems]);
 
   const allItems: PaletteItem[] = isSearching ? searchItems : [...navItems, ...actionItems];
 

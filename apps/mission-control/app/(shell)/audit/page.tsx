@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -9,6 +10,13 @@ import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import { listMissions, listOperationsAlerts, listOperationsEvents } from "../../lib/api-client";
 import { downloadCsv, downloadJson } from "../../lib/export";
 import { formatDateTime, humanizeState } from "../../lib/format";
+import {
+  isCompletionBlocked,
+  isSystemMission,
+  missionDisplayState,
+  missionTitle,
+  shortMissionId,
+} from "../../lib/mission-status";
 import type { MissionRecord, OperationsAlertRecord, MissionEvent } from "../../lib/types";
 
 type AuditEntry = {
@@ -19,23 +27,24 @@ type AuditEntry = {
   title: string;
   detail: string;
   source: string;
+  missionId?: string;
 };
 
 function missionToEntry(m: MissionRecord): AuditEntry {
   const state = m.state.toUpperCase();
   const sev: AuditEntry["severity"] =
     state === "FAILED" || state === "CANCELLED" ? "critical"
-    : state === "RUNNING" || state === "QUEUED" ? "warning"
+    : isCompletionBlocked(m) ? "warning"
     : "info";
-  const name = String((m.metadata as Record<string, unknown> | undefined)?.name ?? "");
   return {
     id: `mission-${m.mission_id}`,
     ts: m.created_at,
     category: "mission",
     severity: sev,
-    title: name ? `Mission: ${name}` : `Mission ${m.mission_id.slice(0, 8)}…`,
-    detail: humanizeState(m.state),
+    title: `Mission created: ${missionTitle(m)}`,
+    detail: `Now ${missionDisplayState(m)}`,
     source: "mission-service",
+    missionId: m.mission_id,
   };
 }
 
@@ -55,19 +64,32 @@ function alertToEntry(a: OperationsAlertRecord): AuditEntry {
   };
 }
 
-function eventToEntry(ev: MissionEvent, index: number): AuditEntry {
+function eventToEntry(
+  ev: MissionEvent,
+  index: number,
+  titles: Map<string, string>,
+): AuditEntry {
   const sev: AuditEntry["severity"] =
     ev.new_state.toUpperCase() === "FAILED" ? "critical"
-    : ev.new_state.toUpperCase() === "RUNNING" ? "warning"
+    : ev.event_type.includes("BLOCKED") ? "warning"
     : "info";
+  const transition =
+    ev.previous_state && ev.previous_state !== ev.new_state
+      ? `${humanizeState(ev.previous_state)} → ${humanizeState(ev.new_state)}`
+      : humanizeState(ev.new_state);
+  const missionLabel = ev.mission_id
+    ? `${titles.get(ev.mission_id) ?? shortMissionId(ev.mission_id)} · `
+    : "";
   return {
     id: `event-${ev.mission_id ?? "sys"}-${ev.ts}-${index}`,
     ts: ev.ts,
     category: "event",
     severity: sev,
     title: ev.event_type,
-    detail: `${humanizeState(ev.previous_state ?? "—")} → ${humanizeState(ev.new_state)}`,
+    // Every event used to read "Verified → Verified" with no mission named.
+    detail: `${missionLabel}${transition}`,
     source: ev.mission_id ?? "system",
+    missionId: ev.mission_id ?? undefined,
   };
 }
 
@@ -103,13 +125,17 @@ export default function AuditPage() {
         listOperationsEvents(100),
       ]);
 
-      const missionEntries =
-        missions.status === "fulfilled" ? missions.value.map(missionToEntry) : [];
+      const realMissions =
+        missions.status === "fulfilled"
+          ? missions.value.filter((m) => !isSystemMission(m.mission_id))
+          : [];
+      const titles = new Map(realMissions.map((m) => [m.mission_id, missionTitle(m)] as const));
+      const missionEntries = realMissions.map(missionToEntry);
       const alertEntries =
         alerts.status === "fulfilled" ? alerts.value.map(alertToEntry) : [];
       const eventEntries =
         events.status === "fulfilled"
-          ? events.value.map((ev, i) => eventToEntry(ev, i))
+          ? events.value.map((ev, i) => eventToEntry(ev, i, titles))
           : [];
 
       const all = [...missionEntries, ...alertEntries, ...eventEntries].sort(
@@ -199,7 +225,7 @@ export default function AuditPage() {
     <div className="page shell-page">
       <PageHeader
         compact
-        eyebrow="Configuration"
+        eyebrow="Observability"
         title="Audit &amp; Activity Log"
         description="Chronological activity log aggregating mission state changes, system alerts, and protocol bus events."
       />
@@ -313,7 +339,17 @@ export default function AuditPage() {
                       {formatDateTime(entry.ts)}
                     </time>
                   </div>
-                  <p className="audit-entry-detail muted">{entry.detail}</p>
+                  <p className="audit-entry-detail muted">
+                    {entry.detail}
+                    {entry.missionId ? (
+                      <>
+                        {" · "}
+                        <Link href={`/missions/detail?id=${encodeURIComponent(entry.missionId)}`}>
+                          Open mission
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
                 </li>
               ))}
             </ol>

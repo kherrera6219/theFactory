@@ -26,6 +26,12 @@ import {
 import { Tooltip } from "../../../components/tooltip";
 import { GLOSSARY } from "../../../lib/glossary";
 import { humanizeState, isTerminalState, normalizeState } from "../../../lib/format";
+import {
+  completionBlockReason,
+  missionDisplayState,
+  missionTitle,
+  shortMissionId,
+} from "../../../lib/mission-status";
 import { operatorRecoveryMessage } from "../../../lib/operator-auth-error";
 import {
   deriveMissionPhaseDescriptor,
@@ -463,9 +469,11 @@ function MissionDetailPageContent() {
         eyebrow="Mission Detail"
         title={
           mission ? (() => {
-            const missionName = String(
-              (mission.metadata as Record<string, unknown> | undefined)?.name ?? "",
-            );
+            // Operator-set name first, then the contract title / prompt, so the
+            // heading is never just a truncated id.
+            const missionName =
+              String((mission.metadata as Record<string, unknown> | undefined)?.name ?? "") ||
+              missionTitle(mission);
             return (
               <span className="mission-name-edit-wrap">
                 {editingName ? (
@@ -500,8 +508,8 @@ function MissionDetailPageContent() {
                     {missionName ? (
                       <>
                         <span>{missionName}</span>
-                        <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
-                          {mission.mission_id.slice(0, 8)}{"\u2026"}
+                        <span className="mono-id mission-heading-id">
+                          {shortMissionId(mission.mission_id)}
                         </span>
 
                         {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
@@ -540,7 +548,12 @@ function MissionDetailPageContent() {
         }
         description={
           mission
-            ? `Status ${humanizeState(mission.state)}. Live mission diagnostics for phases, active agents, and extracted LogicNodes.`
+            ? (() => {
+                const block = completionBlockReason(mission);
+                return block
+                  ? `Blocked by ${block.gate.toLowerCase()}: ${block.reason}`
+                  : `Status ${missionDisplayState(mission)}. Phases, agents, artifacts, and events for this mission.`;
+              })()
             : "Loading mission diagnostics."
         }
         actions={
@@ -556,31 +569,27 @@ function MissionDetailPageContent() {
                 Continue with PM
               </Link>
             )}
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={isTerminal}
-              title={
-                isTerminal
-                  ? "Live stream automatically stopped in terminal state"
-                  : "Toggle live refresh without affecting backend execution"
-              }
-              onClick={pauseMonitor}
-            >
-              {isTerminal
-                ? "Stream Closed"
-                : pausedMonitor
-                  ? "Resume Monitor"
-                  : "Pause Monitor"}
-            </button>
-            <button
-              type="button"
-              className="danger-button"
-              disabled={isTerminal}
-              onClick={() => void cancelMission()}
-            >
-              Cancel Mission
-            </button>
+            {/* A finished mission has nothing to pause or cancel: show its state
+                instead of disabled controls that still looked clickable. */}
+            {isTerminal ? null : (
+              <>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  title="Toggle live refresh without affecting backend execution"
+                  onClick={pauseMonitor}
+                >
+                  {pausedMonitor ? "Resume Monitor" : "Pause Monitor"}
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => void cancelMission()}
+                >
+                  Cancel Mission
+                </button>
+              </>
+            )}
           </div>
         }
       />

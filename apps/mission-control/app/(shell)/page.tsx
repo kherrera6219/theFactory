@@ -1,8 +1,7 @@
 "use client";
 
-import DashboardPage from "./dashboard/page";
+import LaunchPad from "./launch-pad";
 
 export default function HomePage() {
-  return <DashboardPage />;
+  return <LaunchPad />;
 }
-

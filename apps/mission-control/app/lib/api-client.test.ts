@@ -151,6 +151,22 @@ describe("api-client", () => {
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 30_000);
   });
 
+  it("gives the PM feature contract longer than the server-side PM timeouts", async () => {
+    // A grounded SOW takes 30-60 s; a 30 s browser timeout used to abort good
+    // answers and show a "local fallback" contract instead.
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ feature_contract: {}, mission_charter: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createPmFeatureContract({ prompt: "Build an RPG version of Pac-Man" });
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 240_000);
+  });
+
   it("normalizes builder preview camelCase request fields", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ plan: [], warnings: [] }), {

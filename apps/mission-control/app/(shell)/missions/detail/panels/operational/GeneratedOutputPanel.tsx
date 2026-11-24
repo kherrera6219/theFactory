@@ -253,7 +253,7 @@ export function GeneratedOutputPanel({
                   ? outputFolderError
                   : outputFolder?.exists
                     ? `${outputFolder.fileCount.toLocaleString()} files, ${formatBytes(outputFolder.totalBytes)}`
-                    : 'Folder not written yet'}
+                    : 'No delivery folder on disk — the code is stored in the database; use Download.'}
               </dd>
             </div>
             {outputFolder?.exists && outputFolder.files.length > 0 && (

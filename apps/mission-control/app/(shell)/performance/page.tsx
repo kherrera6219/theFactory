@@ -4,10 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { EmptyState, MetricCard, SystemMessage } from "../../components/status";
+import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../../components/status";
 import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
-import { humanizeState } from "../../lib/format";
+import { computeMissionPerformance, formatSeconds } from "../../lib/mission-performance";
 import type { GatewayHealth, MissionRecord } from "../../lib/types";
+
+const MISSION_SAMPLE = 200;
+
+function stepLabel(eventType: string): string {
+  return eventType
+    .replace(/^MISSION_/, "")
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/(^\w|\s\w)/g, (match) => match.toUpperCase());
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(value < 1 ? 4 : 2)}`;
+}
 
 export default function PerformancePage() {
   const [health, setHealth] = useState<GatewayHealth | null>(null);
@@ -25,7 +39,7 @@ export default function PerformancePage() {
         const [healthData, readyData, missionData] = await Promise.all([
           getGatewayHealth(),
           getGatewayReadyState(),
-          listMissions(40),
+          listMissions(MISSION_SAMPLE),
         ]);
         if (!cancelled) {
           setHealth(healthData);
@@ -48,91 +62,114 @@ export default function PerformancePage() {
     };
   }, []);
 
-  const metrics = useMemo(() => {
-    const failedCount = missions.filter((mission) => mission.state.toUpperCase() === "FAILED").length;
-    const runningCount = missions.filter((mission) => mission.state.toUpperCase() === "RUNNING").length;
-    const verifiedCount = missions.filter((mission) => mission.state.toUpperCase() === "VERIFIED").length;
-
-    return [
-      {
-        title: "Gateway Readiness",
-        value: ready?.ready ? "Ready" : "Not Ready",
-        trend: ready?.ready ? "All dependencies healthy" : ready?.detail ?? "Readiness details unavailable",
-      },
-      {
-        title: "Redis Health",
-        value: health?.redis_healthy ? "Healthy" : "Unavailable",
-        trend: `Stream: ${health?.intake_stream ?? "unknown"}`,
-      },
-      {
-        title: "Orchestrator Health",
-        value: health?.orchestrator_healthy ? "Healthy" : "Unavailable",
-        trend: `Endpoint: ${health?.orchestrator_url ?? "unknown"}`,
-      },
-      {
-        title: "Mission States",
-        value: `${runningCount} running / ${verifiedCount} verified`,
-        trend: `${failedCount} failed mission(s) in current snapshot`,
-      },
-    ];
-  }, [health, ready, missions]);
-
-  const stateDistribution = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const mission of missions) {
-      const state = mission.state.toUpperCase();
-      counts.set(state, (counts.get(state) ?? 0) + 1);
-    }
-    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
-  }, [missions]);
+  const perf = useMemo(() => computeMissionPerformance(missions), [missions]);
 
   return (
     <div className="page shell-page">
       <PageHeader
         compact
         eyebrow="Performance"
-        title="Runtime Capacity and Latency"
-        description="Track throughput, queue lag, and dependency health to keep refinery operations within enterprise SLO targets."
+        title="Mission Throughput and Timing"
+        description={`How fast missions are delivered, which pipeline steps take longest, and what they cost — computed from the latest ${MISSION_SAMPLE} mission records.`}
       />
 
-      <Panel title="Key Metrics">
-        {loading && <p className="muted">Collecting runtime metrics...</p>}
-        {error && (
-          <SystemMessage tone="critical" title="Performance metrics are unavailable">
-            {error} Runtime capacity metrics will populate once the gateway can return health and mission snapshots.
-          </SystemMessage>
-        )}
-        {!loading && !error && (
-          <div className="kpi-grid" aria-label="Runtime metrics">
-            {metrics.map((metric) => (
-              <MetricCard
-                key={metric.title}
-                label={metric.title}
-                value={metric.value}
-                detail={metric.trend}
-                tone={/Unavailable|Not Ready/i.test(metric.value) ? "critical" : "healthy"}
-              />
-            ))}
+      {error && (
+        <SystemMessage tone="critical" title="Performance data is unavailable">
+          {error} These figures populate once the gateway can return mission records.
+        </SystemMessage>
+      )}
+
+      <Panel title="Throughput">
+        <div className="kpi-grid" aria-label="Throughput metrics">
+          <MetricCard
+            label="Delivered (24h)"
+            value={error ? "—" : perf.deliveredLast24h}
+            loading={loading}
+            tone="info"
+            detail={`${perf.deliveredLast7d} in the last 7 days`}
+          />
+          <MetricCard
+            label="Delivery Rate"
+            value={error || perf.deliveryRate === null ? "—" : `${Math.round(perf.deliveryRate * 100)}%`}
+            loading={loading}
+            tone={perf.deliveryRate !== null && perf.deliveryRate < 0.7 ? "warning" : "healthy"}
+            detail={`${perf.delivered} delivered · ${perf.blocked} blocked · ${perf.failed} failed`}
+          />
+          <MetricCard
+            label="Median Duration"
+            value={error ? "—" : formatSeconds(perf.medianDurationSeconds)}
+            loading={loading}
+            tone="info"
+            detail={`p90 ${formatSeconds(perf.p90DurationSeconds)} · intake to delivery`}
+          />
+          <MetricCard
+            label="LLM Spend"
+            value={error ? "—" : formatUsd(perf.totalCostUsd)}
+            loading={loading}
+            tone={perf.overCap > 0 ? "warning" : "info"}
+            detail={
+              perf.costedMissions > 0
+                ? `${formatUsd(perf.totalCostUsd / perf.costedMissions)} per mission · ${perf.overCap} over cap`
+                : "No usage recorded yet"
+            }
+          />
+        </div>
+      </Panel>
+
+      <Panel
+        title="Slowest Pipeline Steps"
+        description="Median time from the previous chain event to this one, across missions."
+      >
+        {!loading && perf.steps.length === 0 ? (
+          <EmptyState title="No step timings yet" compact>
+            Step timings appear once missions record chain-trace events.
+          </EmptyState>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <caption className="sr-only">Median duration of each pipeline step</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Step</th>
+                  <th scope="col">Median time</th>
+                  <th scope="col">Samples</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perf.steps.map((step) => (
+                  <tr key={step.step}>
+                    <td>{stepLabel(step.step)}</td>
+                    <td className="mono-id">{formatSeconds(step.medianSeconds)}</td>
+                    <td className="muted">{step.samples}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Panel>
 
-      <Panel title="Mission State Distribution">
-        {stateDistribution.length === 0 && (
-          <EmptyState title={error ? "No performance distribution while runtime is offline" : "No mission state data yet"} compact>
-            Mission throughput and state distribution will appear after mission telemetry is available.
-          </EmptyState>
-        )}
-        {stateDistribution.length > 0 && (
-          <ul className="summary-list">
-            {stateDistribution.map(([state, count]) => (
-              <li key={state}>
-                <strong>{humanizeState(state)}</strong>
-                <span>{count} mission(s)</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <Panel title="Service Health">
+        <ul className="summary-list">
+          <li>
+            <strong>Gateway readiness</strong>
+            <StatusBadge tone={ready?.ready ? "healthy" : "critical"}>
+              {ready?.ready ? "Ready" : ready?.detail ?? "Not ready"}
+            </StatusBadge>
+          </li>
+          <li>
+            <strong>Redis (intake stream)</strong>
+            <StatusBadge tone={health?.redis_healthy ? "healthy" : "critical"}>
+              {health?.redis_healthy ? "Healthy" : "Unavailable"}
+            </StatusBadge>
+          </li>
+          <li>
+            <strong>Orchestrator</strong>
+            <StatusBadge tone={health?.orchestrator_healthy ? "healthy" : "critical"}>
+              {health?.orchestrator_healthy ? "Healthy" : "Unavailable"}
+            </StatusBadge>
+          </li>
+        </ul>
       </Panel>
     </div>
   );

@@ -11,10 +11,15 @@ import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
-import { fetchJson, getOperationsAgentIntegrations, createDiagnosticBundle, triggerBackup } from "../../lib/api-client";
+import {
+  createDiagnosticBundle,
+  fetchJson,
+  getOperationsAgentIntegrations,
+  getOperationsSummary,
+  triggerBackup,
+} from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
-import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
-import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
+import type { OperationsAgentIntegrationsSnapshot, OperationsSummary } from "../../lib/types";
 import {
   DEFAULT_MODEL_OPTION,
   MODEL_OPTIONS,
@@ -23,13 +28,6 @@ import {
   type ModelOption,
 } from "./model-options";
 
-type LocalPreferences = {
-  apiBaseUrl: string;
-  maxParallelAgents: number;
-  cpuLimitPct: number;
-  memoryLimitPct: number;
-  agentTopology?: "condensed" | "dedicated";
-};
 
 type VaultSlotRecord = {
   slot_id: string;
@@ -70,18 +68,7 @@ type SlotRow = {
   rotationDue: boolean;
 };
 
-const DEFAULT_PREFERENCES: LocalPreferences = {
-  apiBaseUrl: "http://localhost:8100",
-  maxParallelAgents: 8,
-  cpuLimitPct: 80,
-  memoryLimitPct: 80,
-  agentTopology: "condensed",
-};
 
-function parseNumberInput(value: string, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
 
 // FIX #2 / #6: Consistent status description + tone mapping
 function describeVaultStatus(status: SlotRow["status"]): string {
@@ -151,7 +138,6 @@ export default function SettingsPage() {
     }
   }
 
-  const [preferences, setPreferences] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
   const [snapshot, setSnapshot] = useState<OperationsAgentIntegrationsSnapshot | null>(null);
   const [vaultSlots, setVaultSlots] = useState<VaultSlotRecord[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
@@ -160,27 +146,26 @@ export default function SettingsPage() {
   const [slotLoading, setSlotLoading] = useState(false);
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [slotError, setSlotError] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [savePending, setSavePending] = useState(false);
   const [slotSearch, setSlotSearch] = useState("");
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
   // FIX #4: Slide-in edit panel visibility — opens when a row is clicked
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [runtimeSummary, setRuntimeSummary] = useState<OperationsSummary | null>(null);
+  // Every agent normally uses the same provider key; setting 41 slots one by
+  // one was the only option.
+  const [applyToAllAgents, setApplyToAllAgents] = useState(false);
   const [routeSaving, setRouteSaving] = useState(false);
   const [routeMessage, setRouteMessage] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem("mission-control:preferences");
-    if (raw) {
-      const parsed = safeJsonParse<LocalPreferences>(raw, DEFAULT_PREFERENCES);
-      setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
-    }
     if (isElectron()) {
       void electronGetAppVersion().then((v) => v && setAppVersion(v));
     }
+    void getOperationsSummary()
+      .then(setRuntimeSummary)
+      .catch(() => setRuntimeSummary(null));
   }, []);
 
   async function loadVaultAndAgents() {
@@ -313,58 +298,38 @@ export default function SettingsPage() {
     );
   }, [rows, slotSearch]);
 
-  // FIX #9: API URL gets more space; numeric fields narrower
-  function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
-    setPreferences((current) => ({ ...current, [key]: value }));
-  }
 
-  // FIX #10: Save confirmation clears after 3 seconds
-  function savePreferences() {
-    setSaveError(null);
-    setSaveMessage(null);
-    if (!isAllowedLocalApiBase(preferences.apiBaseUrl)) {
-      setSaveError("API base URL must target localhost or 127.0.0.1 for local secure mode.");
-      return;
-    }
-
-    const normalized: LocalPreferences = {
-      apiBaseUrl: preferences.apiBaseUrl.trim(),
-      maxParallelAgents: clampNumber(preferences.maxParallelAgents, 1, 35),
-      cpuLimitPct: clampNumber(preferences.cpuLimitPct, 10, 100),
-      memoryLimitPct: clampNumber(preferences.memoryLimitPct, 10, 100),
-    };
-
-    setSavePending(true);
-    try {
-      setPreferences(normalized);
-      window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
-      setSaveMessage("Preferences saved.");
-      // Auto-clear success message
-      setTimeout(() => setSaveMessage(null), 3000);
-    } catch {
-      setSaveError("Failed to save preferences — localStorage may be unavailable.");
-    } finally {
-      setSavePending(false);
-    }
-  }
+  const AGENT_SLOT_PATTERN = /^AGENT-.+-API-KEY$/i;
 
   async function saveVaultSlot() {
     if (!selectedSlot) { setSlotError("Select a slot before saving."); return; }
     const secret = slotSecretInput.trim();
     if (secret.length < 8) { setSlotError("Secret must contain at least 8 characters."); return; }
     setSlotLoading(true); setSlotError(null); setSlotMessage(null);
+    const provider = selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider;
+    const model = selectedSlotCanChooseModel ? selectedModelOption.model : selectedSlot.model;
+    const targets =
+      applyToAllAgents && AGENT_SLOT_PATTERN.test(selectedSlot.slotId)
+        ? rows.filter((row) => AGENT_SLOT_PATTERN.test(row.slotId))
+        : [selectedSlot];
     try {
-      await fetchJson<VaultMutationResponse>("/api/vault", {
-        method: "POST",
-        body: JSON.stringify({
-          slot_id: selectedSlot.slotId,
-          provider: selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider,
-          model: selectedSlotCanChooseModel ? selectedModelOption.model : selectedSlot.model,
-          secret,
-        }),
-      });
+      for (const target of targets) {
+        await fetchJson<VaultMutationResponse>("/api/vault", {
+          method: "POST",
+          body: JSON.stringify({
+            slot_id: target.slotId,
+            // Bulk apply keeps each slot's own model unless it is the one being edited.
+            provider: target.slotId === selectedSlot.slotId ? provider : target.provider,
+            model: target.slotId === selectedSlot.slotId ? model : target.model,
+            secret,
+          }),
+        });
+      }
       setSlotSecretInput("");
-      setSlotMessage(`Saved ${selectedSlot.slotId}.`);
+      setApplyToAllAgents(false);
+      setSlotMessage(
+        targets.length > 1 ? `Saved the key to ${targets.length} agent slots.` : `Saved ${selectedSlot.slotId}.`,
+      );
       // FIX #10: auto-close edit panel on success
       setTimeout(() => { setSlotMessage(null); setEditPanelOpen(false); }, 2000);
       await loadVaultAndAgents();
@@ -493,115 +458,44 @@ export default function SettingsPage() {
 
       <OperatorUnlockForm />
 
-      {/* SECTION 1 — Runtime */}
-      <Panel title={SECTION(1, "Runtime Preferences")}>
-        {/* FIX #9: API URL field is wider; numeric fields share the remaining space */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "16px", alignItems: "end" }}>
-          <label>
-            API base URL
-            <input
-              type="url"
-              value={preferences.apiBaseUrl}
-              onChange={(event) => updatePreference("apiBaseUrl", event.target.value)}
-            />
-            {preferences.apiBaseUrl &&
-              !preferences.apiBaseUrl.startsWith("https://") &&
-              !preferences.apiBaseUrl.startsWith("http://localhost") &&
-              !preferences.apiBaseUrl.startsWith("http://127.0.0.1") && (
-                <p className="warning-box" style={{ marginTop: "6px" }}>
-                  Non-HTTPS URLs are not recommended outside local development.
-                </p>
-              )}
-          </label>
-          <label>
-            Max parallel agents
-            <input
-              type="number"
-              min={1}
-              max={35}
-              value={preferences.maxParallelAgents}
-              onChange={(event) =>
-                updatePreference("maxParallelAgents", parseNumberInput(event.target.value, preferences.maxParallelAgents))
-              }
-            />
-          </label>
-          <label>
-            CPU limit (%)
-            <input
-              type="number"
-              min={10}
-              max={100}
-              value={preferences.cpuLimitPct}
-              onChange={(event) =>
-                updatePreference("cpuLimitPct", parseNumberInput(event.target.value, preferences.cpuLimitPct))
-              }
-            />
-          </label>
-          <label>
-            Memory limit (%)
-            <input
-              type="number"
-              min={10}
-              max={100}
-              value={preferences.memoryLimitPct}
-              onChange={(event) =>
-                updatePreference("memoryLimitPct", parseNumberInput(event.target.value, preferences.memoryLimitPct))
-              }
-            />
-          </label>
-        </div>
-        <div style={{ marginTop: "16px", padding: "12px", background: "#0d1117", borderRadius: "6px", border: "1px solid #30363d" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-            <div>
-              <strong style={{ fontSize: "13.5px", color: "#e6edf3" }}>Agent Deployment Topology Mode</strong>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#8b949e" }}>
-                Select runtime topology: &apos;Condensed&apos; uses shared pod workers for low resource usage; &apos;Dedicated&apos; scales 41 isolated per-language containers.
-              </p>
-            </div>
-            <select
-              id="agent-topology-select"
-              aria-label="Agent Deployment Topology Mode"
-              value={preferences.agentTopology ?? "condensed"}
-              onChange={(e) => updatePreference("agentTopology", e.target.value as "condensed" | "dedicated")}
-              style={{
-                padding: "6px 12px",
-                background: "#161b22",
-                color: "#e6edf3",
-                border: "1px solid #30363d",
-                borderRadius: "6px",
-                fontSize: "13px",
-              }}
-            >
-              <option value="condensed">Condensed (Shared Pods)</option>
-              <option value="dedicated">Dedicated (41 Isolated Containers)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* FIX #10: Save button and inline feedback in same panel as the fields */}
+      {/* SECTION 1 — Runtime. These used to be editable "preferences" (parallel
+          agents, CPU/memory %, topology) that were saved to browser storage and
+          read by nothing, so changing them did nothing. Show the real values. */}
+      <Panel
+        title={SECTION(1, "Runtime")}
+        description="Read from the running factory. Change them in the stack's environment, then restart the factory."
+      >
+        <ul className="summary-list">
+          <li>
+            <strong>Agent topology</strong>
+            <span>
+              {runtimeSummary?.topology_mode
+                ? runtimeSummary.topology_mode === "condensed"
+                  ? "Condensed — shared pod workers"
+                  : runtimeSummary.topology_mode
+                : "Unavailable"}
+            </span>
+          </li>
+          <li>
+            <strong>Knowledge embeddings</strong>
+            <span>
+              {runtimeSummary?.knowledge_embedding_provider
+                ? ["gemini", "openai"].includes(runtimeSummary.knowledge_embedding_provider)
+                  ? `${runtimeSummary.knowledge_embedding_provider} — semantic search on`
+                  : `${runtimeSummary.knowledge_embedding_provider} — semantic search off`
+                : "Unavailable"}
+            </span>
+          </li>
+          <li>
+            <strong>Gateway</strong>
+            <span>Reached through this app&apos;s <code>/api/gateway</code> proxy</span>
+          </li>
+        </ul>
         <p className="help-text" style={{ marginTop: "12px" }}>
-          Preferences below are stored locally in this browser for local UI behavior and connection targeting; cluster-wide worker orchestration limits remain governed by the running stack environment.
+          Desktop app: edit <code>%APPDATA%\theFactory Mission Control\backend.env</code>. Docker:
+          edit the repository <code>.env</code>. Topology is set by <code>TOPOLOGY_MODE</code>; the
+          dedicated per-language containers use the <code>full-dedicated-agents</code> compose profile.
         </p>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "12px" }}>
-          <button
-            type="button"
-            className="primary-button"
-            disabled={savePending}
-            onClick={savePreferences}
-          >
-            {savePending ? "Saving…" : "Save preferences"}
-          </button>
-          {saveMessage && (
-            <span style={{ fontSize: "13px", color: "var(--color-success)" }}>
-              {saveMessage}
-            </span>
-          )}
-          {saveError && (
-            <span style={{ fontSize: "13px", color: "var(--color-danger)" }}>
-              {saveError}
-            </span>
-          )}
-        </div>
       </Panel>
 
       {/* SECTION 2 — Vault */}
@@ -783,6 +677,17 @@ export default function SettingsPage() {
                 placeholder={`Paste new secret for ${selectedSlot.slotId}`}
                 style={{ width: "100%", marginTop: "6px" }}
               />
+              {/^AGENT-.+-API-KEY$/i.test(selectedSlot.slotId) ? (
+                <label className="inline-toggle" style={{ marginLeft: 0, marginTop: "10px" }}>
+                  <input
+                    type="checkbox"
+                    checked={applyToAllAgents}
+                    onChange={(event) => setApplyToAllAgents(event.target.checked)}
+                  />{" "}
+                  Apply this key to all{" "}
+                  {rows.filter((row) => /^AGENT-.+-API-KEY$/i.test(row.slotId)).length} agent slots
+                </label>
+              ) : null}
               <div className="inline-actions" style={{ marginTop: "12px" }}>
                 <button type="button" onClick={() => void saveVaultSlot()} disabled={slotLoading}>
                   {slotLoading ? "Saving…" : "Save"}
@@ -873,9 +778,17 @@ export default function SettingsPage() {
             <span className="mono-id">KNOWLEDGE_EMBEDDING_PROVIDER</span>
           </li>
           <li>
-            <strong>Compose default</strong>
+            <strong>Running provider</strong>
             <span>
-              <code>deterministic</code> — SHA-256 hash vectors, not semantically meaningful
+              {runtimeSummary?.knowledge_embedding_provider ? (
+                <code>{runtimeSummary.knowledge_embedding_provider}</code>
+              ) : (
+                "Unavailable"
+              )}
+              {runtimeSummary?.knowledge_embedding_provider &&
+              !["gemini", "openai"].includes(runtimeSummary.knowledge_embedding_provider)
+                ? " — hash vectors only, no semantic search"
+                : ""}
             </span>
           </li>
           <li>
@@ -913,8 +826,11 @@ export default function SettingsPage() {
             return (
               <SystemMessage tone="success" title="Embedding key configured">
                 The <code>KNOWLEDGE-EMBEDDING-API-KEY</code> vault slot is{" "}
-                <strong>{embeddingSlot.status}</strong>. Semantic search is active when the
-                orchestrator container is running with this key in its environment.
+                <strong>{embeddingSlot.status}</strong>. Semantic search is{" "}
+                {runtimeSummary?.knowledge_embedding_provider &&
+                ["gemini", "openai"].includes(runtimeSummary.knowledge_embedding_provider)
+                  ? "on in the running orchestrator."
+                  : "on once the orchestrator runs with a real provider and this key in its environment."}
               </SystemMessage>
             );
           }

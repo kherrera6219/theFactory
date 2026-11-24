@@ -13,7 +13,6 @@ const SHORTCUTS: ShortcutEntry[] = [
   { combo: "Ctrl+D", action: "Open Home / Launch Pad" },
   { combo: "Ctrl+M", action: "Open Missions" },
   { combo: "Ctrl+A", action: "Open Agents" },
-  { combo: "Ctrl+L", action: "Open LogicNodes" },
   { combo: "Ctrl+B", action: "Open Protocol Bus" },
   { combo: "Ctrl+,", action: "Open Settings" },
   { combo: "Ctrl+?", action: "Show shortcut sheet" },
@@ -73,11 +72,6 @@ export function KeyboardShortcuts() {
       if (key === "a") {
         event.preventDefault();
         router.push("/agents");
-        return;
-      }
-      if (key === "l") {
-        event.preventDefault();
-        router.push("/logicnodes");
         return;
       }
       if (key === "b") {

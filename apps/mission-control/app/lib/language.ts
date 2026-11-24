@@ -155,3 +155,6 @@ export function languageMaturityTier(language: string | null | undefined): Langu
     label: `${row.extraction} · tests: ${row.test_runner} · deps: ${deps}`,
   };
 }
+
+/** Every routed target language, in the matrix's order (Python first). */
+export const SUPPORTED_TARGET_LANGUAGES: readonly string[] = Object.keys(GENERATED_MATURITY);

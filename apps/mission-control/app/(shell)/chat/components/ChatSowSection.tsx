@@ -41,8 +41,8 @@ export function ChatSowSection({
   if (!contract && !hasClarificationPrompt) {
     return (
       <Panel title="Feature Contract">
-        <EmptyState title="Contract appears after the PM Agent can process the request" compact>
-          When backend services are live, this panel will show scope, language detection, estimated duration, and launch confirmation before creating a mission.
+        <EmptyState title="Your Statement of Work appears here" compact>
+          Send a request and the PM Agent drafts scope, target language, estimated cost and duration. Nothing starts until you approve it.
         </EmptyState>
       </Panel>
     );

@@ -194,6 +194,12 @@ describe("embedded server environment", () => {
     expect(env.VAULT_DATA_PATH).toBe("C:/data/vault/vault.json");
   });
 
+  it("points the output-folder routes at the folder the orchestrator delivers into", () => {
+    const env = embeddedServerEnv({ ...backend, MISSION_OUTPUT_HOST_ROOT: "C:/data/output" }, "v");
+    expect(env.MISSION_OUTPUT_ROOT).toBe("C:/data/output");
+    expect(embeddedServerEnv(backend, "v").MISSION_OUTPUT_ROOT).toBeUndefined();
+  });
+
   it("forwards only what Mission Control needs", () => {
     expect(embeddedServerEnv(backend, "v").POSTGRES_PASSWORD).toBeUndefined();
   });
