@@ -1,7 +1,7 @@
 # Runtime Engine and Agent Base Class Reference
 
 Document version: 2026.06.13
-Last updated: 2026-06-27
+Last updated: 2026-11-23
 Audience: Developers and operators
 
 **Version:** 2026.06.11  
@@ -374,7 +374,7 @@ Raises `ValueError` if `agent_id` is not in the registry.
    - New support agent → subclass `SupportAgent`, override `execute()` with domain-specific logic
    - New category → subclass `BaseAgent` directly, implement all three abstract methods, add to `_CATEGORY_CLASS`
 4. **Add to `make_agent()` routing** if a new category was introduced
-5. **Write tests** — `tests/unit/test_agent_base.py` covers the full lifecycle contract
+5. **Write tests** — `tests/services/test_agent_base_unit.py` (specialist subclasses: `services/orchestrator/tests/test_agent_base_specialists.py`) covers the full lifecycle contract
 
 ---
 

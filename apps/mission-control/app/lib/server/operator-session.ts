@@ -128,8 +128,9 @@ function parsePayload(token: string): OperatorSessionPayload | null {
 
 export function getMissionControlAdminKey(): string {
   return (
-    process.env.MISSION_CONTROL_ADMIN_KEY?.trim() ??
-    process.env.VAULT_ADMIN_KEY?.trim() ??
+    // `||`, not `??`: compose passes unset keys as "", which must fall through.
+    process.env.MISSION_CONTROL_ADMIN_KEY?.trim() ||
+    process.env.VAULT_ADMIN_KEY?.trim() ||
     ""
   );
 }
@@ -147,7 +148,7 @@ export function isOperatorSessionBypassed(): boolean {
 }
 
 export function getOperatorSessionSecret(): string {
-  return process.env.MISSION_CONTROL_SESSION_SECRET?.trim() ?? getMissionControlAdminKey();
+  return process.env.MISSION_CONTROL_SESSION_SECRET?.trim() || getMissionControlAdminKey();
 }
 
 export function isOperatorSessionConfigured(): boolean {

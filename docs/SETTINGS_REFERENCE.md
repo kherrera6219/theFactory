@@ -1,7 +1,7 @@
 # Settings Reference
 
 Document version: 2026.08.17
-Last updated: 2026-08-17
+Last updated: 2026-11-23
 Status: Canonical
 
 **Code file:** `services/orchestrator/orchestrator/settings.py`  
@@ -160,7 +160,7 @@ The design follows three rules:
 
 | Field | Env Var | Default | Description |
 |---|---|---|---|
-| `knowledge_embedding_provider` | `KNOWLEDGE_EMBEDDING_PROVIDER` | `gemini` | Embedding model provider: `gemini` or `openai` |
+| `knowledge_embedding_provider` | `KNOWLEDGE_EMBEDDING_PROVIDER` | `gemini` (code and `.env.example`; compose falls back to `deterministic` when unset) | Embedding model provider: `gemini` or `openai`. `none` or the legacy `deterministic` disable real embeddings; Knowledge Lake then uses PostgreSQL keyword search |
 | `knowledge_embedding_model` | `KNOWLEDGE_EMBEDDING_MODEL` | `""` | Override embedding model name. When empty, the provider default is used (`gemini-embedding-001` for Gemini, `text-embedding-3-small` for OpenAI). |
 | `knowledge_embedding_api_key` | `KNOWLEDGE_EMBEDDING_API_KEY` | `""` | Dedicated API key for the embedding provider. When empty, the corresponding provider's main LLM API key is reused. |
 | `knowledge_embedding_timeout_seconds` | `KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS` | `10.0` | Per-request embedding timeout |

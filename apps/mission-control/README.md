@@ -43,8 +43,10 @@ It is designed for local-first Windows operation and provides real-time visibili
 `npm run dev`, `npm run build`, and `npm run start` set
 `NEXT_BUILD_TARGET=docker`, which keeps server routes such as
 `/api/gateway/[...path]`, `/api/vault`, and `/api/pm/feature-contract`
-available. Static export builds are only for Electron packaging; they must be
-served from `out/` rather than started with `next start`.
+available. Electron packaging (`npm run electron:package`) sets
+`NEXT_BUILD_TARGET=electron`, which produces Next's `standalone` server; the
+desktop app spawns it on an ephemeral localhost port, so the same server routes
+work there. There is no static export build any more.
 
 ## Environment
 
@@ -55,6 +57,7 @@ served from `out/` rather than started with `next start`.
 - `APPROVAL_TTL_SECONDS` (default `86400`)
 - `OPERATOR_SESSION_BYPASS` (default `true` in the local Docker profile; keeps Mission Control unlocked from startup)
 - `MISSION_CONTROL_BYPASS_AUTH` (legacy alias for the same local bypass behavior)
+- `MISSION_CONTROL_ALLOWED_HOSTS` (comma-separated hostnames, no port, accepted in addition to `localhost` / `127.0.0.1` / `[::1]`; while the bypass is on any other `Host` gets `421`)
 - `MISSION_CONTROL_ADMIN_KEY` (optional only when running a locked deployment profile)
 - `MISSION_CONTROL_SESSION_SECRET` (optional signing secret for locked deployment profiles)
 - `MISSION_CONTROL_SESSION_TTL_SECONDS` (default `28800`)
@@ -137,10 +140,15 @@ Agent detail includes:
 ## Security and Accessibility Notes
 
 - TypeScript strict mode is enabled.
-- A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). Static Electron export builds use `output: export`, where `next.config.mjs` `headers()` is ignored, so the CSP ships as a meta tag instead.
+- A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). The meta tag dates from the old static Electron export, where `next.config.mjs` `headers()` was ignored; both Docker and the desktop standalone server now also send the `next.config.mjs` security headers.
 - API consumption uses timeout-based request guards and resilient parsing.
 - Mission Control local operation starts unlocked through `OPERATOR_SESSION_BYPASS=true`.
   Locked deployment profiles can disable bypass and require a signed operator session.
+- `proxy.ts` (Next 16 proxy, logic in `app/lib/server/request-origin-guard.ts`) runs before every route:
+  non-loopback `Host` under the bypass -> `421`; `Sec-Fetch-Site: cross-site|same-site`
+  (except top-level page navigations) or a foreign `Origin` on unsafe methods -> `403`.
+  This keeps the unlocked local console from being driven by other web pages via
+  DNS rebinding or CSRF.
 - Review approvals fail closed if the orchestrator internal base URL, service API key, or approval HMAC secret is missing.
 - Accessibility includes semantic tables, captions, skip-navigation support, and keyboard focus visibility.
 - Local operation mode intentionally avoids external account-login and operator-unlock requirements.

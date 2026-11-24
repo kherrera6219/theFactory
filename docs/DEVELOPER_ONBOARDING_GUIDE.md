@@ -1,7 +1,7 @@
 # Developer Onboarding Guide
 
 Document version: 2026.08.17  
-Last updated: 2026-08-17  
+Last updated: 2026-11-23  
 Status: Canonical  
 Audience: Contributors, maintainers, and new developers
 
@@ -250,13 +250,13 @@ All services share the same code patterns:
 ```bash
 cd apps/mission-control
 npm run dev
-# http://localhost:3000 (dev) or http://localhost:3100 (Docker)
+# http://localhost:3100 (both `npm run dev` and Docker)
 ```
 
 The frontend uses:
 - **Next.js 16** App Router (TypeScript strict mode)
 - **Design system:** 31-token CSS variable system via `app/generated-tokens.css`
-- **Live transport:** SSE EventSource client in `lib/sse-client.ts`
+- **Live transport:** browser `EventSource` (SSE) opened directly in the pages that stream (`app/(shell)/missions/detail/page.tsx`, `app/(shell)/agents/page.tsx`, `app/(shell)/protocol-bus/page.tsx`); there is no shared SSE client module
 - **State:** React hooks, no global state library
 
 ### Adding a New API Endpoint

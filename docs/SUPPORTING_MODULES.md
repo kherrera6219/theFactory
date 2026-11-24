@@ -1,7 +1,7 @@
 # Supporting Modules Reference
 
 Document version: 2026.10.26
-Last updated: 2026-10-26
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Developers and operators
 
@@ -143,22 +143,27 @@ This guarantees `project_id` is never null in the database, simplifying aggregat
 
 ---
 
-## `hw_agent.py` — Hardware Awareness Agent
+## `hw_agent.py` — Hardware Context for Prompts
 
-**Source:** `services/orchestrator/orchestrator/hw_agent.py`  
+**Source:** `services/orchestrator/orchestrator/hw_agent.py`
 **Size:** ~2 KB
 
-A lightweight support agent that detects the host's hardware capabilities at startup and writes them to `app.state.hw_profile` in `main.py`. The profile is consumed by `llm_delegation/router.py` to decide whether local model inference (Ollama) is viable.
+Despite the name, this module does **not** detect hardware and is not a running
+agent. `build_hw_context_block(mission_type=, language=, logic_clusters=)` returns
+a short prompt block describing a **fixed, hard-coded** host profile (`_AW1_PROFILE`:
+the development workstation's CPU, GPU, RAM, storage and OS, with LLM inference
+off-device). `llm_delegation/prompts.py` appends it to specialist codegen prompts.
 
-Detects:
-- Available VRAM (NVIDIA/Apple Silicon via platform-appropriate APIs)
-- CPU core count and available RAM
-- GPU model string
-- Whether Ollama is reachable at `OLLAMA_BASE_URL`
+The block is emitted only when the mission type is performance-sensitive
+(`BUILD_NEW`, `PORT`, `IMPORT_MODERNIZE`, `REDUCE_DEPENDENCIES`) **and** either a
+logic cluster has a performance domain (numerical, matrix, parallel, GPU, memory,
+I/O, system calls, crypto) or the target language is a systems language
+(C, C++, Rust, Go, Zig, Julia, MATLAB). Otherwise it returns an empty string.
 
-The hardware profile is also included in the `GET /ops/health` response so operators can see whether the system is running in local-inference mode.
-
----
+There is no VRAM/CPU probing, no Ollama reachability check, no
+`app.state.hw_profile`, and nothing in `GET /ops/health`. Because the profile is
+constant, generated code may be tuned for that workstation rather than the
+operator's machine; real detection is not implemented.
 
 ## `testdata_agent.py` — Test Data Generation Agent
 

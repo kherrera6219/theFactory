@@ -1,7 +1,7 @@
 # Testing & Quality Gates
 
 Document version: 2026.10.26
-Last updated: 2026-10-26
+Last updated: 2026-11-23
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -190,7 +190,7 @@ The smaller modules remain at `100%` because they are deterministic configuratio
 - Chain-prep failure paths
 - Running-checkpoint insert failure
 
-**Protocol bus MCP server.** `tests/services/test_semantic_bus_dedup.py` and `tests/services/test_semantic_bus_mcp.py` were updated and expanded to 40 tests at 100% coverage on `mcp_server.py`, covering: replay 409, dedup → 503, backpressure → 503, and multi-channel rejection.
+**Protocol bus MCP server.** `tests/services/test_protocol_bus_dedup.py` and `tests/services/test_protocol_bus_mcp.py` (formerly `test_semantic_bus_*`) were updated and expanded to 40 tests at 100% coverage on `mcp_server.py`, covering: replay 409, dedup → 503, backpressure → 503, and multi-channel rejection.
 
 **Agent persona/registry drift guard.** `tests/services/test_agent_personas_registry.py` was added with 8 tests enforcing no future drift between the agent registry and persona definitions.
 

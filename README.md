@@ -251,6 +251,7 @@ theFactory supports seamless enterprise single sign-on (SSO) and inter-service t
 - **Strict OIDC Token Validation**: Configured via `OIDC_STRICT_CLAIMS=true` in `services/api-gateway/api_gateway/middleware.py`. Enforces non-empty subjects (`sub`), issuer checking (`iss`), audience authorization (`aud`), and multi-tenant isolation (`tenant_id` or `tid`).
 - **Flexible Role Extraction**: Extracts authorization roles across Keycloak (`realm_access.roles`), Azure AD / Okta (`groups`), and OAuth `scope`.
 - **Inter-Service Mutual TLS (mTLS)**: Mutual TLS certificate chains (`INTERNAL_MTLS_ENABLED=true`, `INTERNAL_MTLS_CA_CERT`, `INTERNAL_MTLS_CLIENT_CERT`, `INTERNAL_MTLS_CLIENT_KEY`) encrypt and authenticate internal communication between `api-gateway`, `orchestrator`, and `sandbox-runner`.
+- **Local Console Origin Guard**: Mission Control runs unlocked on localhost by default (`OPERATOR_SESSION_BYPASS=true`). Because "only on localhost" does not stop a browser, [`apps/mission-control/proxy.ts`](apps/mission-control/proxy.ts) refuses DNS-rebound `Host` headers (`421`) and cross-site or foreign-`Origin` requests (`403`) before any route runs. Set `MISSION_CONTROL_ALLOWED_HOSTS` to reach the console by a LAN or reverse-proxy hostname.
 - **Hardened Configuration**: Detailed enterprise settings are documented in [`.env.enterprise.example`](.env.enterprise.example).
 
 ---
@@ -259,11 +260,11 @@ theFactory supports seamless enterprise single sign-on (SSO) and inter-service t
 
 For operators preferring a dedicated desktop interface, theFactory ships a complete Windows desktop application packaged via Electron and native NSIS:
 
-- **Setup Installer**: `theFactory-MissionControl-Setup-0.1.0.exe` (located directly in the repository root) installs the full standalone operator console.
+- **Setup Installer**: `theFactory-MissionControl-Setup-0.1.0.exe` installs the full standalone operator console per-user. It is not committed; build it with `npm run electron:package` in `apps/mission-control` (output: `apps/mission-control/dist/installers/`) or take it from a GitHub release.
 - **Pure Native Preflight**: Built using pure-native NSIS `FileExists` instructions, avoiding SysWOW64 child-process hangs during setup.
 - **Local Pre-Cached Image Detection**: Automatically inspects local Docker Desktop images (`deploy-*:latest`, `thefactory-*:latest`) and pre-warmed sandbox runners, skipping multi-gigabyte downloads.
 - **Live Throughput Progress UX**: Real-time download speed in MB/s (`45.2 MB / 180.0 MB • 14.2 MB/s`) rendered in `starting.html`.
-- **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller, keep-data uninstallation, strict `SHELL_OPEN_ARTIFACT_DIR` directory containment, direct `Code.exe` IDE launch without shell interpolation, and security response headers (`X-Frame-Options`, `X-Content-Type-Options`, tightened CSP).
+- **Standalone Embedded Server**: Spawns an internal Next.js standalone server on an ephemeral localhost port with automatic tray controller, keep-data uninstallation, strict `SHELL_OPEN_ARTIFACT_DIR` directory containment, direct `Code.exe` IDE launch without shell interpolation, security response headers (`X-Frame-Options`, `X-Content-Type-Options`, tightened CSP), and a DNS-rebinding / CSRF guard (`proxy.ts`) that refuses non-loopback `Host` headers and cross-site requests even though the local console runs unlocked.
 - **Automatic Release Model Synchronization**: `releaseModelDefaults()` in [`apps/mission-control/electron/env-generator.ts`](apps/mission-control/electron/env-generator.ts) refreshes `GEMINI_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GEMINI_TIMEOUT_SECONDS` in `%APPDATA%\theFactory Mission Control\backend.env` on every startup while preserving all generated secrets and API keys.
 
 ---
@@ -301,7 +302,7 @@ theFactory provides seamless provider flexibility with strict data leakage guard
   - **OpenAI GPT**: Support for `gpt-6.1-terrea` (and legacy `gpt-5.6`).
 - **100% Air-Gapped Local LLMs**:
   - Native **Ollama** and **vLLM** integration via `LLM_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://localhost:11434`.
-  - Tested with `deepseek-coder:33b`, `qwen2.5-coder:32b`, and `llama3.3:70b`.
+  - Any Ollama / vLLM chat model works; the built-in default is `qwen2.5-coder:7b` (`llm_delegation/capabilities.py`). Knowledge Lake embeddings default to Gemini, so set `KNOWLEDGE_EMBEDDING_PROVIDER=none` (PostgreSQL keyword search only) for a fully offline install.
 - **Fail-Closed Egress Protection**: Unconfigured or invalid LLM providers raise immediate `ValueError` exceptions, guaranteeing no prompt data ever escapes to unintended external APIs.
 
 ---
@@ -327,7 +328,7 @@ make up-full-dedicated
 ```
 
 ### 3. Open Mission Control
-- **Web App**: Navigate to [http://localhost:3000](http://localhost:3000).
+- **Web App**: Navigate to [http://localhost:3100](http://localhost:3100) (both the Docker stack and `npm run dev` in `apps/mission-control` serve on port 3100).
 - **Desktop App**: Run `theFactory-MissionControl-Setup-0.1.0.exe` to install and launch natively on Windows.
 
 ---
@@ -355,7 +356,7 @@ make up-full-dedicated
 
 ## Mission Control Views & Operator Console
 
-Mission Control is the unified operator console for theFactory, available as both a web console (`http://localhost:3000`) and a native Windows desktop application. Below is a comprehensive visual walkthrough illustrating the core operator workflow:
+Mission Control is the unified operator console for theFactory, available as both a web console (`http://localhost:3100`) and a native Windows desktop application. Below is a comprehensive visual walkthrough illustrating the core operator workflow:
 
 ### 1. Operations Dashboard & Real-Time Factory Overview
 The central mission control dashboard provides high-level observability over total factory throughput, active mission queues, pod allocations, resource utilization, and recent delivery health.
@@ -569,7 +570,7 @@ Once approved, the **Audit Worker (`AGENT-13` through `AGENT-41-RQCA`)** finaliz
 ## Documentation Index & License
 
 ### Latest Release & Status
-- **Latest Application Capabilities**: Git-backed brownfield workspaces, role-scoped `AgentHarness`, offline dependency provisioning, AST repo indexing ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)), baseline preservation gates & PORT dual-run equivalence, sliced execution with `MIGRATION_NOTES.md`, opt-in vaulted GitHub PR export, Next-Gen model fleet (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`), and full-stack security hardening (`2026-11-16`: header-only API keys, gateway SSRF/path guards, RQCA compose isolation, `xautoclaim` crash recovery, cross-process file locks, Electron IPC containment, and `0o600` local vault permissions).
+- **Latest Application Capabilities**: Git-backed brownfield workspaces, role-scoped `AgentHarness`, offline dependency provisioning, AST repo indexing ([`docs/LANGUAGE_MATURITY.md`](docs/LANGUAGE_MATURITY.md)), baseline preservation gates & PORT dual-run equivalence, sliced execution with `MIGRATION_NOTES.md`, opt-in vaulted GitHub PR export, Next-Gen model fleet (`gemini-4-argon`, `gpt-6.1-terrea`, `claude-opus-5-5`), and full-stack security hardening (`2026-11-16`: header-only API keys, gateway SSRF/path guards, RQCA compose isolation, `xautoclaim` crash recovery, cross-process file locks, Electron IPC containment, and `0o600` local vault permissions; `2026-11-23`: Mission Control DNS-rebinding/CSRF guard and DNS-pinned HTTPS `research.fetch`).
 - **Release History & Engineering Status**: See [`CHANGELOG.md`](CHANGELOG.md), [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md), and [`docs/SECURITY_ALERT_REMEDIATION.md`](docs/SECURITY_ALERT_REMEDIATION.md).
 
 ### Documentation & Specifications

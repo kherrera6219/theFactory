@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.11.16
-Last updated: 2026-11-16
+Document version: 2026.11.23
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,15 @@ as current work.
 ---
 
 ## Current Status
+
+**COMPLETE — 2026-11-23: Full App Review Remediation & Mission Control Localhost Guard (PRs #693, #694, #705).**
+- **Mission Control DNS-rebinding / CSRF guard (`apps/mission-control/proxy.ts`, `app/lib/server/request-origin-guard.ts`):** With `OPERATOR_SESSION_BYPASS=true` (desktop embedded server, compose `127.0.0.1:3100`) any web page could read mission data through a DNS-rebound Host and send cross-site `text/plain` POSTs to `/api/vault`. A Next 16 proxy now pins `Host` to `localhost` / `127.0.0.1` / `[::1]` while the bypass is on (`421`; `MISSION_CONTROL_ALLOWED_HOSTS` admits extra names and is then enforced even without the bypass) and refuses requests Fetch Metadata marks `cross-site` / `same-site`, or unsafe methods with a foreign `Origin` (`403`). Top-level page navigations and non-browser clients (no `Origin`, no Fetch Metadata) still pass. Also fixed the `??` fallback so a blank `MISSION_CONTROL_ADMIN_KEY` / `MISSION_CONTROL_SESSION_SECRET` (compose passes `""`) falls back to `VAULT_ADMIN_KEY`.
+- **`research.fetch` DNS pinning for HTTPS (`orchestrator/agent_tools.py`):** `_PinnedTransport` / `_PinnedNetworkBackend` dial the validated IP for http *and* https while keeping SNI, certificate checks and the `Host` header on the original hostname; validation fails closed on DNS failure and rejects every non-global address (CGNAT, benchmarking, documentation, IPv4-mapped loopback). 14 tests in `tests/services/test_agent_tools_ssrf_unit.py`.
+- **Language maturity badge driven by the generated matrix:** `scripts/generate_language_maturity.py` now also writes `apps/mission-control/app/lib/language-maturity.generated.json` (checked by `--check`); `languageMaturityTier` reads it instead of hard-coded sets, returns `null` for unknown languages and no longer labels regex-backed languages as AST.
+- **Sliced codegen (`mission_flow_v2/phases_build.py`):** sliced builds get the AIM summary and Knowledge Lake context like single-shot builds, and header-less output is named by language (`main.go`, `Main.java`, `main.rs`, ...) instead of `inline_source.txt`.
+- **CI:** fixed the red `test_sow_document_unit.py` repo-bundle check that followed the `_prepare_specialist_plan` split; `main` CI green again.
+- **Verification:** Mission Control `tsc --noEmit` + Vitest (`40/40` files, `246/246` tests); targeted pytest suites green; production `next build` + `next start` and the rebuilt, reinstalled desktop app probed on both the embedded port and `:3100` (foreign Host `421`, cross-site POST `403`, same-origin `200`).
+- **Still open:** Live Stack Gate and Weekly Qualification remain red (staging/qualification provider keys); per-launch desktop secret to replace the blanket `OPERATOR_SESSION_BYPASS` not done; uninstaller leaves `.next/server/route-cache` in the install folder.
 
 **COMPLETE — 2026-11-16: Full-Stack Code Review, Security Hardening, Bug Remediation & Regression Verification.**
 - **API Gateway (`services/api-gateway/api_gateway/main.py`, `routers/{missions,operations}.py`):** Enforced OIDC on `/v1/stream/state` regardless of operator flag override, upgraded `/v1/sows`, `/v1/pm/feature-contract`, and `/v1/operations/alerts/{alert_id}/state` to `_require_mutation_access`, added `_validate_path_identifier`, moved `_gemini_builder_preview` API key to `x-goog-api-key` header with type-only exception logs, propagated upstream `4xx` responses, cleaned up failed non-idempotent vaults, hardened idempotency replay vault preservation and `processing` TTL, and wired mTLS context into internal state forwarding.

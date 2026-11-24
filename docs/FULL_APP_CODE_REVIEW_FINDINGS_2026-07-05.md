@@ -1,8 +1,8 @@
 # Full-Application Code Review — Findings (2026-07-05)
 
 Document version: 2026.07.05
-Last updated: 2026-07-05
-Status: Active findings report — **review only, nothing in this document has been fixed yet**
+Last updated: 2026-11-23
+Status: Historical findings report — **remediated**. Phases 0–3 of `archive/plans/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` were completed and verified 2026-07-03..05 (see `CURRENT_TODO.md`); Phase 4 replaced the Electron static export with the `standalone` Next server (`next.config.mjs`, `scripts/build-electron.mjs`). Read this as a record, not as open work.
 Audience: Maintainers and AI coding agents planning the next remediation pass
 
 This is a read-only, whole-application code review covering every part of

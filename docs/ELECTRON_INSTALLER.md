@@ -1,7 +1,7 @@
 # Windows Installer and Desktop App
 
-Document version: 2026.11.16
-Last updated: 2026-11-16
+Document version: 2026.11.23
+Last updated: 2026-11-23
 Status: Implemented and validated end to end on Windows (WQ #9); hardened IPC containment, vault file permissions, CSP headers, direct `Code.exe` launch, and rebuilt service/desktop bundle (2026-11-16)
 Audience: Maintainers, release managers, operators
 
@@ -116,6 +116,20 @@ Three properties are guarded by tests:
   NSIS warnings are errors.
 - Silent install/uninstall smoke: `Setup.exe /S /D=<dir>`, then
   `"<dir>\Uninstall theFactory Mission Control.exe" /S` -- keeps data by design.
+
+## Known issues (2026-11-23)
+
+- **Uninstall leaves a page cache.** The embedded Next server writes
+  `resources\app.asar.unpacked\.next\standalone\.next\server\route-cache\` inside the
+  install folder at runtime; the uninstaller does not remove it. It is cache only and safe
+  to delete before reinstalling. The same write would fail for an all-users install under
+  Program Files.
+- **npm allow-scripts blocks Electron's postinstall.** With newer npm, a clean `npm ci`
+  skips `electron`'s install script, so packaging fails for lack of the Electron binary.
+  Run `node node_modules/electron/install.js` after `npm ci`.
+- **Embedded server security.** The embedded server runs with `OPERATOR_SESSION_BYPASS=true`;
+  `proxy.ts` refuses non-loopback `Host` headers and cross-site requests so other web pages
+  cannot drive it (see `SECURITY.md`).
 
 ## Verification record (2026-09-27)
 
