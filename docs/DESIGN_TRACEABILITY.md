@@ -1,7 +1,7 @@
 # Design Traceability Matrix
 
 Document version: 2026.08.01
-Last updated: 2026-08-01
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Maintainers, architects, auditors, and AI coding agents
 
@@ -126,7 +126,7 @@ This one maps *design intent* to *implementation*.
 | 43 | End-to-End Testing Scenarios | **Implemented** | `apps/mission-control/e2e/` | Seven mission scenarios plus Electron |
 | 44 | Performance Testing & Benchmarking | **Partial** | `tests/load/` Locust profile | Live Phase 13 performance proof still outstanding |
 | 45 | Load & Stress Testing | **Partial** | `tests/load/` | As above |
-| 46 | Security Testing & Vulnerability Assessment | **Implemented** | `tests/services/test_state_mutation_auth.py`, Bandit, pip-audit, CodeQL, Trivy | |
+| 46 | Security Testing & Vulnerability Assessment | **Implemented** | `tests/security/test_state_mutation_auth.py`, Bandit, pip-audit, CodeQL, Trivy | |
 | 47 | Audit Agent Testing Procedures | **Implemented** | `services/audit-worker/audit_worker/main.py`, audit tests | |
 | 48 | Test Data Management & Seeding | **Implemented** | `AGENT-40-TESTDATA`, `tests/fixtures/` | Ephemeral test data was not in the design |
 | 49 | Regression Testing Strategy | **Implemented** | golden fixtures under `tests/fixtures/extractors/` | |

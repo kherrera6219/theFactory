@@ -1,7 +1,7 @@
 # theFactory — Local-First Compliance Plan (Outstanding Items Only)
 
 Document version: 2026.07.03
-Last updated: 2026-07-03
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Developers and operators
 
@@ -19,7 +19,7 @@ Windows-identity-only auth, DPAPI-protected master key, AES-256-GCM encryption a
 storage under `%LOCALAPPDATA%`, and **no external databases / no external auth**.
 
 theFactory today is a **multi-container Docker backend** — orchestrator + api-gateway +
-pod-workers + **postgres + redis + qdrant + neo4j + minio**, with OIDC / API-key auth and
+pod-workers + **postgres + redis + qdrant + neo4j + object-store (SeaweedFS S3, formerly MinIO)**, with OIDC / API-key auth and
 a Next.js/Electron Mission Control frontend.
 
 The standard explicitly prohibits *external databases*, *separate application login systems*,
@@ -28,7 +28,7 @@ and *external key management*. So the outstanding items split into two very diff
 - **Bucket A — Application-layer hardening** (achievable incrementally, no re-platform):
   ECDSA signing, error-handling framework, atomic writes, Electron crash handling, diagnostics.
 - **Bucket B — Infrastructure re-platform** (a product decision): replacing postgres/qdrant/
-  neo4j/minio with local encrypted stores, DPAPI key management, and Windows-identity auth.
+  neo4j/object-store with local encrypted stores, DPAPI key management, and Windows-identity auth.
   This is a **major architectural change**, not a code cleanup. It is listed for completeness
   but should be a deliberate, separately-scoped decision.
 
@@ -178,7 +178,7 @@ _Files: Mission Control settings page + a backend diagnostics collector._
 
 ### B2. DPAPI master key + AES-256-GCM encryption at rest
 **Standard:** Security §3 (random 256-bit master key under DPAPI; AES-256-GCM for all sensitive
-data). **Current:** No encryption at rest; data sits in postgres/qdrant/neo4j/minio plaintext.
+data). **Current:** No encryption at rest; data sits in postgres/qdrant/neo4j/object-store plaintext.
 
 ### B3. `%LOCALAPPDATA%` storage, no external databases
 **Standard:** Security §4, §11 (local storage; "no external databases"). **Current:** Five

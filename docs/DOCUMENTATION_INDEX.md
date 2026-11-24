@@ -1,13 +1,13 @@
 # theFactory Documentation Index
 
-Document version: 2026.11.16
-Last updated: 2026.11.16
+Document version: 2026.11.23
+Last updated: 2026.11.23
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.11.16
+**Version:** 2026.11.23
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-11-16
+**Last reviewed:** 2026-11-23
 
 This index maps the active theFactory documentation set. Historical source
 material, superseded phase plans, run-specific evidence, and archived review
@@ -37,13 +37,18 @@ are not listed as current implementation truth unless called out explicitly.
 | [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) | Read-only audit behind that plan — 143 design documents vs live source, with file/line evidence for every divergence | Maintainers, Architects, AI coding agents |
 | [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
 | [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps (refreshed 2026-10-26) | All |
-| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-11-16) | Maintainers, Operators |
-| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-11-16) | Maintainers, AI coding agents |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps (refreshed 2026-11-13) | All |
+| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list (refreshed 2026-11-23) | Maintainers, Operators |
+| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff (refreshed 2026-11-23) | Maintainers, AI coding agents |
 | [reviews/theFactory_Deep_Code_Review_2026-08-18.md](reviews/theFactory_Deep_Code_Review_2026-08-18.md) | Pass-2 deep review at `c1b044f`. N1–N4 actioned in `af88a79`. Electron deferred. | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
-| [PM_SOW_FACTORY_PLAN_2026-08-17.md](archive/plans/PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |
+| [LANGUAGE_MATURITY.md](LANGUAGE_MATURITY.md) | **Generated** per-language maturity matrix (extraction, test runner, dependency cache, equivalence). Regenerate with `scripts/generate_language_maturity.py`, which also writes the Mission Control badge source `apps/mission-control/app/lib/language-maturity.generated.json` | All |
+| [MISSION_TAXONOMY.md](MISSION_TAXONOMY.md) | Canonical mission types and how to extend the mission surface | Operators, Maintainers, AI coding agents |
+| [TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md](TEN_OUT_OF_TEN_ENTERPRISE_PLAN.md) | 2026-10-27 prompt-by-prompt enterprise upgrade plan; some referenced paths were proposals and do not exist | Maintainers, AI coding agents |
+| [REPO_ZIP_IMPORT_MIGRATION_PLAN.md](REPO_ZIP_IMPORT_MIGRATION_PLAN.md) | ZIP-first `/repo` import and review migration (complete for the current route) | Operators, Developers |
+| [PM_SOW_FACTORY_PLAN_2026-08-17.md](archive/plans/PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Archived initiative** (moved to `archive/plans/`). PM-led SOW factory. P0–P4 on `main`. Live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17 | Maintainers, AI coding agents |
 | [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
+| [PROTOCOL_ENVELOPES.md](PROTOCOL_ENVELOPES.md) | Canonical protocol envelope shapes for bus producers and consumers | Maintainers, AI coding agents |
 | [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
 | [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |
 | [SEMANTIC_BUS_PLAN.md](SEMANTIC_BUS_PLAN.md) | Stage 4 (stub) — semantic/embedding-based routing on the bus | Maintainers, AI coding agents |
@@ -170,6 +175,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md) | Sensitive code handling policy — detection rules, escalation thresholds, and operator override procedures | Security, Developers |
 | [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source MIT license strategy and dependency license compliance | Legal, Developers |
 | [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
+| [../SECURITY.md](../SECURITY.md) | Security policy and controls, including the Mission Control DNS-rebinding / CSRF guard (`apps/mission-control/proxy.ts`, 2026-11-23) | All |
 | [SECURITY_ALERT_REMEDIATION.md](SECURITY_ALERT_REMEDIATION.md) | CodeQL, Trivy, `pip-audit`, and `npm audit` remediation record (through 2026-10-26) | Security, Maintainers |
 
 ---
@@ -218,7 +224,20 @@ are not listed as current implementation truth unless called out explicitly.
 | [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md) | Standards for writing and maintaining theFactory documentation | All contributors |
 | [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
 | [PRODUCTION_STANDARDS_REFERENCES.md](PRODUCTION_STANDARDS_REFERENCES.md) | Production standards and external reference standards cited in theFactory design | Architects, Developers |
-| [LOCAL_FIRST_COMPLIANCE_PLAN.md](LOCAL_FIRST_COMPLIANCE_PLAN.md) | Local-first compliance plan — how theFactory meets compliance requirements in fully air-gapped deployments | Security, Compliance |
+| [LOCAL_FIRST_COMPLIANCE_PLAN.md](LOCAL_FIRST_COMPLIANCE_PLAN.md) | Local-first compliance **plan** for air-gapped deployments (encryption at rest and Windows-identity auth are not yet implemented) | Security, Compliance |
+
+---
+
+## Findings & Audit Records
+
+Point-in-time findings. Each states its own status; none is a current specification.
+
+| File | Description | Status |
+|---|---|---|
+| [FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md](FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md) | Whole-application review (UI, Electron, agent-runtime, deploy, scripts) | Remediated |
+| [CHAT_TO_MISSION_FINDINGS_2026-08-12.md](CHAT_TO_MISSION_FINDINGS_2026-08-12.md) | First full chat → mission run | Historical (P1–P3 shipped) |
+| [LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md](LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md) | Per-language coverage run | Historical (remediated by WQ7/WQ12) |
+| [CANARY_BUILD_ARTIFACT_REGRESSION.md](CANARY_BUILD_ARTIFACT_REGRESSION.md) | `MISSION_BUILD_ARTIFACT_FAILED` canary regression | Root cause found; scoped fix implemented |
 
 ---
 

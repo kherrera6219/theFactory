@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Full App Review Remediation & Mission Control Localhost Guard (2026-11-23)
+
+#### Security
+- **Mission Control DNS-rebinding / CSRF guard (`apps/mission-control/proxy.ts`, `app/lib/server/request-origin-guard.ts`)**: While `OPERATOR_SESSION_BYPASS=true`, requests whose `Host` is not loopback are refused with `421` (`MISSION_CONTROL_ALLOWED_HOSTS` adds names); requests marked `cross-site`/`same-site` by Fetch Metadata, or unsafe methods with a foreign `Origin`, are refused with `403`. Previously any web page could read mission data via DNS rebinding and POST to `/api/vault` on the desktop embedded server and `127.0.0.1:3100`.
+- **`research.fetch` pinned to the validated IP for HTTPS too (`orchestrator/agent_tools.py`)**: custom httpcore network backend dials the validated address while keeping SNI/certificate checks on the hostname; DNS failure fails closed; all non-global ranges rejected.
+
+#### Added
+- `MISSION_CONTROL_ALLOWED_HOSTS` (`.env.example`, `deploy/docker-compose.yaml`).
+- `apps/mission-control/app/lib/language-maturity.generated.json`, written and `--check`ed by `scripts/generate_language_maturity.py`.
+
+#### Fixed
+- Blank `MISSION_CONTROL_ADMIN_KEY` / `MISSION_CONTROL_SESSION_SECRET` now fall back to `VAULT_ADMIN_KEY` (`??` -> `||`).
+- Language maturity badge reads the generated matrix: unknown languages show no badge and regex-backed languages are no longer labelled AST.
+- Sliced codegen receives AIM and Knowledge Lake context and names header-less output by language instead of `inline_source.txt`.
+- `test_sow_document_unit.py` follows the `_prepare_specialist_plan` split (red `main` CI).
+- Restored comments/docstrings lost in the 2026-11-16 module extractions; clarified `storage_core.py` / `llm_delegation/config.py` log messages and closed the unscheduled cost-ledger coroutine.
+
 ### Architecture Modularization, Observability & Dev-Tooling Hardening (2026-11-16)
 
 #### Added

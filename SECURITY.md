@@ -38,6 +38,7 @@ We will acknowledge receipt within **48 hours** and aim to provide an initial as
 - All API Gateway and Orchestrator endpoints require an `x-api-key` header.
 - Supported auth modes: `api_key`, `hybrid` (OIDC + API key fallback), `oidc`.
 - Sensitive Mission Control server routes require a signed `HttpOnly` operator session established through `/api/session/unlock`.
+- Mission Control's local profile runs unlocked (`OPERATOR_SESSION_BYPASS=true`). `apps/mission-control/proxy.ts` compensates: while the bypass is on it refuses any `Host` other than `localhost` / `127.0.0.1` / `[::1]` (DNS-rebinding defence, `421`), and on every deployment it refuses requests that Fetch Metadata marks `cross-site` / `same-site` or that carry a foreign `Origin` on unsafe methods (CSRF defence, `403`). `MISSION_CONTROL_ALLOWED_HOSTS` adds hostnames; when set it is enforced even with the bypass off.
 - Vault endpoints (`/api/vault`) accept either a valid Mission Control operator session or an `x-vault-admin-key` header for scripted break-glass access.
 - Builder and repo review approvals are HMAC-signed, stored durably, and re-validated for integrity and expiry before mission launch.
 - No hardcoded or trivially guessable default keys are accepted in production; the process will reject empty admin/worker keys at startup.
@@ -80,6 +81,8 @@ Release promotion also depends on signed provenance and policy evaluation:
 
 - TLS enforced on Redis and PostgreSQL connections.
 - CORS locked to configured `CORS_ALLOW_ORIGINS` (default: localhost only).
+- Mission Control refuses DNS-rebound `Host` headers and cross-site requests (see Authentication).
+- The agent harness `research.fetch` tool resolves and validates the target once, rejects every non-global address, and dials that pinned IP for http and https (no re-resolution).
 - Services communicate over an isolated Docker bridge network (`hgr-network`).
 - Only necessary ports are exposed on the host.
 
@@ -96,6 +99,7 @@ Release promotion also depends on signed provenance and policy evaluation:
 - The in-memory vault backend (default when `VAULT_ADDR` is not set) is **not suitable for production** — secrets are lost on process restart.
 - The `LANGGRAPH_FAIL_OPEN=true` default allows mission flow to proceed even if the LangGraph checkpointer is unavailable. Set to `false` in production if checkpoint integrity is required.
 - Agent API key isolation (`AGENT_SERVICE_KEY_MODE=strict`) is available but not the default — consider enabling for production deployments.
+- The local unlocked profile (`OPERATOR_SESSION_BYPASS=true`) trusts any process on the same machine; the origin guard only stops browsers. A per-launch desktop session secret is not yet implemented. Disable the bypass on shared or multi-user hosts.
 - Git history cleanup for previously committed TLS key material must be completed outside the working tree before a production release is considered trustworthy.
 
 ---

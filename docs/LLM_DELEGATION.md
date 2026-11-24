@@ -1,7 +1,7 @@
 # LLM Delegation Layer
 
 Document version: 2026.07.03
-Last updated: 2026-07-03
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Developers, Architects
 
@@ -11,7 +11,7 @@ This document was rewritten on 2026-07-03 — the previous version described `LL
 
 | File | Responsibility |
 |---|---|
-| `providers.py` | Raw provider HTTP calls (`_call_openai`/`_call_anthropic`/`_call_gemini`), retry-with-backoff (`_post_with_retry`), and the top-level dispatch functions (`_call_provider`, `_call_with_recommendation`, `_call_with_agent_system`) |
+| `providers.py` | Raw provider HTTP calls (`_call_openai`/`_call_anthropic`/`_call_gemini`/`_call_ollama`), retry-with-backoff (`_post_with_retry`), and the top-level dispatch functions (`_call_provider`, `_call_with_recommendation`, `_call_with_agent_system`) |
 | `health.py` | Per-provider circuit breaker (`is_circuit_open`/`record_failure`/`record_success`) and health summary aggregation |
 | `config.py` | Module-level flags (`LLM_SAFETY_BLOCK_ENABLED`, `PROMPT_GUARD_BLOCK_ENABLED`/`_BLOCK_LEVEL`), `ContextVar`s for the current mission/settings/agent/vault-secrets, and usage-event recording |
 | `agents.py` | Per-agent system-prompt resolution and recommendation building (`_agent_recommendation`, `_ceo_recommendation`, `_pm_recommendation`) |
@@ -25,7 +25,7 @@ This document was rewritten on 2026-07-03 — the previous version described `LL
 
 ## Provider Dispatch
 
-`_call_provider()` (in `providers.py`) is the low-level dispatcher for a single provider call; `_call_with_recommendation()` wraps it with the agent's resolved provider/model recommendation and retry/fallback handling; `_call_with_agent_system()` is the higher-level entry that resolves an agent ID to its persona, builds the prompt, and calls through. The three real providers called directly via `httpx` are OpenAI, Anthropic, and Gemini (`_call_openai`/`_call_anthropic`/`_call_gemini`) — **there is no Ollama provider and no offline/local-inference mode** in this package (a separate `hw_agent.py` detects local hardware capability for other purposes, unrelated to LLM routing).
+`_call_provider()` (in `providers.py`) is the low-level dispatcher for a single provider call; `_call_with_recommendation()` wraps it with the agent's resolved provider/model recommendation and retry/fallback handling; `_call_with_agent_system()` is the higher-level entry that resolves an agent ID to its persona, builds the prompt, and calls through. The providers called directly via `httpx` are OpenAI, Anthropic, Gemini, and local Ollama / vLLM (`_call_openai`/`_call_anthropic`/`_call_gemini`/`_call_ollama`; provider names `ollama`, `vllm`, `local`). The agent harness uses the matching tool-calling adapters in `adapters.py` (`OpenAIAdapter`, `AnthropicAdapter`, `GeminiAdapter`, `OllamaAdapter` via `get_provider_adapter`). Local inference reads `OLLAMA_BASE_URL` (default `http://localhost:11434`) and defaults to `qwen2.5-coder:7b` (`capabilities.py`). `hw_agent.py` is unrelated to routing: it only injects a fixed hardware description into prompts (see `SUPPORTING_MODULES.md`).
 
 ## Circuit Breaker
 

@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.11.13
-Last updated: 2026-11-13
+Document version: 2026.11.23
+Last updated: 2026-11-23
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -92,6 +92,8 @@ The application currently includes:
 | Knowledge Lake / FETCH | **Bootstrap seed, not a lake** | `is_agent._BOOTSTRAP_DOCS` is 42 one-liners for Python, JavaScript, TypeScript, and Java. Other routed languages get no context. No crawler. Retrieval plumbing (`knowledge_lake.get_language_context` → codegen) is real. |
 | Orchestrator docker.sock | **Moved to sandbox-runner (2026-08-17)** | Condensed compose mounts `/var/run/docker.sock` on `sandbox-runner` only. Orchestrator calls `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. |
 | BUILD_NEW agent honesty (2026-08-16/17) | **Shipped on `main` (PR #460)** | Snake `mission-911a6b3f` showed a working prompt-chain and four role failures. Specialist plans derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; specified CLI/stdlib games no longer get generic product questions. Follow-up: generated tests run **as** the sandbox command (not after QC, not overwritten by a testdata default `run_command`); syntax-only success is ADVISORY; Tester `source=fallback` stubs (`assert True`) are ADVISORY, not PASS; `while True` / bare `.listen(` no longer force compile-only; cached `started_only` PASS reports are re-assessed. |
+| Mission Control localhost exposure | **Fixed 2026-11-23 (#705)** | Under `OPERATOR_SESSION_BYPASS=true` any web page could read mission data (DNS rebinding) and POST to `/api/vault` (CSRF). `apps/mission-control/proxy.ts` now refuses non-loopback `Host` (`421`) and cross-site / foreign-`Origin` requests (`403`); verified on the reinstalled desktop app and `:3100`. Remaining: per-launch desktop secret instead of the blanket bypass. |
+| Live gates | **Red** | `live-stack-gate.yml` (daily) and `qualification.yml` (weekly) fail; both need staging / `QUALIFICATION_*_API_KEY` provider secrets. The brownfield benchmark has only run offline (`0/7` honest pass). |
 | Desktop Packaging Path | **Windows installer built, installed, and validated (#541, #542, 2026-10-26)** | `theFactory-MissionControl-Setup-0.1.0.exe` provides per-user NSIS install, prerequisites check, startup progress window, tray lifecycle, and keep-data uninstall ([ELECTRON_INSTALLER.md](ELECTRON_INSTALLER.md)). `npm run electron:dev` bundles preloads via `--electron-only`. Remaining: first `v*` release, public GHCR packages, optional code signing. |
 
 
@@ -122,6 +124,10 @@ The application currently includes:
 ---
 
 ## Recent Phase Summary
+
+### Full App Review Remediation & Localhost Guard (2026-11-23)
+
+PRs #693, #694, #705. Mission Control `proxy.ts` DNS-rebinding / CSRF guard; `research.fetch` dials the validated IP for http and https; the language maturity badge reads the generated `language-maturity.generated.json`; sliced codegen gets AIM / Knowledge Lake context and language-correct entry filenames; red `main` CI fixed. Desktop app rebuilt, reinstalled and re-probed. Details in [CURRENT_TODO.md](CURRENT_TODO.md).
 
 ### Next-Generation Model Fleet, Desktop App Auto-Refresh & Dependency Security Hardening (2026-11-13)
 
