@@ -1206,6 +1206,12 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
+### Next update — spend cap at 4x the quote, with an operator choice to stop or continue (requested 2026-11-23, not started)
+
+- **Problem:** the SOW cap is `high_usd x CAP_FACTOR` (`sow_estimator.estimate_mission_cost`), about 1.76x the likely quote in practice ($0.0693 cap on a $0.0393 quote). Normal overruns hit it: 6 of 10 blocked missions on 2026-11-23 were parked by the spend cap after passing QC, and `check_mission_spend_cap` always pauses at the cap.
+- **Do:** set the cap to 4x the quoted (likely) cost, and add an SOW option, "If the cap is exceeded: stop and ask me / keep going", stored on the approved SOW and honoured in `phases_runtime._prepare_runtime_qc`. "Keep going" records an over-cap warning (chain trace, alert, UI badge) instead of blocking completion. Show the cap and the chosen behaviour in the Chat SOW panel and mission detail cost panel.
+- **Check:** estimator and spend-cap unit tests for both choices, the cap shown in the SOW, and a mission that exceeds the quote completing with a warning when "keep going" is chosen.
+
 ### Next update — live "still working" indicator on the Missions pages (requested 2026-11-23, not started)
 
 - **Problem:** Chat now shows a live PM indicator (elapsed timer, current stage, estimated progress — `chat/components/PmThinkingIndicator.tsx`, `lib/pm-progress.ts`), but while a mission runs the Missions page "Mission Status" panel and the mission detail "Live Progress" panel only show a bar that jumps between fixed per-state values (`PROGRESS_BY_STATE`, e.g. RUNNING 62% → GATING 74%) and a "quiet time" counter. Nothing visibly moves during a long phase, and the recent-missions rows show no in-progress signal, so an operator can think a mission has hung.
