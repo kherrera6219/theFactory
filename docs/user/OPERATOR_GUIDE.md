@@ -1,7 +1,7 @@
 # Mission Control Operator Guide
 
-Document version: 2026.08.17  
-Last updated: 2026-08-17  
+Document version: 2026.11.23  
+Last updated: 2026-11-23  
 Status: Canonical  
 Audience: Operators, reviewers, and technical users
 
@@ -19,15 +19,15 @@ This guide explains how to use theFactory through Mission Control for the main o
   - per-project audit timeline across missions and agents
 - `Agents`
   - 41-agent runtime topology and persona drill-down
-- `LogicNodes`
-  - extracted mission-linked graph fragments
+- `Mission History`
+  - every mission with In progress / Blocked / Complete / Failed filters and search
 - `Protocol Bus`
   - event and protocol traffic inspection
   - Live protocol message stream with `stream|poll|paused` transport diagnostics. Messages returning 409 indicate replay detection (expected); 503 indicates Redis unavailability.
 - `Databases`
   - data-plane readiness and adapter status
-- `Builder`
-  - grounded local-workspace review and mission launch flow
+- `Alerts`, `Performance`, `Audit Log`
+  - blocked-mission alerts with links, delivery metrics, and the activity log
 - `Repo Import`
   - grounded GitHub review and mission launch flow
 - `Settings`
@@ -49,13 +49,11 @@ This guide explains how to use theFactory through Mission Control for the main o
 4. Accept the SOW. That is the bid, not "start anyway."
 5. Open the created mission in `Missions`. A FAIL QC verdict does not become `COMPLETE`.
 
-### Launch a mission from Builder review
+### When a mission is blocked
 
-1. Open `Builder`.
-2. Select the local files to ground the review.
-3. Review the generated patch contract and fingerprint.
-4. Approve the review.
-5. Launch the mission bundle after Mission Control verifies the stored approval receipt.
+A mission a completion gate refuses stays parked and shows as **Blocked** (amber) on Home, Missions and Mission History, with the gate that stopped it — for example *Spend cap* (LLM spend passed the approved cap) or *Runtime QC* (the generated code failed its tests). Open it to see the chain trace and the exact reason.
+
+The PM Agent can take 30–60 seconds to draft a Statement of Work; Chat shows an elapsed timer, the current stage, and an estimated progress bar while it works. If it genuinely fails, Chat says so and keeps your message so you can send it again; it no longer substitutes a fallback contract.
 
 ### Launch a mission from Repo Import
 

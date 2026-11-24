@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Mission Control Review Fixes & PM Chat Timeout (2026-11-23)
+
+#### Fixed
+- PM chat no longer falls back on slow SOWs: browser/Next/gateway timeouts raised above Gemini's 180 s, no silent Builder substitution, unparseable Gemini replies are logged.
+- Spend-cap completion blocks are recorded as `gate: spend_cap`, not as runtime-QC failures.
+- `main.py` re-exports `heartbeat_service`'s heartbeat functions instead of running stale copies; synthesized agents ignore completion-blocked and Knowledge Lake missions.
+- Operations summary/alerts exclude internal Knowledge Lake missions; the blocked alert lists its missions and a real first-seen time.
+- Database diagnostics use exact row counts below 200k rows.
+- Desktop: mission output lives in `%APPDATA%`, and the embedded server keeps a stable port across launches.
+- Mission Control: blocked missions shown as Blocked with the reason; readable mission titles and search; fixed History filters; 1024 px layout; real Performance metrics; live Settings values; Prune confirmation; Builder and LogicNodes removed from the sidebar.
+
+#### Added
+- Chat shows a live PM progress indicator (elapsed timer, typical stage, estimated progress bar, slow-draft notice) so a 30–60 s Statement of Work no longer looks like a hang.
+- `orchestrator/mission_attention.py`, `app/lib/mission-status.ts`, `app/lib/mission-performance.ts`, `app/lib/pm-progress.ts`.
+- `blocked_mission_ids` and `knowledge_embedding_provider` in `/v1/operations/summary`; `mission_ids` on the blocked alert; `mission_backlog.blocked` in the agents snapshot (all additive).
+
 ### Full App Review Remediation & Mission Control Localhost Guard (2026-11-23)
 
 #### Security

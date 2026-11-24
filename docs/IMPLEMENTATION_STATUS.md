@@ -125,6 +125,10 @@ The application currently includes:
 
 ## Recent Phase Summary
 
+### Mission Control Review Fixes & PM Chat Timeout (2026-11-23, later)
+
+PM chat fallback traced to a 30 s browser timeout (fixed); completion-blocked missions surfaced everywhere; spend-cap blocks no longer mislabelled as QC failures; `main.py` stopped running stale heartbeat copies; desktop output moved to `%APPDATA%`; stable embedded port; Builder and LogicNodes out of the sidebar. Details in [CURRENT_TODO.md](CURRENT_TODO.md).
+
 ### Full App Review Remediation & Localhost Guard (2026-11-23)
 
 PRs #693, #694, #705. Mission Control `proxy.ts` DNS-rebinding / CSRF guard; `research.fetch` dials the validated IP for http and https; the language maturity badge reads the generated `language-maturity.generated.json`; sliced codegen gets AIM / Knowledge Lake context and language-correct entry filenames; red `main` CI fixed. Desktop app rebuilt, reinstalled and re-probed. Details in [CURRENT_TODO.md](CURRENT_TODO.md).

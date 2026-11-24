@@ -413,7 +413,7 @@ The fleet monitor displays live operational status across all 41 specialized age
 ---
 
 ### 7. Semantic Engine & LogicNodes AST Extraction
-During language ingestion and smelting, code structures are extracted into paradigm-independent LogicNodes and Refined-IR data flows, allowing structural analysis and type inference before codegen.
+During language ingestion and smelting, code structures are extracted into paradigm-independent LogicNodes and Refined-IR data flows, allowing structural analysis and type inference before codegen. Only missions that read existing source produce them, so the LogicNode explorer is opened from a mission's detail page rather than the sidebar.
 
 <p align="center">
   <img src="docs/screenshots/08-logicnodes.png" alt="LogicNodes Structural AST and Refined-IR Inspector" width="850">
@@ -440,7 +440,7 @@ Import existing legacy repositories or ZIP archives. The ingestion pipeline maps
 ---
 
 ### 10. Code Review, Diffs & Human Approval Gates
-Before synthesized source code is finalized for delivery, operators can inspect multi-file side-by-side diffs, review unit tests and test oracle outputs, and provide cryptographic sign-off.
+Before synthesized source code is finalized for delivery, operators can inspect multi-file side-by-side diffs, review unit tests and test oracle outputs, and provide cryptographic sign-off. Day to day this happens in Mission Output (`/missions/output?id=…`, **Accept Code**); the screenshot shows the older Builder review page, which is no longer in the sidebar.
 
 <p align="center">
   <img src="docs/screenshots/03-builder.png" alt="Code Builder Multi-File Diff Review and Human Approval Interface" width="850">
@@ -486,22 +486,25 @@ Manage encrypted API keys locally without cloud leakage, configure model provide
 
 ### Complete Index of Mission Control Views
 
-1. **Operations Dashboard** (`/dashboard`): Global system throughput, total mission counts, and active worker statuses.
-2. **Chat Intake & PM Consultation** (`/chat`): Interactive natural language requirements negotiation with the PM Agent.
-3. **SOW Feature Contract** (`/chat?section=sow`): Binding scope boundaries, acceptance criteria, and cost estimations.
-4. **Mission Detail & Progress** (`/missions/[id]`): 7-phase Smelt Cycle progress stepper and live execution logs.
-5. **Agent Telemetry Grid** (`/agents`): Real-time health probes, RSS memory usage, and round-trip latency across all 41 agents.
-6. **Paradigm Pod Monitors** (`/pods`): Workload distribution across Pods A, B, C, and D.
-7. **LogicNodes & IR Visualizer** (`/logic-nodes`): Structural AST graphs, type-inferred signatures, and Refined-IR data flows.
-8. **Protocol Bus Monitor** (`/protocol-bus`): Real-time event inspection across Redis lanes (`α`, `β`, `δ`, `σ`, `ω`, `ρ`).
-9. **Knowledge Lake Query Console** (`/knowledge`): RRF hybrid search testing across PostgreSQL and Qdrant embeddings.
-10. **Repository Import & ZIP Ingestion** (`/repo-import`): Brownfield codebase scanning, AST indexing, and dependency mapping.
-11. **Artifact Review & Diff Inspector** (`/builder`): Multi-file side-by-side code diffs and manual approval gates.
-12. **Runtime QC & Verification Reports** (`/audit`): Sandbox execution outputs, test assertion results, and behavioral verdicts.
-13. **Security & Prompt Guard Alerts** (`/alerts`): Detection logs for PII, prompt injections, and container egress attempts.
-14. **Credential Vault & Key Rotation** (`/settings`): Local encrypted secret storage, token TTL tracking, and live preflight checks.
-15. **Runtime Preferences & Topology Toggle** (`/settings`): Live selection between condensed and dedicated agent modes.
-16. **Diagnostic Bundle Export** (`/diagnostics`): One-click encrypted diagnostic archive generation for support and triage.
+Sidebar pages:
+
+1. **Home** (`/`): mission totals, in-progress / complete / needs-attention counts, a list of blocked or failed missions with the gate that stopped each one, and runtime health.
+2. **Chat** (`/chat`): requirements conversation with the PM Agent, which drafts the Statement of Work (scope, acceptance criteria, cost estimate) and asks clarifying questions with recommended defaults. Nothing starts until you accept the SOW.
+3. **Missions** (`/missions`): launch form and the latest missions.
+4. **Projects** (`/projects`): per-project audit timeline.
+5. **Mission History** (`/missions/history`): every mission with In progress / Blocked / Complete / Failed filters, search by name, prompt, ID, type or language, and CSV/JSON export.
+6. **Agents** (`/agents`): the 41-agent roster; synthesized agents are labelled as such and show work only for missions that are actually moving.
+7. **Protocol Bus** (`/protocol-bus`): per-lane bus counters and mission-state events (agent heartbeats hidden by default).
+8. **Alerts** (`/alerts`): operational alerts; the completion-blocked alert links each affected mission.
+9. **Performance** (`/performance`): delivered per day/week, delivery rate, median and p90 duration, slowest pipeline steps, and LLM spend.
+10. **Databases** (`/databases`): data-plane health, migration state, and exact row counts.
+11. **Repo Import** (`/repo`): ZIP / folder / Git import into a baseline workspace, scope review, then hand-off to the PM.
+12. **Audit Log** (`/audit`): mission, alert, and event activity with links to each mission.
+13. **Settings** (`/settings`): live runtime values, API key vault slots (one key can be applied to every agent slot), primary LLM provider, embeddings, version, and maintenance.
+
+Reached from a mission: **Mission Detail** (`/missions/detail?id=…`) with phases, agents, artifacts, contracts, events and cost, and **Mission Output** (`/missions/output?id=…`) with the generated code and delivery acceptance.
+
+Not in the sidebar (2026-11-23): **LogicNodes** (`/logicnodes`) is an engine view that is empty for most missions; Mission Detail links to it when a mission has extracted LogicNodes. **Builder** (`/builder`) duplicated Chat with a weaker plan and no SOW. Both routes still work.
 
 ---
 

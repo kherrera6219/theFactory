@@ -1,7 +1,7 @@
 # Getting Started
 
-Document version: 2026.08.17  
-Last updated: 2026-08-17  
+Document version: 2026.11.23  
+Last updated: 2026-11-23  
 Status: Canonical  
 Audience: Operators and developers
 
@@ -43,11 +43,15 @@ The API Gateway runs at `http://localhost:8100`.
 
 ## Main Screens
 
-- `Home`: high-level platform and health summary
+LogicNodes and Builder are no longer in the sidebar: LogicNodes opens from a mission's detail page when that mission has extracted nodes, and Chat replaces Builder.
+
+
+- `Home`: mission counts, missions that need attention (blocked or failed, with the reason), and runtime health
 - `Chat`: PM-driven SOW — create, import, port, or update; accept the bid before start
 - `Missions`: recent missions and mission state transitions
 - `Agents`: live roster, workload, and heartbeat telemetry
-- `LogicNodes`: extracted graph fragments and mission-linked nodes
+- `Mission History`: every mission, filterable by In progress / Blocked / Complete / Failed
+- `Performance`: delivery rate, durations, slowest steps, and LLM spend
 - `Protocol Bus`: protocol traffic and live event inspection
 - `Databases`: optional data-plane adapter health and summary
 - `Repo Import`: grounded GitHub review and launch flow
@@ -55,12 +59,11 @@ The API Gateway runs at `http://localhost:8100`.
 
 ## Grounded Review Flows
 
-Two review flows are intentionally gated before mission execution:
+The repository review flow is gated before mission execution (Chat's SOW acceptance is the gate for new work):
 
-- `Builder review`: packages a local workspace preview and produces a review fingerprint
 - `Repo review`: fetches selected GitHub files, builds a grounded source bundle, and produces a review fingerprint
 
-Both flows require an active operator session and a durable approval record before the final mission launch step. Mission Control re-validates the stored approval receipt immediately before launch and rejects expired or tampered approvals.
+It requires an active operator session and a durable approval record before the final mission launch step. Mission Control re-validates the stored approval receipt immediately before launch and rejects expired or tampered approvals.
 
 ## Troubleshooting
 
