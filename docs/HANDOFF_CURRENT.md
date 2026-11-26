@@ -1,14 +1,48 @@
 # Current Handoff
 
-Document version: 2026.11.23
-Last updated: 2026.11.23
+Document version: 2026.11.25
+Last updated: 2026.11.25
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 ---
 
 
-## Latest session (2026-11-23) — read first
+## Start here (2026-11-25) — state for the next session
+
+**Where things stand**
+- `main` contains everything from the 2026-11-22..25 review sessions (PRs #693, #694, #705–#710). Work branch was `claude/thefactory-app-review-a83894`; every PR is merged, nothing is pending.
+- CI on `main` was red from #706 until #710: five Playwright e2e specs still expected the old UI ("View Live" links, "Windowed rows", the removed Settings preference inputs). Fixed in #710; the full e2e suite (25 tests) passes locally. Confirm the first `CI` run after #710 is green before starting new work.
+- Still red and **not** caused by code: the daily **Live Stack Gate** and weekly **Qualification** workflows need staging / `QUALIFICATION_*_API_KEY` provider secrets.
+- The installed Windows desktop app (`%LOCALAPPDATA%\Programs\theFactory Mission Control`) runs this code: orchestrator, api-gateway and mission-control images were rebuilt and retagged `ghcr.io/kherrera6219/thefactory-*:{latest,v0.1.0}`, and the installer was rebuilt and reinstalled. It serves on the stable port **47631** (`%APPDATA%\theFactory Mission Control\embedded-port.json`); mission output lives in `%APPDATA%\theFactory Mission Control\output`.
+
+**Next update — queued, not started (details in `docs/CURRENT_TODO.md` → Active Work Queue, order in `docs/WORK_QUEUE.md` → Next up 4–6)**
+1. **Spend cap at 4x the quote + a SOW choice "stop and ask me / keep going"** when the cap is exceeded. Today the cap is `high_usd x CAP_FACTOR` (~1.76x the likely quote) and `check_mission_spend_cap` always pauses; 6 of 10 blocked missions on 2026-11-23 were spend-cap stops after passing QC. Touch points: `sow_estimator.estimate_mission_cost`, `sow_store.check_mission_spend_cap`, `mission_flow_v2/phases_runtime._prepare_runtime_qc`, Chat SOW panel, mission cost panel.
+2. **Live "still working" indicator on `/missions` and `/missions/detail`**, reusing Chat's `PmThinkingIndicator` / `lib/pm-progress.ts` pattern (elapsed, time in phase, in-phase estimate, slow-phase notice, in-progress badges in lists).
+3. **App-wide footer** in `app/(shell)/layout.tsx` with a viewport-filling main column so short pages stop ending in empty black space.
+
+**Other open items worth knowing**
+- No per-launch desktop secret yet: the embedded server still uses the blanket `OPERATOR_SESSION_BYPASS`; `proxy.ts` blocks browsers (DNS rebinding / CSRF) but not other local processes.
+- The uninstaller still leaves `resources\app.asar.unpacked\.next\standalone\.next\server\route-cache` behind (cache only; delete before reinstalling).
+- The brownfield benchmark has only run offline (0/7 honest pass); behavioural-equivalence enforcement is still advisory.
+- Builder and LogicNodes are out of the sidebar (routes kept). Mission Detail links to LogicNodes when a mission has extracted nodes.
+
+**Gotchas from these sessions**
+- **Running the full backend suite while the desktop stack is up creates real, LLM-spending missions** (live data-plane tests auto-detect `127.0.0.1:8100`). Run it as `LIVE_GATEWAY_URL=http://127.0.0.1:1 LIVE_ORCHESTRATOR_URL=http://127.0.0.1:1 python -m pytest tests ...` unless live tests are wanted.
+- `pytest` exits 1 locally with 0 failures because a test writes `reports/` into the repo root (conftest pollution guard). Read the junit XML (`--junitxml=...`) and `rm -rf reports` afterwards.
+- Run the Playwright e2e suite (`npm run test:e2e` in `apps/mission-control`) after UI changes — Vitest alone missed the #706 breakage.
+- Heartbeat synthesis lives only in `heartbeat_service.py`; `main.py` re-exports it. Do not add copies back (stale copies in `main.py` were what ran until 2026-11-23).
+- npm's allow-scripts policy skips Electron's postinstall: after `npm ci`, run `node node_modules/electron/install.js` before `npm run electron:package`.
+
+**Desktop rebuild + reinstall (verified procedure)**
+1. `docker compose -f deploy/docker-compose.yaml build orchestrator api-gateway mission-control` (add `pod-a-worker protocol-bus-mcp` if they changed).
+2. Retag each `deploy-<svc>:latest` as `ghcr.io/kherrera6219/thefactory-<svc>:latest` and `:v0.1.0` (`pod-a-worker` → `thefactory-pod-worker`).
+3. `cd apps/mission-control && npm run electron:package` → `dist/installers/theFactory-MissionControl-Setup-0.1.0.exe`.
+4. Close the app, run `"%LOCALAPPDATA%\Programs\theFactory Mission Control\Uninstall theFactory Mission Control.exe" /S /currentuser` (keeps data), delete the leftover `route-cache` folder, then run the new installer with `/S /currentuser` and launch it. Confirm the containers run the new image IDs and are healthy.
+
+---
+
+## Latest session (2026-11-23) — details
 
 **COMPLETE — 2026-11-23 (later): Mission Control page-by-page review fixes and PM chat timeout.**
 - **PM chat "fallback" was a browser timeout:** `createPmFeatureContract` aborted after 30 s while a grounded, high-effort SOW takes 30–60 s (Gemini is allowed 180 s). The chat then silently substituted a Builder preview labelled "local fallback" while the real contract finished server-side seconds later. Timeouts are now aligned (gateway 220 s → Next route 230 s → browser 240 s), Chat reports a real PM failure and keeps the message instead of substituting a Builder result, and `_call_gemini` logs unparseable replies. Verified: "build me a RPG version of pac man" returned a real contract in ~35 s.
