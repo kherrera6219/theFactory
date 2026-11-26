@@ -781,10 +781,11 @@ test("mission lifecycle journey is covered from intake to live detail", async ({
   await page.getByRole("button", { name: "Launch Mission" }).click();
 
   await expect(page.getByText(/accepted and queued/i)).toBeVisible();
-  await page.getByRole("link", { name: "View Live" }).first().click();
+  await page.getByRole("link", { name: "Open", exact: true }).first().click();
 
   await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
-  await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
+  // The heading is the mission title (contract title or prompt) plus its short id.
+  await expect(page.getByRole("heading", { level: 1, name: /mission-e2e-/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mission Phase Stepper" })).toBeVisible();
 
   // Phase 2B tabbed layout: Route Provenance + CEO Delegation live in the
@@ -809,7 +810,8 @@ test("operations views render runtime and agent persona detail", async ({ page }
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "Agent Runtime Control Grid" })).toBeVisible();
   await expect(page.getByText("Total agents")).toBeVisible();
-  await expect(page.getByText(/Windowed rows:/i)).toBeVisible();
+  // All rows render (no windowing); synthesized personas are labelled as such.
+  await expect(page.getByText(/Synthesized agents are registry personas/i)).toBeVisible();
   await page.getByRole("button", { name: /Agent One PM/i }).first().click();
   await expect(page.getByRole("heading", { name: /Agent Detail - AGENT-01-PM/i })).toBeVisible();
   await expect(page.getByText(/log entries \(windowed\)/i)).toBeVisible();
@@ -835,13 +837,10 @@ test("settings and vault flows are regression covered", async ({ page }) => {
   await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.getByText(/Cleared AGENT-01-PM-API-KEY\./)).toBeVisible();
 
-  await page.getByLabel("API base URL").fill("https://example.com");
-  await page.getByRole("button", { name: "Save preferences" }).click();
-  await expect(page.getByText(/must target localhost or 127.0.0.1/i)).toBeVisible();
-
-  await page.getByLabel("API base URL").fill("http://localhost:8100");
-  await page.getByRole("button", { name: "Save preferences" }).click();
-  await expect(page.getByText("Preferences saved.")).toBeVisible();
+  // Runtime values are read-only now (the old browser-only "preferences" did
+  // nothing server-side), so assert the live runtime panel instead.
+  await expect(page.getByText("Agent topology")).toBeVisible();
+  await expect(page.getByText("Knowledge embeddings", { exact: true })).toBeVisible();
 });
 
 test("builder workspace generates actionable diff previews", async ({ page }) => {
@@ -938,7 +937,7 @@ test("accessibility checks pass on mission flow pages", async ({ page }) => {
   const missionsA11y = await new AxeBuilder({ page }).analyze();
   expect(missionsA11y.violations).toEqual([]);
 
-  const liveMissionLink = page.getByRole("link", { name: "View Live" }).first();
+  const liveMissionLink = page.getByRole("link", { name: "Open", exact: true }).first();
   await expect(liveMissionLink).toBeVisible();
   const liveMissionHref = await liveMissionLink.getAttribute("href");
   await liveMissionLink.click();
@@ -949,7 +948,7 @@ test("accessibility checks pass on mission flow pages", async ({ page }) => {
   } else {
     await expect(page).toHaveURL(/\/missions\/[^/]+$/);
   }
-  await expect(page.getByRole("heading", { name: /^Mission mission-/i })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /mission-/i })).toBeVisible();
 
   const detailA11y = await new AxeBuilder({ page }).analyze();
   expect(detailA11y.violations).toEqual([]);

@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.11.23
-Last updated: 2026-11-23
+Document version: 2026.11.25
+Last updated: 2026-11-25
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,8 @@ as current work.
 ---
 
 ## Current Status
+
+**Start here:** `docs/HANDOFF_CURRENT.md` → "Start here (2026-11-25)" has the current state, the three queued next-update items, gotchas, and the desktop rebuild procedure. CI e2e breakage from #706 fixed in #710.
 
 **COMPLETE — 2026-11-23 (later): Mission Control page-by-page review fixes and PM chat timeout.**
 - **PM chat "fallback" was a browser timeout:** `createPmFeatureContract` aborted after 30 s while a grounded, high-effort SOW takes 30–60 s (Gemini is allowed 180 s). The chat then silently substituted a Builder preview labelled "local fallback" while the real contract finished server-side seconds later. Timeouts are now aligned (gateway 220 s → Next route 230 s → browser 240 s), Chat reports a real PM failure and keeps the message instead of substituting a Builder result, and `_call_gemini` logs unparseable replies. Verified: "build me a RPG version of pac man" returned a real contract in ~35 s.

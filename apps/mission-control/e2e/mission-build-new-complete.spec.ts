@@ -140,7 +140,7 @@ test("mission-build-new-complete E2E flow", async ({ page }) => {
   // Transition mock state to RUNNING then COMPLETE for E2E detail page checks
   missionState = "COMPLETE";
 
-  await page.getByRole("link", { name: "View Live" }).first().click();
+  await page.getByRole("link", { name: "Open", exact: true }).first().click();
 
   // Detail verification
   await expect(page).toHaveURL(new RegExp(`/missions/detail\\?id=${missionId}`));
